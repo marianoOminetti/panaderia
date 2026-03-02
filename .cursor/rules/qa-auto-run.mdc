@@ -1,0 +1,14 @@
+---
+description: Ejecutar qa-senior automáticamente tras cambios de código para detectar bugs
+alwaysApply: true
+---
+
+# QA automático
+
+Después de **cualquier cambio de código** (edits, fixes, nuevas features):
+
+1. Invocá el subagente **qa-senior** para revisar los cambios.
+2. Si detecta bugs, priorizá los críticos y corregilos antes de dar por terminada la tarea.
+3. Si no hay bugs, no hace falta reportar; seguí con lo que el usuario pidió.
+
+Ejecutá qa-senior de forma proactiva — no esperes a que el usuario pida revisión.

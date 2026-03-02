@@ -1,10 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
 
-const supabase = createClient(
-  process.env.REACT_APP_SUPABASE_URL || "https://clgxrxlccjjqxzvapfav.supabase.co",
-  process.env.REACT_APP_SUPABASE_ANON_KEY || "sb_publishable__Kgzp453lSnVoHc7A_ZEhg_CvZ6Mo2D"
-);
+const SUPABASE_URL = process.env.REACT_APP_SUPABASE_URL;
+const SUPABASE_ANON_KEY = process.env.REACT_APP_SUPABASE_ANON_KEY;
+const SUPABASE_CONFIG_OK = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
+
+// Importante: sin fallbacks hardcodeados. Si faltan envs, mostramos pantalla de configuración.
+const supabase = createClient(SUPABASE_URL || "", SUPABASE_ANON_KEY || "");
 
 // ─── INSUMOS INICIALES (del Excel) ───────────────────────────────────────────
 const INSUMOS_SEED = [
@@ -63,20 +65,21 @@ const styles = `
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
   :root {
-    --cream: #FAF7F2;
+    --cream: #F8F5FC;
     --warm-white: #FFFFFF;
-    --brown-dark: #2C1A0E;
-    --brown-mid: #6B3F1F;
-    --brown-light: #C8A97E;
-    --accent: #E8562A;
-    --accent-soft: #F5906A;
+    --purple-dark: #7B5BA8;
+    --purple: #A98ED2;
+    --purple-light: #C4B0E0;
+    --accent: #8B6BB8;
+    --accent-soft: #B89DD4;
+    --danger: #D64545;
     --green: #4A7C59;
     --surface: #FFFFFF;
-    --border: #EDE8E0;
+    --border: #E8E0F0;
     --text: #2C1A0E;
-    --text-muted: #8B7355;
-    --shadow: 0 2px 12px rgba(44,26,14,0.08);
-    --shadow-lg: 0 8px 32px rgba(44,26,14,0.12);
+    --text-muted: #6B5B7B;
+    --shadow: 0 2px 12px rgba(123,91,168,0.08);
+    --shadow-lg: 0 8px 32px rgba(123,91,168,0.12);
   }
 
   body { font-family: 'DM Sans', sans-serif; background: var(--cream); color: var(--text); }
@@ -84,16 +87,18 @@ const styles = `
   .app { max-width: 430px; margin: 0 auto; min-height: 100vh; background: var(--cream); position: relative; padding-bottom: 80px; }
 
   /* Header */
-  .header { background: var(--brown-dark); padding: 20px 20px 16px; position: sticky; top: 0; z-index: 100; }
-  .header-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
-  .header h1 { font-family: 'Fraunces', serif; font-size: 22px; color: var(--cream); letter-spacing: -0.5px; }
-  .header-subtitle { font-size: 11px; color: var(--brown-light); letter-spacing: 2px; text-transform: uppercase; }
-  .header-badge { background: var(--accent); color: white; font-size: 10px; font-weight: 500; padding: 3px 8px; border-radius: 20px; letter-spacing: 0.5px; }
+  .header { background: var(--purple-dark); padding: 16px 20px 14px; position: sticky; top: 0; z-index: 100; }
+  .header-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+  .header h1 { font-family: 'Fraunces', serif; font-size: 22px; color: white; letter-spacing: -0.5px; }
+  .header-subtitle { font-size: 11px; color: var(--purple-light); letter-spacing: 1.5px; }
+  .header-badge { background: white; color: var(--purple-dark); font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: 20px; letter-spacing: 0.5px; }
+  .header-contact { font-size: 11px; color: white; display: flex; align-items: center; gap: 6px; margin-top: 4px; }
+  .header-contact a { color: white; text-decoration: none; }
 
   /* Nav */
-  .nav { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 430px; background: var(--brown-dark); display: flex; border-top: 1px solid rgba(200,169,126,0.2); z-index: 100; }
-  .nav-btn { flex: 1; padding: 10px 4px 12px; display: flex; flex-direction: column; align-items: center; gap: 3px; background: none; border: none; cursor: pointer; color: var(--text-muted); transition: color 0.2s; }
-  .nav-btn.active { color: var(--brown-light); }
+  .nav { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 430px; background: var(--purple-dark); display: flex; border-top: 1px solid rgba(196,176,224,0.3); z-index: 100; }
+  .nav-btn { flex: 1; padding: 10px 4px 12px; display: flex; flex-direction: column; align-items: center; gap: 3px; background: none; border: none; cursor: pointer; color: rgba(255,255,255,0.7); transition: color 0.2s; }
+  .nav-btn.active { color: var(--purple-light); }
   .nav-btn .nav-icon { font-size: 20px; }
   .nav-btn .nav-label { font-size: 9px; letter-spacing: 0.8px; text-transform: uppercase; font-family: 'DM Sans', sans-serif; color: inherit; }
 
@@ -101,18 +106,18 @@ const styles = `
   .content { padding: 16px; }
 
   /* Page title */
-  .page-title { font-family: 'Fraunces', serif; font-size: 26px; color: var(--brown-dark); margin-bottom: 4px; }
+  .page-title { font-family: 'Fraunces', serif; font-size: 26px; color: var(--purple-dark); margin-bottom: 4px; }
   .page-subtitle { font-size: 13px; color: var(--text-muted); margin-bottom: 20px; }
 
   /* Cards */
   .card { background: var(--surface); border-radius: 16px; padding: 16px; margin-bottom: 12px; box-shadow: var(--shadow); border: 1px solid var(--border); }
   .card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
-  .card-title { font-family: 'Fraunces', serif; font-size: 16px; color: var(--brown-dark); }
+  .card-title { font-family: 'Fraunces', serif; font-size: 16px; color: var(--purple-dark); }
 
   /* Stats row */
   .stats-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
   .stat-card { background: var(--surface); border-radius: 14px; padding: 14px; box-shadow: var(--shadow); border: 1px solid var(--border); }
-  .dashboard-metrics { background: linear-gradient(135deg, var(--brown-dark) 0%, var(--brown-mid) 100%); border-radius: 16px; padding: 20px; margin-bottom: 16px; color: var(--cream); }
+  .dashboard-metrics { background: linear-gradient(135deg, var(--purple-dark) 0%, var(--purple) 100%); border-radius: 16px; padding: 20px; margin-bottom: 16px; color: white; }
   .dashboard-metric-main { margin-bottom: 12px; }
   .dashboard-metric-label { font-size: 11px; opacity: 0.8; letter-spacing: 1px; text-transform: uppercase; }
   .dashboard-metric-value { font-family: 'Fraunces', serif; font-size: 28px; font-weight: 700; }
@@ -125,27 +130,27 @@ const styles = `
   .dashboard-quick:hover { background: var(--surface); }
   .dashboard-quick-icon { font-size: 28px; }
   .dashboard-quick-text { flex: 1; }
-  .dashboard-quick-label { font-weight: 600; font-size: 15px; color: var(--brown-dark); display: block; }
+  .dashboard-quick-label { font-weight: 600; font-size: 15px; color: var(--purple-dark); display: block; }
   .dashboard-quick-sub { font-size: 12px; color: var(--text-muted); }
-  .dashboard-quick-badge { background: var(--accent); color: white; font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 20px; }
+  .dashboard-quick-badge { background: var(--purple); color: white; font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 20px; }
   .dashboard-alert { border-left: 4px solid var(--accent); cursor: pointer; }
   .card-link { background: none; border: none; font-size: 12px; color: var(--accent); cursor: pointer; padding: 0; font-family: inherit; }
   .stat-label { font-size: 10px; color: var(--text-muted); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 4px; }
-  .stat-value { font-family: 'Fraunces', serif; font-size: 22px; color: var(--brown-dark); }
+  .stat-value { font-family: 'Fraunces', serif; font-size: 22px; color: var(--purple-dark); }
   .stat-value.accent { color: var(--accent); }
   .stat-value.green { color: var(--green); }
 
   /* Search */
   .search-bar { position: relative; margin-bottom: 16px; }
   .search-bar input { width: 100%; padding: 12px 16px 12px 40px; border: 1px solid var(--border); border-radius: 12px; font-family: 'DM Sans', sans-serif; font-size: 14px; background: var(--surface); color: var(--text); outline: none; transition: border-color 0.2s; }
-  .search-bar input:focus { border-color: var(--brown-light); }
+  .search-bar input:focus { border-color: var(--purple); }
   .search-icon { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); font-size: 16px; }
 
   /* Category tabs */
   .cat-tabs { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 16px; scrollbar-width: none; }
   .cat-tabs::-webkit-scrollbar { display: none; }
   .cat-tab { flex-shrink: 0; padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 500; border: none; cursor: pointer; transition: all 0.2s; background: var(--surface); color: var(--text-muted); border: 1px solid var(--border); }
-  .cat-tab.active { background: var(--brown-dark); color: var(--cream); border-color: var(--brown-dark); }
+  .cat-tab.active { background: var(--purple-dark); color: white; border-color: var(--purple-dark); }
 
   /* Insumo item */
   .insumo-item { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border); }
@@ -155,64 +160,79 @@ const styles = `
   .insumo-nombre { font-size: 14px; font-weight: 500; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .insumo-detalle { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
   .insumo-precio { text-align: right; flex-shrink: 0; }
-  .insumo-precio-value { font-family: 'Fraunces', serif; font-size: 15px; color: var(--brown-dark); }
+  .insumo-precio-value { font-family: 'Fraunces', serif; font-size: 15px; color: var(--purple-dark); }
   .insumo-precio-unit { font-size: 10px; color: var(--text-muted); }
   .edit-btn { background: none; border: 1px solid var(--border); border-radius: 8px; padding: 5px 8px; font-size: 12px; cursor: pointer; color: var(--text-muted); transition: all 0.2s; }
-  .edit-btn:hover { border-color: var(--brown-light); color: var(--brown-mid); }
+  .edit-btn:hover { border-color: var(--purple); color: var(--purple-dark); }
 
   /* FAB */
-  .fab { position: fixed; bottom: 90px; right: 20px; width: 52px; height: 52px; border-radius: 50%; background: var(--accent); border: none; color: white; font-size: 24px; cursor: pointer; box-shadow: 0 4px 20px rgba(232,86,42,0.4); display: flex; align-items: center; justify-content: center; transition: transform 0.2s; z-index: 99; }
+  .fab { position: fixed; bottom: 90px; right: 20px; width: 52px; height: 52px; border-radius: 50%; background: var(--purple); border: none; color: white; font-size: 24px; cursor: pointer; box-shadow: 0 4px 20px rgba(169,142,210,0.4); display: flex; align-items: center; justify-content: center; transition: transform 0.2s; z-index: 99; }
   .fab:active { transform: scale(0.95); }
   .fab-receta { padding: 0 20px; width: auto; border-radius: 26px; gap: 8px; font-size: 14px; font-weight: 500; font-family: 'DM Sans', sans-serif; }
 
   /* Modal */
-  .modal-overlay { position: fixed; inset: 0; background: rgba(44,26,14,0.5); z-index: 200; display: flex; align-items: flex-end; }
+  .modal-overlay { position: fixed; inset: 0; background: rgba(123,91,168,0.4); z-index: 200; display: flex; align-items: flex-end; }
   .modal { background: var(--surface); border-radius: 24px 24px 0 0; padding: 24px; width: 100%; max-height: 85vh; overflow-y: auto; }
   .screen-overlay { position: fixed; inset: 0; background: var(--cream); z-index: 200; display: flex; flex-direction: column; overflow: hidden; }
   .screen-header { display: flex; align-items: center; gap: 12px; padding: 16px 20px; background: var(--surface); border-bottom: 1px solid var(--border); }
-  .screen-back { background: none; border: none; font-size: 24px; cursor: pointer; color: var(--brown-dark); padding: 4px; }
-  .screen-title { font-family: 'Fraunces', serif; font-size: 18px; color: var(--brown-dark); }
+  .screen-back { background: none; border: none; font-size: 15px; cursor: pointer; color: var(--purple-dark); padding: 4px 0; font-family: inherit; }
+  .screen-title { font-family: 'Fraunces', serif; font-size: 18px; color: var(--purple-dark); }
   .screen-content { flex: 1; overflow-y: auto; padding: 16px; }
-  .modal-title { font-family: 'Fraunces', serif; font-size: 20px; color: var(--brown-dark); margin-bottom: 20px; }
+  .modal-title { font-family: 'Fraunces', serif; font-size: 20px; color: var(--purple-dark); margin-bottom: 20px; }
   .modal-close { float: right; background: none; border: none; font-size: 20px; cursor: pointer; color: var(--text-muted); }
 
   /* Form */
   .form-group { margin-bottom: 14px; }
   .form-label { font-size: 11px; color: var(--text-muted); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px; display: block; }
   .form-input { width: 100%; padding: 11px 14px; border: 1px solid var(--border); border-radius: 10px; font-family: 'DM Sans', sans-serif; font-size: 14px; color: var(--text); background: var(--cream); outline: none; transition: border-color 0.2s; }
-  .form-input:focus { border-color: var(--brown-light); background: white; }
+  .form-input:focus { border-color: var(--purple); background: white; }
   .form-select { width: 100%; padding: 11px 14px; border: 1px solid var(--border); border-radius: 10px; font-family: 'DM Sans', sans-serif; font-size: 14px; color: var(--text); background: var(--cream); outline: none; }
   .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 
   /* Buttons */
-  .btn-primary { width: 100%; padding: 14px; background: var(--brown-dark); color: var(--cream); border: none; border-radius: 12px; font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 500; cursor: pointer; transition: background 0.2s; }
-  .btn-primary:hover { background: var(--brown-mid); }
+  .btn-primary { width: 100%; padding: 14px; background: var(--purple-dark); color: white; border: none; border-radius: 12px; font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 500; cursor: pointer; transition: background 0.2s; }
+  .btn-primary:hover { background: var(--purple); }
   .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
   .btn-secondary { width: 100%; padding: 12px; background: transparent; color: var(--text-muted); border: 1px solid var(--border); border-radius: 12px; font-family: 'DM Sans', sans-serif; font-size: 14px; cursor: pointer; margin-top: 8px; }
-  .btn-danger { width: 100%; padding: 12px; background: transparent; color: var(--accent); border: 1px solid var(--accent); border-radius: 12px; font-family: 'DM Sans', sans-serif; font-size: 14px; cursor: pointer; margin-top: 8px; }
+  .btn-danger { width: 100%; padding: 12px; background: transparent; color: var(--danger); border: 1px solid var(--danger); border-radius: 12px; font-family: 'DM Sans', sans-serif; font-size: 14px; cursor: pointer; margin-top: 8px; }
 
   /* Receta card */
   .receta-card { background: var(--surface); border-radius: 16px; padding: 16px; margin-bottom: 10px; box-shadow: var(--shadow); border: 1px solid var(--border); cursor: pointer; transition: transform 0.15s; }
   .receta-card:active { transform: scale(0.99); }
   .receta-top { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
   .receta-emoji { font-size: 28px; }
-  .receta-nombre { font-family: 'Fraunces', serif; font-size: 17px; color: var(--brown-dark); }
+  .receta-nombre { font-family: 'Fraunces', serif; font-size: 17px; color: var(--purple-dark); }
   .receta-rinde { font-size: 12px; color: var(--text-muted); }
   .receta-stats { display: flex; justify-content: space-between; padding-top: 10px; border-top: 1px solid var(--border); }
   .receta-stat { text-align: center; }
   .receta-stat-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.8px; }
-  .receta-stat-value { font-family: 'Fraunces', serif; font-size: 15px; color: var(--brown-dark); margin-top: 2px; }
+  .receta-stat-value { font-family: 'Fraunces', serif; font-size: 15px; color: var(--purple-dark); margin-top: 2px; }
   .receta-stat-value.verde { color: var(--green); }
-  .receta-stat-value.rojo { color: var(--accent); }
+  .receta-stat-value.rojo { color: var(--danger); }
 
   /* Toast */
-  .toast { position: fixed; top: 80px; left: 50%; transform: translateX(-50%); background: var(--brown-dark); color: var(--cream); padding: 10px 20px; border-radius: 20px; font-size: 13px; z-index: 300; animation: slideDown 0.3s ease; }
+  .toast { position: fixed; top: 80px; left: 50%; transform: translateX(-50%); background: var(--purple-dark); color: white; padding: 10px 20px; border-radius: 20px; font-size: 13px; z-index: 300; animation: slideDown 0.3s ease; }
   @keyframes slideDown { from { opacity: 0; transform: translateX(-50%) translateY(-10px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
 
   /* Loading */
   .loading { display: flex; align-items: center; justify-content: center; padding: 40px; gap: 8px; color: var(--text-muted); font-size: 14px; }
-  .spinner { width: 20px; height: 20px; border: 2px solid var(--border); border-top-color: var(--brown-light); border-radius: 50%; animation: spin 0.8s linear infinite; }
+  .spinner { width: 20px; height: 20px; border: 2px solid var(--border); border-top-color: var(--purple); border-radius: 50%; animation: spin 0.8s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Auth */
+  .auth-screen { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; background: linear-gradient(180deg, var(--purple-dark) 0%, var(--cream) 40%); }
+  .auth-card { background: var(--surface); border-radius: 20px; padding: 28px; width: 100%; max-width: 360px; box-shadow: var(--shadow-lg); border: 1px solid var(--border); }
+  .auth-title { font-family: 'Fraunces', serif; font-size: 24px; color: var(--purple-dark); margin-bottom: 8px; text-align: center; }
+  .auth-subtitle { font-size: 13px; color: var(--text-muted); text-align: center; margin-bottom: 24px; }
+  .auth-form input { width: 100%; padding: 12px 16px; border: 1px solid var(--border); border-radius: 12px; font-size: 14px; font-family: inherit; margin-bottom: 12px; box-sizing: border-box; }
+  .auth-form input:focus { outline: none; border-color: var(--purple); }
+  .auth-form input::placeholder { color: var(--text-muted); }
+  .auth-btn { width: 100%; padding: 14px; border: none; border-radius: 12px; font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit; margin-top: 8px; }
+  .auth-btn-primary { background: var(--purple-dark); color: white; }
+  .auth-btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+  .auth-error { font-size: 12px; color: var(--danger); margin-top: 8px; text-align: center; }
+  .auth-logout { background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.4); padding: 6px 12px; border-radius: 8px; font-size: 11px; cursor: pointer; margin-left: 8px; }
+  .auth-logout:hover { background: rgba(255,255,255,0.3); }
 
   /* Empty state */
   .empty { text-align: center; padding: 40px 20px; color: var(--text-muted); }
@@ -230,11 +250,11 @@ const styles = `
   .venta-grupo-cliente { font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 8px; }
   .venta-card { margin-bottom: 12px; }
   .venta-card:last-child { margin-bottom: 0; }
-  .venta-grupo-total { font-family: 'Fraunces', serif; font-size: 15px; color: var(--brown-dark); font-weight: 600; text-align: right; margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border); }
+  .venta-grupo-total { font-family: 'Fraunces', serif; font-size: 15px; color: var(--purple-dark); font-weight: 600; text-align: right; margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border); }
   .venta-grupo-actions { display: flex; gap: 8px; margin-top: 8px; justify-content: flex-end; }
   .btn-venta-action { font-size: 12px; padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--cream); color: var(--text-muted); cursor: pointer; }
   .btn-venta-action:hover { background: var(--border); }
-  .btn-venta-delete { color: var(--accent); border-color: rgba(232,86,42,0.3); }
+  .btn-venta-delete { color: var(--danger); border-color: rgba(214,69,69,0.4); }
   .venta-emoji { font-size: 22px; }
   .venta-info { flex: 1; }
   .venta-nombre { font-size: 14px; font-weight: 500; }
@@ -242,17 +262,17 @@ const styles = `
   .venta-monto { font-family: 'Fraunces', serif; font-size: 16px; color: var(--green); }
 
   /* QR scanner placeholder */
-  .qr-area { background: var(--brown-dark); border-radius: 20px; padding: 40px 20px; text-align: center; margin-bottom: 16px; }
+  .qr-area { background: var(--purple-dark); border-radius: 20px; padding: 40px 20px; text-align: center; margin-bottom: 16px; }
   .qr-icon { font-size: 56px; margin-bottom: 12px; }
-  .qr-text { color: var(--brown-light); font-size: 14px; }
-  .qr-btn { background: var(--accent); color: white; border: none; border-radius: 12px; padding: 14px 32px; font-size: 16px; font-weight: 500; cursor: pointer; margin-top: 16px; font-family: 'DM Sans', sans-serif; }
+  .qr-text { color: var(--purple-light); font-size: 14px; }
+  .qr-btn { background: var(--purple); color: white; border: none; border-radius: 12px; padding: 14px 32px; font-size: 16px; font-weight: 500; cursor: pointer; margin-top: 16px; font-family: 'DM Sans', sans-serif; }
 
   /* Voice input */
   .voice-row { display: flex; gap: 12px; align-items: stretch; margin-bottom: 16px; }
-  .voice-area { flex: 1; background: var(--brown-dark); border-radius: 20px; padding: 24px 20px; text-align: center; }
+  .voice-area { flex: 1; background: var(--purple-dark); border-radius: 20px; padding: 24px 20px; text-align: center; }
   .voice-icon { font-size: 40px; margin-bottom: 8px; }
-  .voice-text { color: var(--brown-light); font-size: 13px; }
-  .voice-btn { background: var(--accent); color: white; border: none; border-radius: 12px; padding: 14px 24px; font-size: 15px; font-weight: 500; cursor: pointer; font-family: 'DM Sans', sans-serif; white-space: nowrap; }
+  .voice-text { color: var(--purple-light); font-size: 13px; }
+  .voice-btn { background: var(--purple); color: white; border: none; border-radius: 12px; padding: 14px 24px; font-size: 15px; font-weight: 500; cursor: pointer; font-family: 'DM Sans', sans-serif; white-space: nowrap; }
   .voice-btn.listening { background: var(--green); animation: pulse 1.5s ease infinite; }
   @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.85; } }
   .voice-transcript { font-size: 12px; color: var(--text-muted); margin-top: 8px; font-style: italic; max-height: 40px; overflow: hidden; text-overflow: ellipsis; }
@@ -454,6 +474,69 @@ function Toast({ msg, onDone }) {
   return <div className="toast">{msg}</div>;
 }
 
+// ── AUTH ─────────────────────────────────────────────────────────────────────
+function ConfigMissing() {
+  return (
+    <div className="auth-screen">
+      <div className="auth-card">
+        <h1 className="auth-title">🌾 Panadería SG</h1>
+        <p className="auth-subtitle" style={{ marginBottom: 14 }}>
+          Falta configuración de Supabase.
+        </p>
+        <div style={{ fontSize: 13, color: "var(--text-muted)", lineHeight: 1.45 }}>
+          <div style={{ marginBottom: 10 }}>
+            Definí estas variables de entorno y reiniciá el server:
+          </div>
+          <div style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, \"Liberation Mono\", \"Courier New\", monospace", fontSize: 12, background: "var(--cream)", border: "1px solid var(--border)", padding: 12, borderRadius: 12 }}>
+            REACT_APP_SUPABASE_URL<br />
+            REACT_APP_SUPABASE_ANON_KEY
+          </div>
+          <div style={{ marginTop: 12 }}>
+            En local: usá <code>.env.development.local</code>. En hosting: configurá las env vars del proyecto.
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AuthScreen() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+    try {
+      const { error: err } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+      if (err) throw err;
+    } catch (err) {
+      setError(err?.message || "Error al iniciar sesión");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="auth-screen">
+      <div className="auth-card">
+        <h1 className="auth-title">🌾 Panadería SG</h1>
+        <form className="auth-form" onSubmit={handleSubmit}>
+          <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} required autoComplete="email" />
+          <input type="password" placeholder="Contraseña" value={password} onChange={e => setPassword(e.target.value)} required autoComplete="current-password" />
+          <button type="submit" className="auth-btn auth-btn-primary" disabled={loading}>
+            {loading ? "..." : "Entrar"}
+          </button>
+        </form>
+        {error && <p className="auth-error">{error}</p>}
+      </div>
+    </div>
+  );
+}
+
 // ── DASHBOARD ────────────────────────────────────────────────────────────────
 function Dashboard({ insumos, recetas, ventas, clientes, stock, onNavigate }) {
   const hoy = new Date().toISOString().split("T")[0];
@@ -610,6 +693,7 @@ function Insumos({ insumos, insumoStock, insumoMovimientos, registrarMovimientoI
       await registrarMovimientoInsumo(movInsumo.id, movTipo, cant, movValor ? parseFloat(movValor) : null);
       showToast(movTipo === "ingreso" ? `✅ +${cant} ${movInsumo.nombre}` : `✅ Egreso: -${cant} ${movInsumo.nombre}`);
       setMovModal(false);
+      onRefresh();
     } catch {
       showToast("⚠️ Error al registrar movimiento");
     } finally {
@@ -648,16 +732,17 @@ function Insumos({ insumos, insumoStock, insumoMovimientos, registrarMovimientoI
         ) : filtrados.map(i => {
           const stock = (insumoStock || {})[i.id] ?? 0;
           const unidad = i.unidad || "g";
+          const stockNegativo = Number(stock) < 0;
           return (
             <div key={i.id} className="insumo-item">
               <div className="insumo-dot" style={{ background: CAT_COLORS[i.categoria] || "#ccc" }} />
               <div className="insumo-info" style={{ flex: 1 }}>
                 <div className="insumo-nombre">{i.nombre}</div>
-                <div className="insumo-detalle">{i.presentacion} · <span className="chip">{precioPorU(i)}</span> · Stock: {stock} {unidad}</div>
+                <div className="insumo-detalle">{i.presentacion} · <span className="chip">{precioPorU(i)}</span> · Stock: <span style={{ color: stockNegativo ? "var(--danger)" : undefined, fontWeight: stockNegativo ? 600 : undefined }}>{stock} {unidad}</span></div>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <button className="edit-btn" onClick={() => openMov(i, "ingreso")} title="Ingreso">+</button>
-                <button className="edit-btn" onClick={() => openMov(i, "egreso")} title="Egreso" style={{ color: "var(--accent)" }}>−</button>
+                <button className="edit-btn" onClick={() => openMov(i, "egreso")} title="Egreso" style={{ color: "var(--danger)" }}>−</button>
                 <button className="edit-btn" onClick={() => openEdit(i)}>✏️</button>
               </div>
               <div className="insumo-precio" style={{ marginLeft: 8 }}>
@@ -675,14 +760,14 @@ function Insumos({ insumos, insumoStock, insumoMovimientos, registrarMovimientoI
             const ins = insumosMap[m.insumo_id];
             const esEgreso = m.tipo === "egreso";
             return (
-              <div key={m.id} className="insumo-item" style={{ borderLeft: esEgreso ? "4px solid var(--accent)" : "4px solid var(--green)", paddingLeft: 12 }}>
+              <div key={m.id} className="insumo-item" style={{ borderLeft: esEgreso ? "4px solid var(--danger)" : "4px solid var(--green)", paddingLeft: 12 }}>
                 <div style={{ flex: 1 }}>
-                  <div className="insumo-nombre" style={{ color: esEgreso ? "var(--accent)" : "inherit" }}>
+                  <div className="insumo-nombre" style={{ color: esEgreso ? "var(--danger)" : "inherit" }}>
                     {esEgreso ? "−" : "+"}{m.cantidad} {ins?.nombre || "?"} {esEgreso ? "(egreso)" : "(ingreso)"}
                   </div>
                   <div className="insumo-detalle">
                     {new Date(m.created_at).toLocaleString("es-AR")}
-                    {m.valor != null && m.valor > 0 && ` · $${fmt(m.valor)}`}
+                    {m.valor != null && m.valor > 0 && ` · ${fmt(m.valor)}`}
                   </div>
                 </div>
               </div>
@@ -694,10 +779,12 @@ function Insumos({ insumos, insumoStock, insumoMovimientos, registrarMovimientoI
       <button className="fab" onClick={openNew}>+</button>
 
       {movModal && movInsumo && (
-        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setMovModal(false)}>
-          <div className="modal">
-            <button className="modal-close" onClick={() => setMovModal(false)}>✕</button>
-            <h2 className="modal-title">{movTipo === "ingreso" ? "📥 Ingreso" : "📤 Egreso"} · {movInsumo.nombre}</h2>
+        <div className="screen-overlay">
+          <div className="screen-header">
+            <button className="screen-back" onClick={() => setMovModal(false)}>← Volver</button>
+            <span className="screen-title">{movTipo === "ingreso" ? "📥 Ingreso" : "📤 Egreso"} · {movInsumo.nombre}</span>
+          </div>
+          <div className="screen-content">
             <div className="form-group">
               <label className="form-label">Cantidad ({movInsumo.unidad || "g"})</label>
               <input className="form-input" type="number" min="0" step="any" value={movCantidad} onChange={e => setMovCantidad(e.target.value)} placeholder="Ej: 500" />
@@ -715,10 +802,12 @@ function Insumos({ insumos, insumoStock, insumoMovimientos, registrarMovimientoI
       )}
 
       {modal && (
-        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setModal(false)}>
-          <div className="modal">
-            <button className="modal-close" onClick={() => setModal(false)}>✕</button>
-            <h2 className="modal-title">{editando ? "Editar insumo" : "Nuevo insumo"}</h2>
+        <div className="screen-overlay">
+          <div className="screen-header">
+            <button className="screen-back" onClick={() => setModal(false)}>← Volver</button>
+            <span className="screen-title">{editando ? "Editar insumo" : "Nuevo insumo"}</span>
+          </div>
+          <div className="screen-content">
             <div className="form-group">
               <label className="form-label">Nombre</label>
               <input className="form-input" value={form.nombre} onChange={e => setForm({ ...form, nombre: e.target.value })} placeholder="Ej: Harina de almendras" />
@@ -910,17 +999,18 @@ function Recetas({ recetas, insumos, recetaIngredientes, showToast, onRefresh })
       </button>
 
       {modal && (
-        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && (setModal(false), setEditando(null))}>
-          <div className="modal">
-            <button className="modal-close" onClick={() => { setModal(false); setEditando(null); }}>✕</button>
-            <h2 className="modal-title">{editando ? "Editar receta" : "Nueva receta"}</h2>
-
+        <div className="screen-overlay">
+          <div className="screen-header">
+            <button className="screen-back" onClick={() => { setModal(false); setEditando(null); }}>← Volver</button>
+            <span className="screen-title">{editando ? "Editar receta" : "Nueva receta"}</span>
+          </div>
+          <div className="screen-content">
             <div className="form-group">
               <label className="form-label">Emoji</label>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 4 }}>
                 {EMOJIS.map(e => (
                   <button key={e} onClick={() => setForm({ ...form, emoji: e })}
-                    style={{ fontSize: 20, background: form.emoji === e ? "#2C1A0E" : "#FAF7F2", border: "1px solid #EDE8E0", borderRadius: 8, padding: "4px 8px", cursor: "pointer" }}>
+                    style={{ fontSize: 20, background: form.emoji === e ? "var(--purple-dark)" : "var(--cream)", border: "1px solid var(--border)", borderRadius: 8, padding: "4px 8px", cursor: "pointer", color: form.emoji === e ? "white" : "inherit" }}>
                     {e}
                   </button>
                 ))}
@@ -1075,7 +1165,10 @@ function Stock({ recetas, stock, actualizarStock, onRefresh, showToast }) {
   };
 
   const detenerRecStock = () => {
-    if (recRef.current) recRef.current.stop();
+    try { recRef.current?.abort?.(); } catch { /* ignore */ }
+    try { recRef.current?.stop?.(); } catch { /* ignore */ }
+    recRef.current = null;
+    setListening(false);
   };
 
   const cargarStockVoz = async () => {
@@ -1128,7 +1221,7 @@ function Stock({ recetas, stock, actualizarStock, onRefresh, showToast }) {
               <span style={{ fontSize: 22 }}>{r.emoji}</span>
               <div className="insumo-info" style={{ flex: 1 }}>
                 <div className="insumo-nombre">{r.nombre}</div>
-                <div className="insumo-detalle" style={{ color: bajo ? "var(--accent)" : "var(--text-muted)" }}>
+                <div className="insumo-detalle" style={{ color: bajo ? "var(--danger)" : "var(--text-muted)" }}>
                   Stock: {cant} {bajo && "· Sin stock"}
                 </div>
               </div>
@@ -1144,15 +1237,17 @@ function Stock({ recetas, stock, actualizarStock, onRefresh, showToast }) {
       </div>
 
       {voiceModal && (
-        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && (detenerRecStock(), setVoiceModal(false))}>
-          <div className="modal">
-            <button className="modal-close" onClick={() => { detenerRecStock(); setVoiceModal(false); }}>✕</button>
-            <h2 className="modal-title">🎤 Cargar stock por voz</h2>
+        <div className="screen-overlay">
+          <div className="screen-header">
+            <button className="screen-back" onClick={() => { detenerRecStock(); setVoiceModal(false); }}>← Volver</button>
+            <span className="screen-title">🎤 Cargar stock por voz</span>
+          </div>
+          <div className="screen-content">
             <p className="voice-text" style={{ marginBottom: 12 }}>Decí por ejemplo: &quot;10 brownies, 5 panes lactales&quot;</p>
             {listening && (
               <button className="voice-btn listening" onClick={detenerRecStock} style={{ marginBottom: 16 }}>Detener</button>
             )}
-            {listening && <p className="voice-transcript" style={{ color: "var(--brown-light)" }}>Escuchando…</p>}
+            {listening && <p className="voice-transcript" style={{ color: "var(--purple-light)" }}>Escuchando…</p>}
             {transcript && <p className="voice-transcript">&quot;{transcript}&quot;</p>}
             {parsedStock.length > 0 && (
               <div className="voice-parsed-list" style={{ marginTop: 12 }}>
@@ -1269,11 +1364,15 @@ function Clientes({ ventas, clientes, recetas, onRefresh, showToast }) {
         })}
       </div>
 
+      <button className="fab" onClick={openNew}>+</button>
+
       {modal && (
-        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setModal(false)}>
-          <div className="modal">
-            <button className="modal-close" onClick={() => setModal(false)}>✕</button>
-            <h2 className="modal-title">Nuevo cliente</h2>
+        <div className="screen-overlay">
+          <div className="screen-header">
+            <button className="screen-back" onClick={() => setModal(false)}>← Volver</button>
+            <span className="screen-title">Nuevo cliente</span>
+          </div>
+          <div className="screen-content">
             <div className="form-group">
               <label className="form-label">Nombre</label>
               <div style={{ display: "flex", gap: 8 }}>
@@ -1576,9 +1675,10 @@ function Ventas({ recetas, ventas, clientes, stock, actualizarStock, onRefresh, 
   };
 
   const detenerVoz = () => {
-    if (recRef.current) {
-      recRef.current.stop();
-    }
+    try { recRef.current?.abort?.(); } catch { /* ignore */ }
+    try { recRef.current?.stop?.(); } catch { /* ignore */ }
+    recRef.current = null;
+    setListening(false);
   };
 
   const registrarVentasVoz = async () => {
@@ -1666,10 +1766,12 @@ function Ventas({ recetas, ventas, clientes, stock, actualizarStock, onRefresh, 
       )}
 
       {editModalOpen && editGrupo && (
-        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setEditModalOpen(false)}>
-          <div className="modal">
-            <button className="modal-close" onClick={() => setEditModalOpen(false)}>✕</button>
-            <h2 className="modal-title">Editar venta</h2>
+        <div className="screen-overlay">
+          <div className="screen-header">
+            <button className="screen-back" onClick={() => setEditModalOpen(false)}>← Volver</button>
+            <span className="screen-title">Editar venta</span>
+          </div>
+          <div className="screen-content">
             <SelectorCliente value={editForm.cliente_id} onChange={v => setEditForm({ ...editForm, cliente_id: v })} />
             <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
               <div className="form-group" style={{ flex: 1 }}>
@@ -1734,7 +1836,7 @@ function Ventas({ recetas, ventas, clientes, stock, actualizarStock, onRefresh, 
                     <div key={idx} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: "1px solid var(--border)" }}>
                       <span style={{ flex: 1 }}>{it.receta?.emoji} {it.receta?.nombre} x{it.cantidad}</span>
                       <span style={{ color: "var(--green)", fontWeight: 500 }}>{fmt((it.receta?.precio_venta || 0) * it.cantidad)}</span>
-                      <button onClick={() => quitarProductoEnEdicion(idx)} style={{ background: "none", border: "none", color: "var(--accent)", cursor: "pointer", fontSize: 18 }} title="Quitar">✕</button>
+                      <button onClick={() => quitarProductoEnEdicion(idx)} style={{ background: "none", border: "none", color: "var(--danger)", cursor: "pointer", fontSize: 18 }} title="Quitar">✕</button>
                     </div>
                   ))}
                 </div>
@@ -1747,10 +1849,12 @@ function Ventas({ recetas, ventas, clientes, stock, actualizarStock, onRefresh, 
       )}
 
       {voiceModal && (
-        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setVoiceModal(false)}>
-          <div className="modal">
-            <button className="modal-close" onClick={() => { detenerVoz(); setVoiceModal(false); }}>✕</button>
-            <h2 className="modal-title">🎤 Venta por voz</h2>
+        <div className="screen-overlay">
+          <div className="screen-header">
+            <button className="screen-back" onClick={() => { detenerVoz(); setVoiceModal(false); }}>← Volver</button>
+            <span className="screen-title">🎤 Venta por voz</span>
+          </div>
+          <div className="screen-content">
             <SelectorCliente value={clienteSel} onChange={setClienteSel} />
             <SelectoresPago />
             <p className="voice-text" style={{ marginBottom: 12 }}>Decí por ejemplo: &quot;2 panes lactales, 2 brownies&quot;</p>
@@ -1759,7 +1863,7 @@ function Ventas({ recetas, ventas, clientes, stock, actualizarStock, onRefresh, 
                 Detener
               </button>
             )}
-            {listening && <p className="voice-transcript" style={{ color: "var(--brown-light)" }}>Escuchando…</p>}
+            {listening && <p className="voice-transcript" style={{ color: "var(--purple-light)" }}>Escuchando…</p>}
             {transcript && <p className="voice-transcript">&quot;{transcript}&quot;</p>}
             {parsedVentas.length > 0 && (
               <div className="voice-parsed-list">
@@ -1810,7 +1914,7 @@ function Ventas({ recetas, ventas, clientes, stock, actualizarStock, onRefresh, 
       {manualScreenOpen && (
         <div className="screen-overlay">
           <div className="screen-header">
-            <button className="screen-back" onClick={closeManualScreen}>←</button>
+            <button className="screen-back" onClick={closeManualScreen}>← Volver</button>
             <span className="screen-title">Registro manual</span>
           </div>
           <div className="screen-content">
@@ -1841,10 +1945,12 @@ function Ventas({ recetas, ventas, clientes, stock, actualizarStock, onRefresh, 
       )}
 
       {modal && recetaSel && (
-        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setModal(false)}>
-          <div className="modal">
-            <button className="modal-close" onClick={() => setModal(false)}>✕</button>
-            <h2 className="modal-title">{recetaSel.emoji} {recetaSel.nombre}</h2>
+        <div className="screen-overlay">
+          <div className="screen-header">
+            <button className="screen-back" onClick={() => setModal(false)}>← Volver</button>
+            <span className="screen-title">{recetaSel.emoji} {recetaSel.nombre}</span>
+          </div>
+          <div className="screen-content">
             <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 12 }}>Stock: {(stock || {})[recetaSel.id] ?? 0}</div>
             <SelectorCliente value={clienteSel} onChange={setClienteSel} />
             <SelectoresPago />
@@ -1853,7 +1959,7 @@ function Ventas({ recetas, ventas, clientes, stock, actualizarStock, onRefresh, 
               <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 20 }}>
                 <button onClick={() => setCantidad(Math.max(1, cantidad - 1))}
                   style={{ width: 44, height: 44, borderRadius: "50%", border: "1px solid #EDE8E0", background: "#FAF7F2", fontSize: 22, cursor: "pointer" }}>−</button>
-                <span style={{ fontFamily: "'Fraunces', serif", fontSize: 42, color: "#2C1A0E", minWidth: 60, textAlign: "center" }}>{cantidad}</span>
+                <span style={{ fontFamily: "'Fraunces', serif", fontSize: 42, color: "var(--purple-dark)", minWidth: 60, textAlign: "center" }}>{cantidad}</span>
                 <button onClick={() => setCantidad(cantidad + 1)}
                   style={{ width: 44, height: 44, borderRadius: "50%", border: "1px solid #EDE8E0", background: "#FAF7F2", fontSize: 22, cursor: "pointer" }}>+</button>
               </div>
@@ -1874,6 +1980,8 @@ function Ventas({ recetas, ventas, clientes, stock, actualizarStock, onRefresh, 
 
 // ── APP ROOT ─────────────────────────────────────────────────────────────────
 export default function App() {
+  const [session, setSession] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
   const [tab, setTab] = useState("dashboard");
   const [insumos, setInsumos] = useState([]);
   const [recetas, setRecetas] = useState([]);
@@ -1889,6 +1997,17 @@ export default function App() {
   const [stock, setStock] = useState({});
   const [insumoStock, setInsumoStock] = useState({});
   const [insumoMovimientos, setInsumoMovimientos] = useState([]);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session: s } }) => {
+      setSession(s);
+      setAuthLoading(false);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => {
+      setSession(s);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
 
   const loadData = useCallback(async () => {
     const stPromise = supabase.from("stock").select("receta_id, cantidad")
@@ -1911,6 +2030,13 @@ export default function App() {
       insStPromise,
       insMovPromise
     ]);
+    const authErr = (e) => e && (e.status === 401 || e.status === 403);
+    if ([insRes.error, recRes.error, venRes.error, riRes.error, cliRes.error].some(authErr)) {
+      showToast("🔒 Sesión expirada o sin permisos. Volvé a iniciar sesión.");
+      await supabase.auth.signOut();
+      setLoading(false);
+      return;
+    }
     if (insRes.error) showToast("⚠️ Error al cargar insumos");
     if (recRes.error) showToast("⚠️ Error al cargar recetas");
     if (venRes.error) showToast("⚠️ Error al cargar ventas");
@@ -1947,7 +2073,10 @@ export default function App() {
     }
   }, [seeded]);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  useEffect(() => {
+    if (session) loadData();
+    else setLoading(false);
+  }, [session, loadData]);
 
   const actualizarStock = useCallback(async (receta_id, delta) => {
     let nuevo;
@@ -1966,8 +2095,10 @@ export default function App() {
   const registrarMovimientoInsumo = useCallback(async (insumo_id, tipo, cantidad, valor) => {
     const delta = tipo === "ingreso" ? cantidad : -cantidad;
     let nuevo;
+    let previo;
     setInsumoStock(prev => {
       const actual = prev[insumo_id] ?? 0;
+      previo = actual;
       nuevo = actual + delta;
       return { ...prev, [insumo_id]: nuevo };
     });
@@ -1977,7 +2108,12 @@ export default function App() {
       throw errStock;
     }
     const { data: mov, error: errMov } = await supabase.from("insumo_movimientos").insert({ insumo_id, tipo, cantidad, valor: valor || null }).select("id, insumo_id, tipo, cantidad, valor, created_at").single();
-    if (errMov) throw errMov;
+    if (errMov) {
+      // Compensación: si falla el movimiento, revertimos el stock (estado + DB)
+      setInsumoStock(prev => ({ ...prev, [insumo_id]: previo ?? (prev[insumo_id] ?? 0) - delta }));
+      await supabase.from("insumo_stock").upsert({ insumo_id, cantidad: previo ?? 0, updated_at: new Date().toISOString() }, { onConflict: "insumo_id" });
+      throw errMov;
+    }
     if (mov) setInsumoMovimientos(prev => [mov, ...prev]);
   }, []);
 
@@ -1990,6 +2126,35 @@ export default function App() {
     { id: "recetas", icon: "📋", label: "Recetas" },
   ];
 
+  if (!SUPABASE_CONFIG_OK) {
+    return (
+      <>
+        <style>{styles}</style>
+        <ConfigMissing />
+      </>
+    );
+  }
+
+  if (authLoading) {
+    return (
+      <>
+        <style>{styles}</style>
+        <div className="app" style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh" }}>
+          <div className="loading"><div className="spinner" /><span>Cargando...</span></div>
+        </div>
+      </>
+    );
+  }
+
+  if (!session) {
+    return (
+      <>
+        <style>{styles}</style>
+        <AuthScreen />
+      </>
+    );
+  }
+
   return (
     <>
       <style>{styles}</style>
@@ -1997,12 +2162,10 @@ export default function App() {
         <div className="header">
           <div className="header-top">
             <h1>🌾 Panadería SG</h1>
-            <span className="header-badge">{process.env.REACT_APP_ENV === "staging" ? "STAGING" : process.env.REACT_APP_ENV === "development" ? "DEV" : "BETA"}</span>
+            <span className="header-badge">Gluten Free*</span>
+            <button type="button" className="auth-logout" onClick={() => supabase.auth.signOut()} title="Cerrar sesión">Salir</button>
           </div>
-          <div className="header-subtitle">
-            Sistema de gestión
-            <a href="/privacidad.html" target="_blank" rel="noopener noreferrer" style={{ fontSize: 10, opacity: 0.7, marginLeft: 8 }}>Privacidad</a>
-          </div>
+          <a href="/privacidad.html" target="_blank" rel="noopener noreferrer" style={{ fontSize: 10, color: "rgba(255,255,255,0.7)", marginTop: 6, display: "block" }}>Privacidad</a>
         </div>
 
         {loading ? (

@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "devDependencies": {
-    "env-cmd": "^10.1.0"
+    "env-cmd": "^10.1.0",
+    "supabase": "^2.76.0"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.98.0",
@@ -23,6 +24,9 @@
     "import-recetas": "node scripts/import-recetas.js",
     "import-recetas:clear": "node scripts/import-recetas.js --clear",
     "import-recetas:upsert": "node scripts/import-recetas.js --upsert",
+    "copy:prod-to-dev": "node scripts/copy-prod-to-dev.js",
+    "supabase:link": "supabase link --project-ref xdiggsdjmmylkvephyod",
+    "db:push": "supabase db push --yes",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
   },

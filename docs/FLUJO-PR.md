@@ -33,9 +33,12 @@
 
 En Vercel: Settings → Git → Production Branch = `master`. Las otras ramas generan previews automáticos.
 
-## Branch protection (opcional)
+## Branch protection
 
-En GitHub: Settings → Branches → Add rule para `master`:
-- Require pull request before merging
-- Require status checks (si tenés CI)
-- Do not allow bypassing
+En GitHub: **Settings** → **Branches** → **Add branch protection rule** para `master`:
+- Branch name pattern: `master`
+- ✅ Require a pull request before merging
+- ✅ Require status checks to pass (opcional, si tenés CI)
+- Do not allow bypassing the above settings
+
+Así solo código estable (vía PR desde `develop`) llega a producción.

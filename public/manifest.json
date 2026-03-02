@@ -26,8 +26,8 @@
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
-  "theme_color": "#2C1A0E",
-  "background_color": "#FAF7F2",
+  "theme_color": "#7B5BA8",
+  "background_color": "#F8F5FC",
   "description": "Sistema de gestión para panadería: ventas, stock, clientes, recetas, insumos",
   "categories": ["business", "productivity"]
 }
