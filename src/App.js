@@ -369,7 +369,7 @@ function getInsumosEnCeroParaRecetas(items, recetaIngredientes, insumos, insumoC
   }
   const idsEnCero = new Set();
   const insumosPorId = {};
-  for (const { receta, cantidad } of items) {
+  for (const { receta } of items) {
     if (!receta?.rinde) continue;
     const ings = (recetaIngredientes || []).filter(i => i.receta_id === receta.id && i.insumo_id);
     for (const ing of ings) {
@@ -1127,7 +1127,7 @@ function Insumos({ insumos, insumoStock, insumoMovimientos, insumoComposicion, r
             <button
               className="btn-danger"
               onClick={async () => {
-                if (!(await confirm(`¿Eliminar el insumo \"${detalleInsumo.nombre}\"?`, { destructive: true }))) return;
+                if (!(await confirm(`¿Eliminar el insumo "${detalleInsumo.nombre}"?`, { destructive: true }))) return;
                 try {
                   const { error } = await supabase.from("insumos").delete().eq("id", detalleInsumo.id);
                   if (error) {
@@ -1430,7 +1430,6 @@ function Recetas({ recetas, insumos, recetaIngredientes, showToast, onRefresh, c
 
 // ── STOCK ─────────────────────────────────────────────────────────────────────
 function Stock({ recetas, stock, actualizarStock, consumirInsumosPorStock, insumoStock, insumos, recetaIngredientes, insumoComposicion, registrarMovimientoInsumo, onRefresh, showToast }) {
-  const [cargando, setCargando] = useState(null);
   const [manualRecetaSel, setManualRecetaSel] = useState(null);
   const [manualCantidad, setManualCantidad] = useState(1);
   const [manualSaving, setManualSaving] = useState(false);
@@ -1466,14 +1465,12 @@ function Stock({ recetas, stock, actualizarStock, consumirInsumosPorStock, insum
   };
 
   const ejecutarCargaManual = async (receta_id, cantidad) => {
-    setCargando(receta_id);
     await actualizarStock(receta_id, cantidad);
     if (consumirInsumosPorStock) await consumirInsumosPorStock(receta_id, cantidad);
     const r = recetas.find(x => x.id === receta_id);
     showToast(`✅ +${cantidad} ${r?.nombre || "producto"}`);
     setManualRecetaSel(null);
     setManualCantidad(1);
-    setCargando(null);
     onRefresh?.();
   };
 
