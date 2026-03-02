@@ -7,6 +7,7 @@
     "supabase": "^2.76.0"
   },
   "dependencies": {
+    "@sentry/react": "^10.41.0",
     "@supabase/supabase-js": "^2.98.0",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.9.1",
@@ -26,7 +27,10 @@
     "import-recetas:upsert": "node scripts/import-recetas.js --upsert",
     "copy:prod-to-dev": "node scripts/copy-prod-to-dev.js",
     "supabase:link": "supabase link --project-ref xdiggsdjmmylkvephyod",
+    "supabase:link:prod": "supabase link --project-ref clgxrxlccjjqxzvapfav",
     "db:push": "supabase db push --yes",
+    "db:push:dev": "supabase link --project-ref xdiggsdjmmylkvephyod && supabase db push --yes",
+    "db:push:prod": "supabase link --project-ref clgxrxlccjjqxzvapfav && supabase db push --yes",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
   },

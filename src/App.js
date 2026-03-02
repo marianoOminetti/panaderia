@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
+import { reportError, getErrorLog } from "./utils/errorReport";
 
 const SUPABASE_URL = process.env.REACT_APP_SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.REACT_APP_SUPABASE_ANON_KEY;
@@ -60,7 +61,7 @@ const CAT_COLORS = {
 
 // ─── STYLES ──────────────────────────────────────────────────────────────────
 const styles = `
-  @import url('https://fonts.googleapis.com/css2?family=Fraunces:wght@400;600;700&family=DM+Sans:wght@300;400;500&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600&display=swap');
 
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -82,14 +83,14 @@ const styles = `
     --shadow-lg: 0 8px 32px rgba(123,91,168,0.12);
   }
 
-  body { font-family: 'DM Sans', sans-serif; background: var(--cream); color: var(--text); }
+  body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--cream); color: var(--text); }
 
   .app { max-width: 430px; margin: 0 auto; min-height: 100vh; background: var(--cream); position: relative; padding-bottom: 80px; }
 
   /* Header */
   .header { background: var(--purple-dark); padding: 16px 20px 14px; position: sticky; top: 0; z-index: 100; }
   .header-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
-  .header h1 { font-family: 'Fraunces', serif; font-size: 22px; color: white; letter-spacing: -0.5px; }
+  .header h1 { font-family: 'Outfit', sans-serif; font-size: 22px; font-weight: 600; color: white; letter-spacing: -0.5px; }
   .header-subtitle { font-size: 11px; color: var(--purple-light); letter-spacing: 1.5px; }
   .header-badge { background: white; color: var(--purple-dark); font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: 20px; letter-spacing: 0.5px; }
   .header-contact { font-size: 11px; color: white; display: flex; align-items: center; gap: 6px; margin-top: 4px; }
@@ -100,19 +101,19 @@ const styles = `
   .nav-btn { flex: 1; padding: 10px 4px 12px; display: flex; flex-direction: column; align-items: center; gap: 3px; background: none; border: none; cursor: pointer; color: rgba(255,255,255,0.7); transition: color 0.2s; }
   .nav-btn.active { color: var(--purple-light); }
   .nav-btn .nav-icon { font-size: 20px; }
-  .nav-btn .nav-label { font-size: 9px; letter-spacing: 0.8px; text-transform: uppercase; font-family: 'DM Sans', sans-serif; color: inherit; }
+  .nav-btn .nav-label { font-size: 9px; letter-spacing: 0.8px; text-transform: uppercase; font-family: 'Plus Jakarta Sans', sans-serif; color: inherit; }
 
   /* Content */
   .content { padding: 16px; }
 
   /* Page title */
-  .page-title { font-family: 'Fraunces', serif; font-size: 26px; color: var(--purple-dark); margin-bottom: 4px; }
+  .page-title { font-family: 'Outfit', sans-serif; font-size: 26px; font-weight: 600; color: var(--purple-dark); margin-bottom: 4px; }
   .page-subtitle { font-size: 13px; color: var(--text-muted); margin-bottom: 20px; }
 
   /* Cards */
   .card { background: var(--surface); border-radius: 16px; padding: 16px; margin-bottom: 12px; box-shadow: var(--shadow); border: 1px solid var(--border); }
   .card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
-  .card-title { font-family: 'Fraunces', serif; font-size: 16px; color: var(--purple-dark); }
+  .card-title { font-family: 'Outfit', sans-serif; font-size: 16px; font-weight: 600; color: var(--purple-dark); }
 
   /* Stats row */
   .stats-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
@@ -120,7 +121,7 @@ const styles = `
   .dashboard-metrics { background: linear-gradient(135deg, var(--purple-dark) 0%, var(--purple) 100%); border-radius: 16px; padding: 20px; margin-bottom: 16px; color: white; }
   .dashboard-metric-main { margin-bottom: 12px; }
   .dashboard-metric-label { font-size: 11px; opacity: 0.8; letter-spacing: 1px; text-transform: uppercase; }
-  .dashboard-metric-value { font-family: 'Fraunces', serif; font-size: 28px; font-weight: 700; }
+  .dashboard-metric-value { font-family: 'Outfit', sans-serif; font-size: 28px; font-weight: 700; }
   .dashboard-metric-row { display: flex; gap: 20px; }
   .dashboard-metric-mini { display: flex; flex-direction: column; gap: 2px; }
   .dashboard-metric-mini-val { font-weight: 600; font-size: 15px; }
@@ -136,13 +137,14 @@ const styles = `
   .dashboard-alert { border-left: 4px solid var(--accent); cursor: pointer; }
   .card-link { background: none; border: none; font-size: 12px; color: var(--accent); cursor: pointer; padding: 0; font-family: inherit; }
   .stat-label { font-size: 10px; color: var(--text-muted); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 4px; }
-  .stat-value { font-family: 'Fraunces', serif; font-size: 22px; color: var(--purple-dark); }
+  .stat-value { font-family: 'Outfit', sans-serif; font-size: 22px; font-weight: 600; color: var(--purple-dark); }
   .stat-value.accent { color: var(--accent); }
   .stat-value.green { color: var(--green); }
+  .stat-value.rojo { color: var(--danger); }
 
   /* Search */
   .search-bar { position: relative; margin-bottom: 16px; }
-  .search-bar input { width: 100%; padding: 12px 16px 12px 40px; border: 1px solid var(--border); border-radius: 12px; font-family: 'DM Sans', sans-serif; font-size: 14px; background: var(--surface); color: var(--text); outline: none; transition: border-color 0.2s; }
+  .search-bar input { width: 100%; padding: 12px 16px 12px 40px; border: 1px solid var(--border); border-radius: 12px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 14px; background: var(--surface); color: var(--text); outline: none; transition: border-color 0.2s; }
   .search-bar input:focus { border-color: var(--purple); }
   .search-icon { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); font-size: 16px; }
 
@@ -160,7 +162,7 @@ const styles = `
   .insumo-nombre { font-size: 14px; font-weight: 500; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .insumo-detalle { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
   .insumo-precio { text-align: right; flex-shrink: 0; }
-  .insumo-precio-value { font-family: 'Fraunces', serif; font-size: 15px; color: var(--purple-dark); }
+  .insumo-precio-value { font-family: 'Outfit', sans-serif; font-size: 15px; color: var(--purple-dark); }
   .insumo-precio-unit { font-size: 10px; color: var(--text-muted); }
   .edit-btn { background: none; border: 1px solid var(--border); border-radius: 8px; padding: 5px 8px; font-size: 12px; cursor: pointer; color: var(--text-muted); transition: all 0.2s; }
   .edit-btn:hover { border-color: var(--purple); color: var(--purple-dark); }
@@ -168,7 +170,7 @@ const styles = `
   /* FAB */
   .fab { position: fixed; bottom: 90px; right: 20px; width: 52px; height: 52px; border-radius: 50%; background: var(--purple); border: none; color: white; font-size: 24px; cursor: pointer; box-shadow: 0 4px 20px rgba(169,142,210,0.4); display: flex; align-items: center; justify-content: center; transition: transform 0.2s; z-index: 99; }
   .fab:active { transform: scale(0.95); }
-  .fab-receta { padding: 0 20px; width: auto; border-radius: 26px; gap: 8px; font-size: 14px; font-weight: 500; font-family: 'DM Sans', sans-serif; }
+  .fab-receta { padding: 0 20px; width: auto; border-radius: 26px; gap: 8px; font-size: 14px; font-weight: 500; font-family: 'Plus Jakarta Sans', sans-serif; }
 
   /* Modal */
   .modal-overlay { position: fixed; inset: 0; background: rgba(123,91,168,0.4); z-index: 200; display: flex; align-items: flex-end; }
@@ -176,43 +178,56 @@ const styles = `
   .screen-overlay { position: fixed; inset: 0; background: var(--cream); z-index: 200; display: flex; flex-direction: column; overflow: hidden; }
   .screen-header { display: flex; align-items: center; gap: 12px; padding: 16px 20px; background: var(--surface); border-bottom: 1px solid var(--border); }
   .screen-back { background: none; border: none; font-size: 15px; cursor: pointer; color: var(--purple-dark); padding: 4px 0; font-family: inherit; }
-  .screen-title { font-family: 'Fraunces', serif; font-size: 18px; color: var(--purple-dark); }
+  .screen-title { font-family: 'Outfit', sans-serif; font-size: 18px; font-weight: 600; color: var(--purple-dark); }
   .screen-content { flex: 1; overflow-y: auto; padding: 16px; }
-  .modal-title { font-family: 'Fraunces', serif; font-size: 20px; color: var(--purple-dark); margin-bottom: 20px; }
+  .modal-title { font-family: 'Outfit', sans-serif; font-size: 20px; font-weight: 600; color: var(--purple-dark); margin-bottom: 20px; }
   .modal-close { float: right; background: none; border: none; font-size: 20px; cursor: pointer; color: var(--text-muted); }
 
   /* Form */
   .form-group { margin-bottom: 14px; }
   .form-label { font-size: 11px; color: var(--text-muted); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px; display: block; }
-  .form-input { width: 100%; padding: 11px 14px; border: 1px solid var(--border); border-radius: 10px; font-family: 'DM Sans', sans-serif; font-size: 14px; color: var(--text); background: var(--cream); outline: none; transition: border-color 0.2s; }
+  .form-input { width: 100%; padding: 11px 14px; border: 1px solid var(--border); border-radius: 10px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 14px; color: var(--text); background: var(--cream); outline: none; transition: border-color 0.2s; }
   .form-input:focus { border-color: var(--purple); background: white; }
-  .form-select { width: 100%; padding: 11px 14px; border: 1px solid var(--border); border-radius: 10px; font-family: 'DM Sans', sans-serif; font-size: 14px; color: var(--text); background: var(--cream); outline: none; }
-  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .form-select { width: 100%; padding: 11px 14px; border: 1px solid var(--border); border-radius: 10px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 14px; color: var(--text); background: var(--cream); outline: none; }
+  .form-row { display: flex; flex-direction: column; gap: 10px; }
 
   /* Buttons */
-  .btn-primary { width: 100%; padding: 14px; background: var(--purple-dark); color: white; border: none; border-radius: 12px; font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 500; cursor: pointer; transition: background 0.2s; }
+  .btn-primary { width: 100%; padding: 14px; background: var(--purple-dark); color: white; border: none; border-radius: 12px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 15px; font-weight: 500; cursor: pointer; transition: background 0.2s; }
   .btn-primary:hover { background: var(--purple); }
   .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
-  .btn-secondary { width: 100%; padding: 12px; background: transparent; color: var(--text-muted); border: 1px solid var(--border); border-radius: 12px; font-family: 'DM Sans', sans-serif; font-size: 14px; cursor: pointer; margin-top: 8px; }
-  .btn-danger { width: 100%; padding: 12px; background: transparent; color: var(--danger); border: 1px solid var(--danger); border-radius: 12px; font-family: 'DM Sans', sans-serif; font-size: 14px; cursor: pointer; margin-top: 8px; }
+  .btn-secondary { width: 100%; padding: 12px; background: transparent; color: var(--text-muted); border: 1px solid var(--border); border-radius: 12px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 14px; cursor: pointer; margin-top: 8px; }
+  .btn-danger { width: 100%; padding: 12px; background: transparent; color: var(--danger); border: 1px solid var(--danger); border-radius: 12px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 14px; cursor: pointer; margin-top: 8px; }
 
   /* Receta card */
   .receta-card { background: var(--surface); border-radius: 16px; padding: 16px; margin-bottom: 10px; box-shadow: var(--shadow); border: 1px solid var(--border); cursor: pointer; transition: transform 0.15s; }
   .receta-card:active { transform: scale(0.99); }
   .receta-top { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
   .receta-emoji { font-size: 28px; }
-  .receta-nombre { font-family: 'Fraunces', serif; font-size: 17px; color: var(--purple-dark); }
+  .receta-nombre { font-family: 'Outfit', sans-serif; font-size: 17px; font-weight: 600; color: var(--purple-dark); }
   .receta-rinde { font-size: 12px; color: var(--text-muted); }
   .receta-stats { display: flex; justify-content: space-between; padding-top: 10px; border-top: 1px solid var(--border); }
   .receta-stat { text-align: center; }
   .receta-stat-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.8px; }
-  .receta-stat-value { font-family: 'Fraunces', serif; font-size: 15px; color: var(--purple-dark); margin-top: 2px; }
+  .receta-stat-value { font-family: 'Outfit', sans-serif; font-size: 15px; font-weight: 600; color: var(--purple-dark); margin-top: 2px; }
   .receta-stat-value.verde { color: var(--green); }
   .receta-stat-value.rojo { color: var(--danger); }
 
   /* Toast */
   .toast { position: fixed; top: 80px; left: 50%; transform: translateX(-50%); background: var(--purple-dark); color: white; padding: 10px 20px; border-radius: 20px; font-size: 13px; z-index: 300; animation: slideDown 0.3s ease; }
   @keyframes slideDown { from { opacity: 0; transform: translateX(-50%) translateY(-10px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+
+  /* Native-style confirm dialog */
+  .confirm-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 400; display: flex; align-items: center; justify-content: center; padding: 20px; animation: confirmFadeIn 0.2s ease; }
+  .confirm-dialog { background: var(--surface); border-radius: 14px; width: 100%; max-width: 300px; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.2); animation: confirmSlideIn 0.25s ease; }
+  .confirm-body { padding: 20px 20px 8px; text-align: center; }
+  .confirm-message { font-size: 15px; line-height: 1.4; color: var(--text); }
+  .confirm-actions { display: flex; flex-direction: column; margin-top: 16px; }
+  .confirm-btn { padding: 14px; font-size: 17px; font-weight: 600; background: none; border: none; cursor: pointer; font-family: inherit; color: var(--purple-dark); border-top: 1px solid var(--border); }
+  .confirm-btn:first-of-type { border-top: none; }
+  .confirm-btn.destructive { color: var(--danger); }
+  .confirm-btn.cancel { color: var(--text-muted); font-weight: 500; }
+  @keyframes confirmFadeIn { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes confirmSlideIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
 
   /* Loading */
   .loading { display: flex; align-items: center; justify-content: center; padding: 40px; gap: 8px; color: var(--text-muted); font-size: 14px; }
@@ -222,7 +237,7 @@ const styles = `
   /* Auth */
   .auth-screen { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; background: linear-gradient(180deg, var(--purple-dark) 0%, var(--cream) 40%); }
   .auth-card { background: var(--surface); border-radius: 20px; padding: 28px; width: 100%; max-width: 360px; box-shadow: var(--shadow-lg); border: 1px solid var(--border); }
-  .auth-title { font-family: 'Fraunces', serif; font-size: 24px; color: var(--purple-dark); margin-bottom: 8px; text-align: center; }
+  .auth-title { font-family: 'Outfit', sans-serif; font-size: 24px; font-weight: 600; color: var(--purple-dark); margin-bottom: 8px; text-align: center; }
   .auth-subtitle { font-size: 13px; color: var(--text-muted); text-align: center; margin-bottom: 24px; }
   .auth-form input { width: 100%; padding: 12px 16px; border: 1px solid var(--border); border-radius: 12px; font-size: 14px; font-family: inherit; margin-bottom: 12px; box-sizing: border-box; }
   .auth-form input:focus { outline: none; border-color: var(--purple); }
@@ -250,7 +265,7 @@ const styles = `
   .venta-grupo-cliente { font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 8px; }
   .venta-card { margin-bottom: 12px; }
   .venta-card:last-child { margin-bottom: 0; }
-  .venta-grupo-total { font-family: 'Fraunces', serif; font-size: 15px; color: var(--purple-dark); font-weight: 600; text-align: right; margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border); }
+  .venta-grupo-total { font-family: 'Outfit', sans-serif; font-size: 15px; color: var(--purple-dark); font-weight: 600; text-align: right; margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border); }
   .venta-grupo-actions { display: flex; gap: 8px; margin-top: 8px; justify-content: flex-end; }
   .btn-venta-action { font-size: 12px; padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--cream); color: var(--text-muted); cursor: pointer; }
   .btn-venta-action:hover { background: var(--border); }
@@ -259,20 +274,20 @@ const styles = `
   .venta-info { flex: 1; }
   .venta-nombre { font-size: 14px; font-weight: 500; }
   .venta-hora { font-size: 11px; color: var(--text-muted); }
-  .venta-monto { font-family: 'Fraunces', serif; font-size: 16px; color: var(--green); }
+  .venta-monto { font-family: 'Outfit', sans-serif; font-size: 16px; font-weight: 600; color: var(--green); }
 
   /* QR scanner placeholder */
   .qr-area { background: var(--purple-dark); border-radius: 20px; padding: 40px 20px; text-align: center; margin-bottom: 16px; }
   .qr-icon { font-size: 56px; margin-bottom: 12px; }
   .qr-text { color: var(--purple-light); font-size: 14px; }
-  .qr-btn { background: var(--purple); color: white; border: none; border-radius: 12px; padding: 14px 32px; font-size: 16px; font-weight: 500; cursor: pointer; margin-top: 16px; font-family: 'DM Sans', sans-serif; }
+  .qr-btn { background: var(--purple); color: white; border: none; border-radius: 12px; padding: 14px 32px; font-size: 16px; font-weight: 500; cursor: pointer; margin-top: 16px; font-family: 'Plus Jakarta Sans', sans-serif; }
 
   /* Voice input */
   .voice-row { display: flex; gap: 12px; align-items: stretch; margin-bottom: 16px; }
   .voice-area { flex: 1; background: var(--purple-dark); border-radius: 20px; padding: 24px 20px; text-align: center; }
   .voice-icon { font-size: 40px; margin-bottom: 8px; }
   .voice-text { color: var(--purple-light); font-size: 13px; }
-  .voice-btn { background: var(--purple); color: white; border: none; border-radius: 12px; padding: 14px 24px; font-size: 15px; font-weight: 500; cursor: pointer; font-family: 'DM Sans', sans-serif; white-space: nowrap; }
+  .voice-btn { background: var(--purple); color: white; border: none; border-radius: 12px; padding: 14px 24px; font-size: 15px; font-weight: 500; cursor: pointer; font-family: 'Plus Jakarta Sans', sans-serif; white-space: nowrap; }
   .voice-btn.listening { background: var(--green); animation: pulse 1.5s ease infinite; }
   @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.85; } }
   .voice-transcript { font-size: 12px; color: var(--text-muted); margin-top: 8px; font-style: italic; max-height: 40px; overflow: hidden; text-overflow: ellipsis; }
@@ -284,7 +299,7 @@ const styles = `
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 const fmt = (n) => new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(n);
 
-/** Contact Picker API - selecciona contacto del celular (Chrome Android con HTTPS) */
+/** Contact Picker API - selecciona un contacto del celular (Chrome Android con HTTPS) */
 async function selectContactFromPhone() {
   if (!navigator.contacts?.select) return { error: "no-support" };
   try {
@@ -299,7 +314,34 @@ async function selectContactFromPhone() {
     return { error: "cancelled" };
   }
 }
+
+/** Contact Picker API - selecciona varios contactos del celular (Chrome Android con HTTPS) */
+async function selectContactsFromPhoneMultiple() {
+  if (!navigator.contacts?.select) return { error: "no-support", contacts: [] };
+  try {
+    const props = ["name", "tel"];
+    const contacts = await navigator.contacts.select(props, { multiple: true });
+    if (!contacts?.length) return { error: "cancelled", contacts: [] };
+    return {
+      contacts: contacts.map((c) => ({
+        name: (c.name?.[0] ?? "").trim(),
+        tel: (c.tel?.[0] ?? "").trim()
+      })).filter((c) => c.name || c.tel)
+    };
+  } catch {
+    return { error: "cancelled", contacts: [] };
+  }
+}
 const pctFmt = (n) => `${Math.round(n * 100)}%`;
+
+/** Convierte cantidad a gramos (para composición de insumos) */
+function aGramos(cantidad, unidad) {
+  const u = (unidad || "g").toLowerCase();
+  if (u === "g") return cantidad;
+  if (u === "kg") return cantidad * 1000;
+  if (u === "ml" || u === "l") return cantidad * (u === "l" ? 1000 : 1);
+  return cantidad;
+}
 
 /** Convierte cantidad de una unidad a la unidad del insumo para el cálculo de costo */
 function convertirAUnidadInsumo(cantidad, desdeUnidad, haciaUnidad) {
@@ -314,6 +356,41 @@ function convertirAUnidadInsumo(cantidad, desdeUnidad, haciaUnidad) {
     return hacia === "l" ? ml / 1000 : ml;
   }
   return cantidad; // u
+}
+
+/** Devuelve insumos con stock 0 que se consumirían al cargar stock de las recetas dadas.
+ * Incluye: ingredientes directos y componentes (si el insumo tiene composición). */
+function getInsumosEnCeroParaRecetas(items, recetaIngredientes, insumos, insumoComposicion, insumoStock) {
+  if (!items?.length || !insumos?.length) return [];
+  const composicionPorInsumo = {};
+  for (const c of insumoComposicion || []) {
+    if (!composicionPorInsumo[c.insumo_id]) composicionPorInsumo[c.insumo_id] = [];
+    composicionPorInsumo[c.insumo_id].push(c);
+  }
+  const idsEnCero = new Set();
+  const insumosPorId = {};
+  for (const { receta, cantidad } of items) {
+    if (!receta?.rinde) continue;
+    const ings = (recetaIngredientes || []).filter(i => i.receta_id === receta.id && i.insumo_id);
+    for (const ing of ings) {
+      const insumo = insumos.find(x => x.id === ing.insumo_id);
+      if (!insumo) continue;
+      const componentes = composicionPorInsumo[ing.insumo_id];
+      if (componentes && componentes.length > 0) {
+        for (const comp of componentes) {
+          const insumoHijo = insumos.find(x => x.id === comp.insumo_id_componente);
+          if (insumoHijo && ((insumoStock || {})[insumoHijo.id] ?? 0) <= 0) {
+            idsEnCero.add(insumoHijo.id);
+            insumosPorId[insumoHijo.id] = insumoHijo;
+          }
+        }
+      } else if (((insumoStock || {})[ing.insumo_id] ?? 0) <= 0) {
+        idsEnCero.add(ing.insumo_id);
+        insumosPorId[ing.insumo_id] = insumo;
+      }
+    }
+  }
+  return [...idsEnCero].map(id => ({ insumo_id: id, insumo: insumosPorId[id] })).filter(x => x.insumo);
 }
 
 /** Parsea texto de voz a ventas: "2 panes lactales, 2 brownies" → [{ receta, cantidad }] */
@@ -474,8 +551,43 @@ function Toast({ msg, onDone }) {
   return <div className="toast">{msg}</div>;
 }
 
+function ConfirmDialog({ message, destructive, onConfirm, onCancel }) {
+  const dialogRef = useRef(null);
+  useEffect(() => {
+    const handleKey = (e) => { if (e.key === "Escape") onCancel(); };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [onCancel]);
+  useEffect(() => { dialogRef.current?.focus(); }, []);
+  return (
+    <div className="confirm-backdrop" onClick={onCancel} role="presentation">
+      <div
+        ref={dialogRef}
+        className="confirm-dialog"
+        onClick={e => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="confirm-message"
+        tabIndex={-1}
+      >
+        <div className="confirm-body">
+          <p id="confirm-message" className="confirm-message">{message}</p>
+          <div className="confirm-actions">
+            <button type="button" className={`confirm-btn ${destructive ? "destructive" : ""}`} onClick={onConfirm}>
+              {destructive ? "Eliminar" : "Aceptar"}
+            </button>
+            <button type="button" className="confirm-btn cancel" onClick={onCancel}>Cancelar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── AUTH ─────────────────────────────────────────────────────────────────────
 function ConfigMissing() {
+  const [showLog, setShowLog] = useState(false);
+  const log = showLog ? getErrorLog() : [];
   return (
     <div className="auth-screen">
       <div className="auth-card">
@@ -493,6 +605,21 @@ function ConfigMissing() {
           </div>
           <div style={{ marginTop: 12 }}>
             En local: usá <code>.env.development.local</code>. En hosting: configurá las env vars del proyecto.
+          </div>
+          <div style={{ marginTop: 16 }}>
+            <button type="button" onClick={() => setShowLog(!showLog)} style={{ fontSize: 12, color: "var(--purple)", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}>
+              {showLog ? "Ocultar" : "Ver"} log de errores recientes
+            </button>
+            {showLog && log.length > 0 && (
+              <div style={{ marginTop: 8, fontSize: 11, maxHeight: 120, overflow: "auto", background: "var(--cream)", padding: 8, borderRadius: 8, border: "1px solid var(--border)" }}>
+                {log.slice().reverse().map((e, i) => (
+                  <div key={i} style={{ marginBottom: 6, wordBreak: "break-word" }}>
+                    <span style={{ color: "var(--text-muted)" }}>{e.ts?.slice(11, 19)}</span> {e.action ? `[${e.action}] ` : ""}{e.message}
+                  </div>
+                ))}
+              </div>
+            )}
+            {showLog && log.length === 0 && <p style={{ marginTop: 8, fontSize: 12 }}>No hay errores registrados.</p>}
           </div>
         </div>
       </div>
@@ -607,7 +734,7 @@ function Dashboard({ insumos, recetas, ventas, clientes, stock, onNavigate }) {
       {ventasHoy.length > 0 && (
         <div className="card">
           <div className="card-header"><span className="card-title">Últimas ventas hoy</span><button type="button" className="card-link" onClick={() => onNavigate?.("ventas")}>Ver todas →</button></div>
-          {agruparVentas(ventasHoy).slice(-5).reverse().map((grupo) => {
+          {agruparVentas(ventasHoy).slice(0, 5).map((grupo) => {
             const cliente = (clientes || []).find(c => c.id === grupo.cliente_id);
             return (
               <div key={grupo.key} className="venta-item venta-item-simple" style={{ padding: "10px 0" }}>
@@ -638,7 +765,7 @@ function Dashboard({ insumos, recetas, ventas, clientes, stock, onNavigate }) {
 }
 
 // ── INSUMOS ──────────────────────────────────────────────────────────────────
-function Insumos({ insumos, insumoStock, insumoMovimientos, registrarMovimientoInsumo, onRefresh, showToast }) {
+function Insumos({ insumos, insumoStock, insumoMovimientos, insumoComposicion, registrarMovimientoInsumo, onRefresh, showToast, confirm }) {
   const [search, setSearch] = useState("");
   const [catActiva, setCatActiva] = useState("Todos");
   const [modal, setModal] = useState(false);
@@ -651,11 +778,22 @@ function Insumos({ insumos, insumoStock, insumoMovimientos, registrarMovimientoI
   const [movCantidad, setMovCantidad] = useState("");
   const [movValor, setMovValor] = useState("");
   const [movSaving, setMovSaving] = useState(false);
+  const [detalleInsumo, setDetalleInsumo] = useState(null);
+  const [compInsumoSel, setCompInsumoSel] = useState("");
+  const [compFactor, setCompFactor] = useState("");
+  const [compSaving, setCompSaving] = useState(false);
 
   const filtrados = insumos.filter(i => {
     const matchCat = catActiva === "Todos" || i.categoria === catActiva;
     const matchSearch = i.nombre.toLowerCase().includes(search.toLowerCase());
     return matchCat && matchSearch;
+  });
+
+  const filtradosOrdenados = [...filtrados].slice().sort((a, b) => {
+    const sa = (insumoStock || {})[a.id] ?? 0;
+    const sb = (insumoStock || {})[b.id] ?? 0;
+    if (sa !== sb) return sa - sb;
+    return (a.nombre || "").localeCompare(b.nombre || "", "es", { sensitivity: "base" });
   });
 
   const openNew = () => { setEditando(null); setForm({ nombre: "", categoria: "Harinas", presentacion: "", precio: "", cantidad_presentacion: "", unidad: "g" }); setModal(true); };
@@ -729,21 +867,33 @@ function Insumos({ insumos, insumoStock, insumoMovimientos, registrarMovimientoI
         <div className="card-header"><span className="card-title">Stock y precios</span></div>
         {filtrados.length === 0 ? (
           <div className="empty"><div className="empty-icon">📦</div><p>Sin resultados</p></div>
-        ) : filtrados.map(i => {
+        ) : filtradosOrdenados.map(i => {
           const stock = (insumoStock || {})[i.id] ?? 0;
           const unidad = i.unidad || "g";
           const stockNegativo = Number(stock) < 0;
           return (
-            <div key={i.id} className="insumo-item">
+            <div
+              key={i.id}
+              className="insumo-item"
+              onClick={() => setDetalleInsumo(i)}
+              style={{ cursor: "pointer" }}
+            >
               <div className="insumo-dot" style={{ background: CAT_COLORS[i.categoria] || "#ccc" }} />
               <div className="insumo-info" style={{ flex: 1 }}>
                 <div className="insumo-nombre">{i.nombre}</div>
-                <div className="insumo-detalle">{i.presentacion} · <span className="chip">{precioPorU(i)}</span> · Stock: <span style={{ color: stockNegativo ? "var(--danger)" : undefined, fontWeight: stockNegativo ? 600 : undefined }}>{stock} {unidad}</span></div>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <button className="edit-btn" onClick={() => openMov(i, "ingreso")} title="Ingreso">+</button>
-                <button className="edit-btn" onClick={() => openMov(i, "egreso")} title="Egreso" style={{ color: "var(--danger)" }}>−</button>
-                <button className="edit-btn" onClick={() => openEdit(i)}>✏️</button>
+                <div className="insumo-detalle">
+                  {i.presentacion} · <span className="chip">{precioPorU(i)}</span> · Stock:{" "}
+                  <span
+                    style={{
+                      color: stockNegativo ? "var(--danger)" : undefined,
+                      fontWeight: stockNegativo ? 600 : undefined
+                    }}
+                  >
+                    {stock} {unidad}
+                  </span>
+                  {" · "}
+                  <span style={{ textDecoration: "underline" }}>Tocar para ver</span>
+                </div>
               </div>
               <div className="insumo-precio" style={{ marginLeft: 8 }}>
                 <div className="insumo-precio-value">{fmt(i.precio)}</div>
@@ -847,17 +997,174 @@ function Insumos({ insumos, insumoStock, insumoMovimientos, registrarMovimientoI
           </div>
         </div>
       )}
+
+      {detalleInsumo && (
+        <div className="screen-overlay">
+          <div className="screen-header">
+            <button className="screen-back" onClick={() => setDetalleInsumo(null)}>← Volver</button>
+            <span className="screen-title">{detalleInsumo.nombre}</span>
+          </div>
+          <div className="screen-content">
+            <div className="card" style={{ marginBottom: 16 }}>
+              <div className="card-header">
+                <span className="card-title">Detalle</span>
+              </div>
+              <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 6 }}>
+                <strong>Categoría:</strong> {detalleInsumo.categoria}
+              </p>
+              <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 6 }}>
+                <strong>Presentación:</strong> {detalleInsumo.presentacion || "—"}
+              </p>
+              <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 6 }}>
+                <strong>Precio:</strong> {fmt(detalleInsumo.precio || 0)} ({precioPorU(detalleInsumo)})
+              </p>
+              <p style={{ fontSize: 13, color: "var(--text-muted)" }}>
+                <strong>Stock:</strong>{" "}
+                {(insumoStock || {})[detalleInsumo.id] ?? 0} {detalleInsumo.unidad || "g"}
+              </p>
+            </div>
+
+            <div className="card" style={{ marginBottom: 16 }}>
+              <div className="card-header">
+                <span className="card-title">Composición</span>
+              </div>
+              <p style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 12 }}>
+                Si este insumo es una mezcla de otros (ej. premezcla = harina + almidón), definí los componentes. Al cargar stock de productos que lo usan, se descontarán automáticamente.
+              </p>
+              {(insumoComposicion || []).filter(c => c.insumo_id === detalleInsumo.id).map((c) => {
+                const hijo = insumos.find(i => i.id === c.insumo_id_componente);
+                return (
+                  <div key={c.insumo_id_componente} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid var(--border)" }}>
+                    <span>{hijo?.nombre || "?"} · {(parseFloat(c.factor) * 100).toFixed(0)}%</span>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (!(await confirm(`¿Quitar ${hijo?.nombre} de la composición?`))) return;
+                        const { error } = await supabase.from("insumo_composicion").delete().eq("insumo_id", detalleInsumo.id).eq("insumo_id_componente", c.insumo_id_componente);
+                        if (error) showToast("⚠️ Error al quitar"); else { showToast("✅ Componente quitado"); onRefresh(); }
+                      }}
+                      style={{ background: "none", border: "none", color: "var(--danger)", cursor: "pointer", fontSize: 14 }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                );
+              })}
+              <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+                <select
+                  className="form-input"
+                  value={compInsumoSel}
+                  onChange={e => setCompInsumoSel(e.target.value)}
+                  style={{ flex: "1 1 120px", minWidth: 0 }}
+                >
+                  <option value="">— Agregar componente</option>
+                  {insumos.filter(i => i.id !== detalleInsumo.id).map(i => (
+                    <option key={i.id} value={i.id}>{i.nombre}</option>
+                  ))}
+                </select>
+                <input
+                  type="number"
+                  min="0.01"
+                  max="1"
+                  step="0.01"
+                  placeholder="Factor (0.5 = 50%)"
+                  value={compFactor}
+                  onChange={e => setCompFactor(e.target.value)}
+                  className="form-input"
+                  style={{ width: 100 }}
+                />
+                <button
+                  type="button"
+                  className="btn-primary"
+                  disabled={compSaving || !compInsumoSel || !compFactor || parseFloat(compFactor) <= 0 || parseFloat(compFactor) > 1}
+                  onClick={async () => {
+                    const factor = parseFloat(compFactor);
+                    if (!factor || factor <= 0 || factor > 1) return;
+                    setCompSaving(true);
+                    const { error } = await supabase.from("insumo_composicion").upsert(
+                      { insumo_id: detalleInsumo.id, insumo_id_componente: compInsumoSel, factor },
+                      { onConflict: "insumo_id,insumo_id_componente" }
+                    );
+                    setCompSaving(false);
+                    if (error) showToast("⚠️ Error al guardar"); else { showToast("✅ Componente agregado"); setCompInsumoSel(""); setCompFactor(""); onRefresh(); }
+                  }}
+                >
+                  {compSaving ? "…" : "Agregar"}
+                </button>
+              </div>
+            </div>
+
+            <button
+              className="btn-primary"
+              onClick={() => {
+                setDetalleInsumo(null);
+                openMov(detalleInsumo, "ingreso");
+              }}
+              style={{ marginBottom: 8 }}
+            >
+              📥 Registrar ingreso
+            </button>
+            <button
+              className="btn-secondary"
+              onClick={() => {
+                setDetalleInsumo(null);
+                openMov(detalleInsumo, "egreso");
+              }}
+              style={{ marginBottom: 8 }}
+            >
+              📤 Registrar egreso
+            </button>
+            <button
+              className="btn-secondary"
+              onClick={() => {
+                setDetalleInsumo(null);
+                openEdit(detalleInsumo);
+              }}
+              style={{ marginBottom: 8 }}
+            >
+              ✏️ Editar insumo
+            </button>
+            <button
+              className="btn-danger"
+              onClick={async () => {
+                if (!(await confirm(`¿Eliminar el insumo \"${detalleInsumo.nombre}\"?`, { destructive: true }))) return;
+                try {
+                  const { error } = await supabase.from("insumos").delete().eq("id", detalleInsumo.id);
+                  if (error) {
+                    showToast("⚠️ No se pudo eliminar (en uso en recetas o movimientos)");
+                  } else {
+                    showToast("🗑️ Insumo eliminado");
+                    setDetalleInsumo(null);
+                    onRefresh();
+                  }
+                } catch {
+                  showToast("⚠️ Error al eliminar insumo");
+                }
+              }}
+            >
+              Eliminar insumo
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 // ── RECETAS ──────────────────────────────────────────────────────────────────
-function Recetas({ recetas, insumos, recetaIngredientes, showToast, onRefresh }) {
+function Recetas({ recetas, insumos, recetaIngredientes, showToast, onRefresh, confirm }) {
   const [modal, setModal] = useState(false);
   const [editando, setEditando] = useState(null);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ nombre: "", emoji: "🍞", rinde: "", unidad_rinde: "u", precio_venta: "" });
   const [ingredientes, setIngredientes] = useState([]);
+
+  const recetasOrdenadas = [...recetas].slice().sort((a, b) =>
+    (a.nombre || "").localeCompare(b.nombre || "", "es", { sensitivity: "base" })
+  );
+  const insumosOrdenados = [...insumos].slice().sort((a, b) =>
+    (a.nombre || "").localeCompare(b.nombre || "", "es", { sensitivity: "base" })
+  );
 
   const openNew = () => {
     setEditando(null);
@@ -896,7 +1203,7 @@ function Recetas({ recetas, insumos, recetaIngredientes, showToast, onRefresh })
     const payload = {
       nombre: form.nombre,
       emoji: form.emoji,
-      rinde: parseInt(form.rinde, 10) || 1,
+      rinde: (() => { const v = parseFloat(form.rinde); return (isNaN(v) || v <= 0) ? 1 : v; })(),
       unidad_rinde: form.unidad_rinde,
       precio_venta: parseFloat(form.precio_venta) || 0
     };
@@ -934,7 +1241,7 @@ function Recetas({ recetas, insumos, recetaIngredientes, showToast, onRefresh })
 
   const eliminar = async () => {
     if (!editando) return;
-    if (!window.confirm(`¿Eliminar la receta "${editando.nombre}"?`)) return;
+    if (!(await confirm(`¿Eliminar la receta "${editando.nombre}"?`, { destructive: true }))) return;
     setSaving(true);
     await supabase.from("receta_ingredientes").delete().eq("receta_id", editando.id);
     const { error } = await supabase.from("recetas").delete().eq("id", editando.id);
@@ -958,10 +1265,12 @@ function Recetas({ recetas, insumos, recetaIngredientes, showToast, onRefresh })
 
       {recetas.length === 0 ? (
         <div className="empty"><div className="empty-icon">📋</div><p>No hay recetas todavía.<br />Tocá + para agregar.</p></div>
-      ) : recetas.map(r => {
+      ) : recetasOrdenadas.map(r => {
         const costo = costoReceta(r.id, recetaIngredientes, insumos);
-        const margenVal = r.precio_venta > 0 && costo >= 0
-          ? (r.precio_venta - costo) / r.precio_venta
+        const rindeNum = parseFloat(r.rinde) || 1;
+        const costoPorUnidad = rindeNum > 0 ? costo / rindeNum : null;
+        const margenVal = rindeNum > 0 && r.precio_venta > 0 && costo >= 0 && costoPorUnidad != null
+          ? (r.precio_venta - costoPorUnidad) / r.precio_venta
           : null;
         const margen = margenVal != null ? pctFmt(margenVal) : "—";
         const margenNegativo = margenVal != null && margenVal < 0;
@@ -978,7 +1287,7 @@ function Recetas({ recetas, insumos, recetaIngredientes, showToast, onRefresh })
             <div className="receta-stats">
               <div className="receta-stat">
                 <div className="receta-stat-label">Precio venta</div>
-                <div className="receta-stat-value">{fmt(r.precio_venta || 0)}</div>
+                <div className="receta-stat-value">{fmt(r.precio_venta || 0)}/{(r.unidad_rinde || "u").replace("porción", "porc.")}</div>
               </div>
               <div className="receta-stat">
                 <div className="receta-stat-label">Costo</div>
@@ -1025,7 +1334,7 @@ function Recetas({ recetas, insumos, recetaIngredientes, showToast, onRefresh })
             <div className="form-row">
               <div className="form-group">
                 <label className="form-label">Rinde (unidades que salen)</label>
-                <input className="form-input" type="number" min="1" value={form.rinde} onChange={e => setForm({ ...form, rinde: e.target.value })} placeholder="4" />
+                <input className="form-input" type="number" min="0.01" step="0.01" value={form.rinde} onChange={e => setForm({ ...form, rinde: e.target.value })} placeholder="4" />
               </div>
               <div className="form-group">
                 <label className="form-label">Unidad</label>
@@ -1037,41 +1346,60 @@ function Recetas({ recetas, insumos, recetaIngredientes, showToast, onRefresh })
 
             {(() => {
               const costoTotal = costoDesdeIngredientes(ingredientes, insumos);
-              const rindeNum = parseInt(form.rinde, 10) || 0;
-              const costoPorUnidad = rindeNum > 0 ? costoTotal / rindeNum : 0;
-              return (costoTotal > 0 || ingredientes.some(i => i.insumo_id || i.costo_fijo)) ? (
+              const rindeNum = parseFloat(form.rinde) || 0;
+              const costoPorUnidad = rindeNum > 0 ? costoTotal / rindeNum : null;
+              const precioVenta = parseFloat(form.precio_venta) || 0;
+              const ventaTotal = rindeNum > 0 && precioVenta > 0 ? rindeNum * precioVenta : 0;
+              const margenVal = rindeNum > 0 && precioVenta > 0 && costoPorUnidad != null && costoPorUnidad >= 0 ? (precioVenta - costoPorUnidad) / precioVenta : null;
+              const unidadRinde = form.unidad_rinde || "u";
+              return (costoTotal > 0 || ingredientes.some(i => i.insumo_id || i.costo_fijo) || precioVenta > 0) ? (
                 <div className="stats-row" style={{ marginBottom: 16 }}>
                   <div className="stat-card">
                     <div className="stat-label">Costo total</div>
                     <div className="stat-value">{fmt(costoTotal)}</div>
                   </div>
                   <div className="stat-card">
-                    <div className="stat-label">Costo por unidad</div>
+                    <div className="stat-label">Costo por {unidadRinde}</div>
                     <div className="stat-value accent">{rindeNum > 0 ? fmt(costoPorUnidad) : "—"}</div>
                   </div>
+                  {ventaTotal > 0 && (
+                    <div className="stat-card" style={{ gridColumn: "1 / -1" }}>
+                      <div className="stat-label">Venta total ({rindeNum} × {fmt(precioVenta)}/{unidadRinde})</div>
+                      <div className="stat-value green">{fmt(ventaTotal)}</div>
+                    </div>
+                  )}
+                  {margenVal != null && (
+                    <div className="stat-card" style={{ gridColumn: "1 / -1" }}>
+                      <div className="stat-label">Margen</div>
+                      <div className={`stat-value ${margenVal < 0 ? "rojo" : "verde"}`}>{pctFmt(margenVal)}</div>
+                    </div>
+                  )}
                 </div>
               ) : null;
             })()}
 
             <div className="form-group">
-              <label className="form-label">Precio de venta ($)</label>
+              <label className="form-label">Precio de venta por {form.unidad_rinde || "u"} ($)</label>
               <input className="form-input" type="number" value={form.precio_venta} onChange={e => setForm({ ...form, precio_venta: e.target.value })} placeholder="6000" />
             </div>
 
             <div className="form-group">
               <label className="form-label">Ingredientes</label>
               {ingredientes.map((ing, i) => (
-                <div key={i} style={{ display: "flex", gap: 6, marginBottom: 8, alignItems: "center", flexWrap: "wrap" }}>
+                <div key={i} style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "center", flexWrap: "wrap" }}>
                   <select className="form-select" style={{ flex: "2 1 120px" }} value={ing.insumo_id} onChange={e => updateIng(i, "insumo_id", e.target.value)}>
                     <option value="">Insumo o costo fijo...</option>
-                    {insumos.map(ins => <option key={ins.id} value={ins.id}>{ins.nombre}</option>)}
+                    {insumosOrdenados.map(ins => <option key={ins.id} value={ins.id}>{ins.nombre}</option>)}
                   </select>
                   {ing.insumo_id ? (
                     <>
-                      <input className="form-input" style={{ flex: "1 1 60px", minWidth: 50 }} type="number" step="any" placeholder="Cant." value={ing.cantidad} onChange={e => updateIng(i, "cantidad", e.target.value)} />
-                      <select className="form-select" style={{ flex: "0 0 48px" }} value={ing.unidad} onChange={e => updateIng(i, "unidad", e.target.value)}>
-                        {["g", "ml", "u", "kg"].map(u => <option key={u}>{u}</option>)}
-                      </select>
+                      <div style={{ display: "flex", alignItems: "center", gap: 4, flex: "1 1 100px" }}>
+                        <input className="form-input" style={{ flex: 1, minWidth: 50 }} type="number" step="any" placeholder="Cant." value={ing.cantidad} onChange={e => updateIng(i, "cantidad", e.target.value)} />
+                        <span style={{ fontSize: 12, color: "var(--text-muted)", whiteSpace: "nowrap" }}>en</span>
+                        <select className="form-select" style={{ flex: "0 0 56px" }} value={ing.unidad} onChange={e => updateIng(i, "unidad", e.target.value)} title="Unidad">
+                          {["g", "ml", "u", "kg"].map(u => <option key={u} value={u}>{u}</option>)}
+                        </select>
+                      </div>
                     </>
                   ) : (
                     <input className="form-input" style={{ flex: "1 1 100px" }} type="number" step="any" placeholder="Costo fijo $" value={ing.costo_fijo} onChange={e => updateIng(i, "costo_fijo", e.target.value)} />
@@ -1101,25 +1429,62 @@ function Recetas({ recetas, insumos, recetaIngredientes, showToast, onRefresh })
 }
 
 // ── STOCK ─────────────────────────────────────────────────────────────────────
-function Stock({ recetas, stock, actualizarStock, onRefresh, showToast }) {
+function Stock({ recetas, stock, actualizarStock, consumirInsumosPorStock, insumoStock, insumos, recetaIngredientes, insumoComposicion, registrarMovimientoInsumo, onRefresh, showToast }) {
   const [cargando, setCargando] = useState(null);
-  const [cantidadCargar, setCantidadCargar] = useState({});
+  const [manualRecetaSel, setManualRecetaSel] = useState(null);
+  const [manualCantidad, setManualCantidad] = useState(1);
+  const [manualSaving, setManualSaving] = useState(false);
   const [voiceModal, setVoiceModal] = useState(false);
+  const [manualScreenOpen, setManualScreenOpen] = useState(false);
+  const [newStockModalOpen, setNewStockModalOpen] = useState(false);
   const [listening, setListening] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [parsedStock, setParsedStock] = useState([]);
   const [savingVoice, setSavingVoice] = useState(false);
+  const [insumosEnCeroModal, setInsumosEnCeroModal] = useState(null);
   const recRef = useRef(null);
   const transcriptRef = useRef("");
 
+  const recetasOrdenadasPorStock = [...recetas].slice().sort((a, b) => {
+    const sa = (stock || {})[a.id] ?? 0;
+    const sb = (stock || {})[b.id] ?? 0;
+    if (sa !== sb) return sa - sb;
+    return (a.nombre || "").localeCompare(b.nombre || "", "es", { sensitivity: "base" });
+  });
+
   const cargar = async (receta_id, cantidad) => {
     if (!cantidad || cantidad <= 0) return;
+    const receta = recetas.find(r => r.id === receta_id);
+    const insumosEnCero = getInsumosEnCeroParaRecetas(
+      [{ receta, cantidad }], recetaIngredientes, insumos, insumoComposicion, insumoStock
+    );
+    if (insumosEnCero.length > 0 && registrarMovimientoInsumo) {
+      setInsumosEnCeroModal({ insumos: insumosEnCero, cantidades: {}, pendingOp: { type: "manual", receta_id, cantidad } });
+      return;
+    }
+    await ejecutarCargaManual(receta_id, cantidad);
+  };
+
+  const ejecutarCargaManual = async (receta_id, cantidad) => {
     setCargando(receta_id);
     await actualizarStock(receta_id, cantidad);
-    setCantidadCargar(prev => ({ ...prev, [receta_id]: 0 }));
-    const r = recetas.find(r => r.id === receta_id);
+    if (consumirInsumosPorStock) await consumirInsumosPorStock(receta_id, cantidad);
+    const r = recetas.find(x => x.id === receta_id);
     showToast(`✅ +${cantidad} ${r?.nombre || "producto"}`);
+    setManualRecetaSel(null);
+    setManualCantidad(1);
     setCargando(null);
+    onRefresh?.();
+  };
+
+  const ejecutarCargaVoz = async (items) => {
+    for (const { receta, cantidad: cant } of items) {
+      await actualizarStock(receta.id, cant);
+      if (consumirInsumosPorStock) await consumirInsumosPorStock(receta.id, cant);
+    }
+    const total = items.reduce((s, v) => s + v.cantidad, 0);
+    showToast(`✅ Stock cargado: +${total} unidades`);
+    setVoiceModal(false);
   };
 
   const iniciarRecStock = (append) => {
@@ -1176,18 +1541,72 @@ function Stock({ recetas, stock, actualizarStock, onRefresh, showToast }) {
       showToast("No se detectaron productos. Probá de nuevo.");
       return;
     }
+    const insumosEnCero = getInsumosEnCeroParaRecetas(
+      parsedStock, recetaIngredientes, insumos, insumoComposicion, insumoStock
+    );
+    if (insumosEnCero.length > 0 && registrarMovimientoInsumo) {
+      setInsumosEnCeroModal({ insumos: insumosEnCero, cantidades: {}, pendingOp: { type: "voice", items: [...parsedStock] } });
+      return;
+    }
     setSavingVoice(true);
     try {
-      for (const { receta, cantidad: cant } of parsedStock) {
-        await actualizarStock(receta.id, cant);
-      }
-      const total = parsedStock.reduce((s, v) => s + v.cantidad, 0);
-      showToast(`✅ Stock cargado: +${total} unidades`);
-      setVoiceModal(false);
+      await ejecutarCargaVoz(parsedStock);
     } catch {
       showToast("⚠️ Error al cargar stock. Probá de nuevo.");
     } finally {
       setSavingVoice(false);
+    }
+  };
+
+  const confirmarInsumosEnCero = async () => {
+    const { insumos: lista, cantidades, pendingOp } = insumosEnCeroModal || {};
+    if (!lista?.length || !pendingOp) return;
+    setManualSaving(true);
+    try {
+      for (const { insumo_id } of lista) {
+        const c = parseFloat(cantidades[insumo_id]);
+        if (c > 0) await registrarMovimientoInsumo(insumo_id, "ingreso", c);
+      }
+      setInsumosEnCeroModal(null);
+      if (pendingOp.type === "manual") {
+        await ejecutarCargaManual(pendingOp.receta_id, pendingOp.cantidad);
+      } else if (pendingOp.type === "voice") {
+        setSavingVoice(true);
+        try {
+          await ejecutarCargaVoz(pendingOp.items);
+        } catch {
+          showToast("⚠️ Error al cargar stock. Probá de nuevo.");
+        } finally {
+          setSavingVoice(false);
+        }
+      }
+    } catch {
+      showToast("⚠️ Error al cargar insumos. Probá de nuevo.");
+    } finally {
+      setManualSaving(false);
+    }
+  };
+
+  const omitirInsumosEnCero = async () => {
+    const { pendingOp } = insumosEnCeroModal || {};
+    if (!pendingOp) return;
+    setInsumosEnCeroModal(null);
+    setManualSaving(true);
+    try {
+      if (pendingOp.type === "manual") {
+        await ejecutarCargaManual(pendingOp.receta_id, pendingOp.cantidad);
+      } else if (pendingOp.type === "voice") {
+        setSavingVoice(true);
+        try {
+          await ejecutarCargaVoz(pendingOp.items);
+        } catch {
+          showToast("⚠️ Error al cargar stock. Probá de nuevo.");
+        } finally {
+          setSavingVoice(false);
+        }
+      }
+    } finally {
+      setManualSaving(false);
     }
   };
 
@@ -1196,25 +1615,10 @@ function Stock({ recetas, stock, actualizarStock, onRefresh, showToast }) {
       <p className="page-title">Stock</p>
       <p className="page-subtitle">Stock actual por producto · se descarga con cada venta</p>
 
-      <div className="voice-row">
-        <div className="voice-area" style={{ flex: 1 }}>
-          <div className="voice-icon">🎤</div>
-          <div className="voice-text">Cargar stock por voz</div>
-          <button className={`voice-btn ${listening ? "listening" : ""}`} onClick={listening ? detenerRecStock : () => {
-            if (!SpeechRecognitionAPI) { showToast("⚠️ Tu navegador no soporta reconocimiento de voz"); return; }
-            setVoiceModal(true);
-            iniciarRecStock(false);
-          }}>
-            {listening ? "Detener" : "Hablar"}
-          </button>
-        </div>
-      </div>
-
       <div className="card">
         <div className="card-header"><span className="card-title">Productos</span></div>
-        {recetas.map(r => {
+        {recetasOrdenadasPorStock.map(r => {
           const cant = stock[r.id] ?? 0;
-          const inputVal = cantidadCargar[r.id] ?? 0;
           const bajo = cant <= 0;
           return (
             <div key={r.id} className="insumo-item">
@@ -1222,14 +1626,8 @@ function Stock({ recetas, stock, actualizarStock, onRefresh, showToast }) {
               <div className="insumo-info" style={{ flex: 1 }}>
                 <div className="insumo-nombre">{r.nombre}</div>
                 <div className="insumo-detalle" style={{ color: bajo ? "var(--danger)" : "var(--text-muted)" }}>
-                  Stock: {cant} {bajo && "· Sin stock"}
+                  {bajo ? "Sin stock" : `Stock: ${cant}`}
                 </div>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <input type="number" min="0" step="1" value={inputVal || ""} onChange={e => setCantidadCargar(prev => ({ ...prev, [r.id]: parseInt(e.target.value, 10) || 0 }))} placeholder="+" style={{ width: 56, padding: "8px 8px", borderRadius: 8, border: "1px solid var(--border)", textAlign: "center", fontSize: 14 }} />
-                <button className="btn-primary" onClick={() => cargar(r.id, inputVal)} disabled={cargando === r.id || !inputVal || inputVal <= 0} style={{ padding: "8px 14px", fontSize: 13 }}>
-                  {cargando === r.id ? "…" : "Cargar"}
-                </button>
               </div>
             </div>
           );
@@ -1287,6 +1685,200 @@ function Stock({ recetas, stock, actualizarStock, onRefresh, showToast }) {
           </div>
         </div>
       )}
+
+      {manualScreenOpen && (
+        <div className="screen-overlay">
+          <div className="screen-header">
+            <button className="screen-back" onClick={() => setManualScreenOpen(false)}>← Volver</button>
+            <span className="screen-title">Cargar stock manualmente</span>
+          </div>
+          <div className="screen-content">
+            <div className="card">
+              <div className="card-header"><span className="card-title">Productos</span></div>
+              {recetasOrdenadasPorStock.map(r => {
+                const cant = stock[r.id] ?? 0;
+                const bajo = cant <= 0;
+                return (
+                  <div
+                    key={r.id}
+                    className="insumo-item"
+                    onClick={() => { setManualRecetaSel(r); setManualCantidad(1); }}
+                    style={{ cursor: "pointer" }}
+                  >
+                    <span style={{ fontSize: 22 }}>{r.emoji}</span>
+                    <div className="insumo-info" style={{ flex: 1 }}>
+                      <div className="insumo-nombre">{r.nombre}</div>
+                      <div className="insumo-detalle" style={{ color: bajo ? "var(--danger)" : "var(--text-muted)" }}>
+                        {bajo ? "Sin stock" : `Stock: ${cant}`} · <span style={{ textDecoration: "underline" }}>Tocar para cargar</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {newStockModalOpen && (
+        <div className="modal-overlay" onClick={() => setNewStockModalOpen(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <h2 className="modal-title">Cargar stock</h2>
+            <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 16 }}>
+              Elegí cómo querés cargar el stock.
+            </p>
+            <button
+              className="btn-primary"
+              style={{ marginBottom: 8 }}
+              onClick={() => {
+                setNewStockModalOpen(false);
+                if (!SpeechRecognitionAPI) {
+                  showToast("⚠️ Tu navegador no soporta reconocimiento de voz");
+                  return;
+                }
+                setTranscript("");
+                setParsedStock([]);
+                transcriptRef.current = "";
+                setVoiceModal(true);
+              }}
+            >
+              🎤 Cargar por voz
+            </button>
+            <button
+              className="btn-secondary"
+              onClick={() => {
+                setNewStockModalOpen(false);
+                setManualScreenOpen(true);
+              }}
+            >
+              📝 Cargar manualmente
+            </button>
+          </div>
+        </div>
+      )}
+
+      {!manualScreenOpen && !voiceModal && (
+        <button className="fab fab-receta" onClick={() => setNewStockModalOpen(true)} title="Cargar stock">
+          <span>+</span>
+          <span>Cargar stock</span>
+        </button>
+      )}
+
+      {manualRecetaSel && (
+        <div className="screen-overlay">
+          <div className="screen-header">
+            <button
+              className="screen-back"
+              onClick={() => setManualRecetaSel(null)}
+              disabled={manualSaving}
+            >
+              ← Volver
+            </button>
+            <span className="screen-title">Cargar stock · {manualRecetaSel.emoji} {manualRecetaSel.nombre}</span>
+          </div>
+          <div className="screen-content">
+            <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 12 }}>
+              Stock actual: {(stock || {})[manualRecetaSel.id] ?? 0}
+            </div>
+            <div style={{ textAlign: "center", padding: "20px 0" }}>
+              <div style={{ fontSize: 13, color: "#8B7355", marginBottom: 16 }}>¿Cuántas unidades querés sumar?</div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 20 }}>
+                <button
+                  onClick={() => setManualCantidad(Math.max(1, manualCantidad - 1))}
+                  style={{ width: 44, height: 44, borderRadius: "50%", border: "1px solid #EDE8E0", background: "#FAF7F2", fontSize: 22, cursor: "pointer" }}
+                  disabled={manualSaving}
+                >
+                  −
+                </button>
+                <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: 42, color: "var(--purple-dark)", minWidth: 60, textAlign: "center" }}>
+                  {manualCantidad}
+                </span>
+                <button
+                  onClick={() => setManualCantidad(manualCantidad + 1)}
+                  style={{ width: 44, height: 44, borderRadius: "50%", border: "1px solid #EDE8E0", background: "#FAF7F2", fontSize: 22, cursor: "pointer" }}
+                  disabled={manualSaving}
+                >
+                  +
+                </button>
+              </div>
+            </div>
+            <button
+              className="btn-primary"
+              onClick={async () => {
+                if (!manualRecetaSel || manualCantidad <= 0) return;
+                setManualSaving(true);
+                try {
+                  await cargar(manualRecetaSel.id, manualCantidad);
+                } finally {
+                  setManualSaving(false);
+                }
+              }}
+              disabled={manualSaving || manualCantidad <= 0}
+            >
+              {manualSaving ? "Cargando…" : `Cargar +${manualCantidad}`}
+            </button>
+            <button
+              className="btn-secondary"
+              onClick={() => setManualRecetaSel(null)}
+              disabled={manualSaving}
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {insumosEnCeroModal && (
+        <div className="screen-overlay">
+          <div className="screen-header">
+            <button
+              className="screen-back"
+              onClick={() => setInsumosEnCeroModal(null)}
+              disabled={manualSaving}
+            >
+              ← Volver
+            </button>
+            <span className="screen-title">📦 Insumos en 0</span>
+          </div>
+          <div className="screen-content">
+            <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 16 }}>
+              Estos insumos tienen 0. Cargá cuánto tenés ahora para actualizar el stock:
+            </p>
+            <div className="card" style={{ marginBottom: 16 }}>
+              {insumosEnCeroModal.insumos.map(({ insumo_id, insumo }, i) => (
+                <div key={insumo_id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", borderBottom: i < insumosEnCeroModal.insumos.length - 1 ? "1px solid var(--border)" : "none" }}>
+                  <span style={{ flex: 1, fontWeight: 500 }}>{insumo?.nombre || "Insumo"}</span>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    min="0"
+                    step="0.01"
+                    placeholder="0"
+                    value={insumosEnCeroModal.cantidades[insumo_id] ?? ""}
+                    onChange={(e) => setInsumosEnCeroModal(prev => ({
+                      ...prev,
+                      cantidades: { ...prev.cantidades, [insumo_id]: e.target.value }
+                    }))}
+                    style={{ width: 80, padding: "8px 10px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 14 }}
+                  />
+                  <span style={{ fontSize: 12, color: "var(--text-muted)", minWidth: 24 }}>{insumo?.unidad || "g"}</span>
+                </div>
+              ))}
+            </div>
+            <button
+              className="btn-primary"
+              onClick={confirmarInsumosEnCero}
+              disabled={manualSaving}
+              style={{ marginBottom: 8 }}
+            >
+              {manualSaving ? "Cargando…" : "Cargar y continuar"}
+            </button>
+            <button className="btn-secondary" onClick={omitirInsumosEnCero} disabled={manualSaving}>
+              Continuar sin cargar
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1296,6 +1888,8 @@ function Clientes({ ventas, clientes, recetas, onRefresh, showToast }) {
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState({ nombre: "", telefono: "" });
   const [saving, setSaving] = useState(false);
+  const [importingMultiple, setImportingMultiple] = useState(false);
+  const [importProgress, setImportProgress] = useState({ done: 0, total: 0 });
 
   const clientesConGasto = clientes.map((c) => {
     const vs = ventas.filter((v) => v.cliente_id === c.id);
@@ -1313,11 +1907,39 @@ function Clientes({ ventas, clientes, recetas, onRefresh, showToast }) {
     if (!form.nombre.trim()) return;
     setSaving(true);
     const { error } = await supabase.from("clientes").insert({ nombre: form.nombre.trim(), telefono: form.telefono.trim() || null });
-    if (error) { showToast("⚠️ Error al guardar"); setSaving(false); return; }
+    if (error) {
+      reportError(error, { action: "saveCliente", form: { ...form } });
+      showToast(`⚠️ Error al guardar: ${(error.message || "").slice(0, 50)}`);
+      setSaving(false);
+      return;
+    }
     showToast("✅ Cliente agregado");
     setModal(false);
     await onRefresh();
     setSaving(false);
+  };
+
+  const importarVariosContactos = async () => {
+    const r = await selectContactsFromPhoneMultiple();
+    if (r.error === "no-support") { showToast("No disponible en este dispositivo"); return; }
+    if (r.error === "cancelled" || !r.contacts?.length) return;
+    const list = r.contacts.filter((c) => c.name || c.tel);
+    if (list.length === 0) { showToast("No hay contactos con nombre o teléfono"); return; }
+    setImportingMultiple(true);
+    setImportProgress({ done: 0, total: list.length });
+    let ok = 0;
+    for (let i = 0; i < list.length; i++) {
+      const { error } = await supabase.from("clientes").insert({
+        nombre: list[i].name || "Sin nombre",
+        telefono: list[i].tel || null
+      });
+      if (!error) ok++;
+      setImportProgress({ done: i + 1, total: list.length });
+    }
+    setImportingMultiple(false);
+    setImportProgress({ done: 0, total: 0 });
+    showToast(`✅ ${ok} de ${list.length} cliente(s) importado(s)`);
+    await onRefresh();
   };
 
   return (
@@ -1375,19 +1997,69 @@ function Clientes({ ventas, clientes, recetas, onRefresh, showToast }) {
           <div className="screen-content">
             <div className="form-group">
               <label className="form-label">Nombre</label>
-              <div style={{ display: "flex", gap: 8 }}>
-                <input className="form-input" style={{ flex: 1 }} value={form.nombre} onChange={e => setForm({ ...form, nombre: e.target.value })} placeholder="Ej: María García" />
-                <button type="button" className="btn-secondary" style={{ whiteSpace: "nowrap" }} onClick={async () => {
-                  const r = await selectContactFromPhone();
-                  if (r.error === "no-support") { showToast("No disponible en este dispositivo"); return; }
-                  if (r.error === "cancelled") return;
-                  setForm({ nombre: r.name, telefono: r.tel });
-                }} title="Elegir de contactos del celular">📇</button>
-              </div>
+              <input className="form-input" value={form.nombre} onChange={e => setForm({ ...form, nombre: e.target.value })} placeholder="Ej: María García" />
             </div>
             <div className="form-group">
               <label className="form-label">Teléfono</label>
               <input className="form-input" type="tel" value={form.telefono} onChange={e => setForm({ ...form, telefono: e.target.value })} placeholder="+54 11 1234-5678" />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Tomar de contactos del celular</label>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const r = await selectContactFromPhone();
+                    if (r.error === "no-support") { showToast("No disponible en este dispositivo"); return; }
+                    if (r.error === "cancelled") return;
+                    setForm({ nombre: r.name, telefono: r.tel });
+                  }}
+                  disabled={importingMultiple}
+                  style={{
+                    border: "1px solid var(--border)",
+                    borderRadius: 10,
+                    padding: "8px 12px",
+                    fontSize: 13,
+                    background: "var(--cream)",
+                    cursor: importingMultiple ? "not-allowed" : "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 6
+                  }}
+                >
+                  <span style={{ fontSize: 16 }}>📇</span>
+                  <span>Elegir contacto</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={importarVariosContactos}
+                  disabled={importingMultiple}
+                  style={{
+                    border: "1px solid var(--border)",
+                    borderRadius: 10,
+                    padding: "8px 12px",
+                    fontSize: 13,
+                    background: "var(--cream)",
+                    cursor: importingMultiple ? "not-allowed" : "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 6
+                  }}
+                >
+                  <span style={{ fontSize: 16 }}>📋</span>
+                  <span>{importingMultiple ? "Importando…" : "Importar varios"}</span>
+                </button>
+              </div>
+              {importingMultiple && importProgress.total > 0 && (
+                <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 8 }}>
+                  {importProgress.done} / {importProgress.total} contactos…
+                </p>
+              )}
+              <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 6 }}>
+                Funciona en Chrome Android con HTTPS. Elegí uno o varios contactos para crear clientes.
+              </p>
             </div>
             <button className="btn-primary" onClick={save} disabled={saving || !form.nombre.trim()}>
               {saving ? "Guardando…" : "Agregar cliente"}
@@ -1403,7 +2075,7 @@ function Clientes({ ventas, clientes, recetas, onRefresh, showToast }) {
 // ── VENTAS ──────────────────────────────────────────────────────────────────
 const SpeechRecognitionAPI = typeof window !== "undefined" && (window.SpeechRecognition || window.webkitSpeechRecognition);
 
-function Ventas({ recetas, ventas, clientes, stock, actualizarStock, onRefresh, showToast }) {
+function Ventas({ recetas, ventas, clientes, stock, actualizarStock, onRefresh, showToast, confirm }) {
   const [manualScreenOpen, setManualScreenOpen] = useState(false);
   const [modal, setModal] = useState(false);
   const [recetaSel, setRecetaSel] = useState(null);
@@ -1413,6 +2085,7 @@ function Ventas({ recetas, ventas, clientes, stock, actualizarStock, onRefresh, 
   const [estadoPago, setEstadoPago] = useState("pagado");
   const [saving, setSaving] = useState(false);
   const [voiceModal, setVoiceModal] = useState(false);
+  const [newVentaModalOpen, setNewVentaModalOpen] = useState(false);
   const [listening, setListening] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [parsedVentas, setParsedVentas] = useState([]);
@@ -1437,7 +2110,7 @@ function Ventas({ recetas, ventas, clientes, stock, actualizarStock, onRefresh, 
   const registrar = async () => {
     if (!recetaSel) return;
     const st = (stock || {})[recetaSel.id] ?? 0;
-    if (st < cantidad && !window.confirm(`Stock: ${st}. ¿Vender ${cantidad} igual?`)) return;
+    if (st < cantidad && !(await confirm(`Stock: ${st}. ¿Vender ${cantidad} igual?`))) return;
     setSaving(true);
     try {
       const { error } = await supabase.from("ventas").insert({
@@ -1454,7 +2127,8 @@ function Ventas({ recetas, ventas, clientes, stock, actualizarStock, onRefresh, 
       showToast(`✅ Venta registrada: ${cantidad}x ${recetaSel.nombre}`);
       setModal(false);
       onRefresh();
-    } catch {
+    } catch (err) {
+      reportError(err, { action: "registrarVenta", receta_id: recetaSel?.id });
       showToast("⚠️ Error al registrar venta");
     } finally {
       setSaving(false);
@@ -1467,8 +2141,12 @@ function Ventas({ recetas, ventas, clientes, stock, actualizarStock, onRefresh, 
   };
 
   const eliminarVenta = async (grupo) => {
-    if (!window.confirm("¿Eliminar esta venta?")) return;
-    const ids = grupo.rawItems.map((i) => i.id);
+    if (!(await confirm("¿Eliminar esta venta?", { destructive: true }))) return;
+    const ids = grupo.rawItems.map((i) => i.id).filter(Boolean);
+    if (ids.length === 0) {
+      showToast("⚠️ No hay ventas para eliminar");
+      return;
+    }
     const key = grupo.key || ids[0];
     setDeletingId(key);
     try {
@@ -1477,8 +2155,10 @@ function Ventas({ recetas, ventas, clientes, stock, actualizarStock, onRefresh, 
       if (actualizarStock) for (const v of grupo.rawItems) await actualizarStock(v.receta_id, v.cantidad);
       showToast("✅ Venta eliminada");
       onRefresh();
-    } catch {
-      showToast("⚠️ Error al eliminar");
+    } catch (err) {
+      reportError(err, { action: "eliminarVenta", ids });
+      const msg = (err?.message || err?.code || "Error desconocido").slice(0, 80);
+      showToast(`⚠️ No se puede eliminar: ${msg}`);
     } finally {
       setDeletingId(null);
     }
@@ -1559,7 +2239,8 @@ function Ventas({ recetas, ventas, clientes, stock, actualizarStock, onRefresh, 
       setEditGrupo(null);
       setEditItemsToAdd([]);
       onRefresh();
-    } catch {
+    } catch (err) {
+      reportError(err, { action: "guardarEdicion", grupo: editGrupo?.key });
       showToast("⚠️ Error al actualizar venta");
     } finally {
       setEditSaving(false);
@@ -1575,36 +2256,34 @@ function Ventas({ recetas, ventas, clientes, stock, actualizarStock, onRefresh, 
   const SelectorCliente = ({ value, onChange }) => (
     <div className="form-group">
       <label className="form-label">Cliente</label>
-      <div style={{ display: "flex", gap: 8 }}>
-        <select className="form-input" style={{ flex: 1 }} value={value || ""} onChange={e => onChange(e.target.value ? e.target.value : null)}>
-          <option value="">— Sin cliente</option>
-          {(clientes || []).map(c => (
-            <option key={c.id} value={c.id}>{c.nombre}{c.telefono ? ` · ${c.telefono}` : ""}</option>
-          ))}
-        </select>
-        <button type="button" className="btn-secondary" style={{ whiteSpace: "nowrap" }} title="Agregar desde contactos del celular" onClick={async () => {
-          const r = await selectContactFromPhone();
-          if (r.error === "no-support") { showToast("No disponible en este dispositivo"); return; }
-          if (r.error === "cancelled") return;
-          if (!r.name?.trim()) return;
-          const { data, error } = await supabase.from("clientes").insert({ nombre: r.name.trim(), telefono: r.tel?.trim() || null }).select("id").single();
-          if (error) { showToast("⚠️ Error al agregar cliente"); return; }
-          if (data) { await onRefresh(); onChange(data.id); showToast(`✅ Cliente ${r.name} agregado`); }
-        }}>📇</button>
-      </div>
+      <select className="form-input" value={value || ""} onChange={e => onChange(e.target.value ? e.target.value : null)}>
+        <option value="">— Sin cliente</option>
+        {(clientes || []).map(c => (
+          <option key={c.id} value={c.id}>{c.nombre}{c.telefono ? ` · ${c.telefono}` : ""}</option>
+        ))}
+      </select>
+      <button type="button" className="btn-secondary" style={{ marginTop: 8 }} title="Agregar desde contactos del celular" onClick={async () => {
+        const r = await selectContactFromPhone();
+        if (r.error === "no-support") { showToast("No disponible en este dispositivo"); return; }
+        if (r.error === "cancelled") return;
+        if (!r.name?.trim()) return;
+        const { data, error } = await supabase.from("clientes").insert({ nombre: r.name.trim(), telefono: r.tel?.trim() || null }).select("id").single();
+        if (error) { showToast("⚠️ Error al agregar cliente"); return; }
+        if (data) { await onRefresh(); onChange(data.id); showToast(`✅ Cliente ${r.name} agregado`); }
+      }}>📇 Elegir contacto</button>
     </div>
   );
 
   const SelectoresPago = () => (
-    <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
-      <div className="form-group" style={{ flex: 1 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 12 }}>
+      <div className="form-group">
         <label className="form-label">Medio</label>
         <select className="form-input" value={medioPago} onChange={e => setMedioPago(e.target.value)}>
           <option value="efectivo">💵 Efectivo</option>
           <option value="transferencia">📱 Transferencia</option>
         </select>
       </div>
-      <div className="form-group" style={{ flex: 1 }}>
+      <div className="form-group">
         <label className="form-label">Estado</label>
         <select className="form-input" value={estadoPago} onChange={e => setEstadoPago(e.target.value)}>
           <option value="pagado">✅ Pagado</option>
@@ -1665,8 +2344,10 @@ function Ventas({ recetas, ventas, clientes, stock, actualizarStock, onRefresh, 
       showToast("⚠️ Tu navegador no soporta reconocimiento de voz");
       return;
     }
+    setTranscript("");
+    setParsedVentas([]);
+    transcriptRef.current = "";
     setVoiceModal(true);
-    iniciarRec(false);
   };
 
   const agregarMasVoz = () => {
@@ -1687,7 +2368,7 @@ function Ventas({ recetas, ventas, clientes, stock, actualizarStock, onRefresh, 
       return;
     }
     const sinStock = parsedVentas.filter(({ receta, cantidad: cant }) => ((stock || {})[receta.id] ?? 0) < cant);
-    if (sinStock.length > 0 && !window.confirm(`Stock insuficiente en ${sinStock.map(s => s.receta.nombre).join(", ")}. ¿Registrar venta igual?`)) return;
+    if (sinStock.length > 0 && !(await confirm(`Stock insuficiente en ${sinStock.map(s => s.receta.nombre).join(", ")}. ¿Registrar venta igual?`))) return;
     setSavingVoice(true);
     try {
       const transaccionId = crypto.randomUUID?.() || `t-${Date.now()}`;
@@ -1725,20 +2406,10 @@ function Ventas({ recetas, ventas, clientes, stock, actualizarStock, onRefresh, 
       <p className="page-title">Ventas</p>
       <p className="page-subtitle">Hoy: {fmt(ingresoHoy)}</p>
 
-      <div className="voice-row">
-        <div className="voice-area" style={{ flex: 1 }}>
-          <div className="voice-icon">🎤</div>
-          <div className="voice-text">Decí la venta en voz alta</div>
-          <button className={`voice-btn ${listening ? "listening" : ""}`} onClick={listening ? detenerVoz : iniciarVoz}>
-            {listening ? "Detener" : "Hablar"}
-          </button>
-        </div>
-      </div>
-
       {ventasHoy.length > 0 && (
         <>
           <div className="card-header" style={{ marginBottom: 8 }}><span className="card-title">Hoy</span></div>
-          {agruparVentas(ventasHoy).slice().reverse().map((grupo) => {
+          {agruparVentas(ventasHoy).map((grupo) => {
             const cliente = (clientes || []).find(c => c.id === grupo.cliente_id);
             return (
               <div key={grupo.key} className="card venta-card">
@@ -1773,15 +2444,15 @@ function Ventas({ recetas, ventas, clientes, stock, actualizarStock, onRefresh, 
           </div>
           <div className="screen-content">
             <SelectorCliente value={editForm.cliente_id} onChange={v => setEditForm({ ...editForm, cliente_id: v })} />
-            <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
-              <div className="form-group" style={{ flex: 1 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 12 }}>
+              <div className="form-group">
                 <label className="form-label">Medio</label>
                 <select className="form-input" value={editForm.medio_pago} onChange={e => setEditForm({ ...editForm, medio_pago: e.target.value })}>
                   <option value="efectivo">💵 Efectivo</option>
                   <option value="transferencia">📱 Transferencia</option>
                 </select>
               </div>
-              <div className="form-group" style={{ flex: 1 }}>
+              <div className="form-group">
                 <label className="form-label">Estado</label>
                 <select className="form-input" value={editForm.estado_pago} onChange={e => setEditForm({ ...editForm, estado_pago: e.target.value })}>
                   <option value="pagado">✅ Pagado</option>
@@ -1794,7 +2465,7 @@ function Ventas({ recetas, ventas, clientes, stock, actualizarStock, onRefresh, 
                 <label className="form-label">Cantidad</label>
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                   <button onClick={() => setEditCantidades({ [editGrupo.rawItems[0].id]: Math.max(1, (editCantidades[editGrupo.rawItems[0].id] || 1) - 1) })} style={{ width: 40, height: 40, borderRadius: 8, border: "1px solid var(--border)", background: "var(--cream)", fontSize: 20, cursor: "pointer" }}>−</button>
-                  <span style={{ fontFamily: "'Fraunces', serif", fontSize: 24, minWidth: 40, textAlign: "center" }}>{editCantidades[editGrupo.rawItems[0].id] ?? editGrupo.rawItems[0].cantidad}</span>
+                  <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: 24, minWidth: 40, textAlign: "center" }}>{editCantidades[editGrupo.rawItems[0].id] ?? editGrupo.rawItems[0].cantidad}</span>
                   <button onClick={() => setEditCantidades({ [editGrupo.rawItems[0].id]: (editCantidades[editGrupo.rawItems[0].id] ?? editGrupo.rawItems[0].cantidad) + 1 })} style={{ width: 40, height: 40, borderRadius: 8, border: "1px solid var(--border)", background: "var(--cream)", fontSize: 20, cursor: "pointer" }}>+</button>
                 </div>
               </div>
@@ -1816,19 +2487,18 @@ function Ventas({ recetas, ventas, clientes, stock, actualizarStock, onRefresh, 
             )}
             <div className="form-group" style={{ marginTop: 16, paddingTop: 16, borderTop: "1px dashed var(--border)" }}>
               <label className="form-label">Agregar producto</label>
-              <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-                <select className="form-input" value={editRecetaToAdd} onChange={e => setEditRecetaToAdd(e.target.value)} style={{ flex: 1 }}>
-                  <option value="">— Seleccionar</option>
-                  {recetas.map(r => (
-                    <option key={r.id} value={r.id}>{r.emoji} {r.nombre} · {fmt(r.precio_venta || 0)}</option>
-                  ))}
-                </select>
-                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                  <button onClick={() => setEditCantidadToAdd(Math.max(1, editCantidadToAdd - 1))} style={{ width: 36, height: 36, borderRadius: 8, border: "1px solid var(--border)", background: "var(--cream)", fontSize: 18, cursor: "pointer" }}>−</button>
-                  <span style={{ minWidth: 28, textAlign: "center", fontWeight: 500 }}>{editCantidadToAdd}</span>
-                  <button onClick={() => setEditCantidadToAdd(editCantidadToAdd + 1)} style={{ width: 36, height: 36, borderRadius: 8, border: "1px solid var(--border)", background: "var(--cream)", fontSize: 18, cursor: "pointer" }}>+</button>
-                </div>
-                <button className="btn-primary" onClick={agregarProductoEnEdicion} disabled={!editRecetaToAdd} style={{ padding: "8px 16px" }}>+</button>
+              <select className="form-input" value={editRecetaToAdd} onChange={e => setEditRecetaToAdd(e.target.value)} style={{ marginBottom: 8 }}>
+                <option value="">— Seleccionar</option>
+                {recetas.map(r => (
+                  <option key={r.id} value={r.id}>{r.emoji} {r.nombre} · {fmt(r.precio_venta || 0)}</option>
+                ))}
+              </select>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                <label className="form-label" style={{ marginBottom: 0, flex: "0 0 auto" }}>Cantidad</label>
+                <button onClick={() => setEditCantidadToAdd(Math.max(1, editCantidadToAdd - 1))} style={{ width: 36, height: 36, borderRadius: 8, border: "1px solid var(--border)", background: "var(--cream)", fontSize: 18, cursor: "pointer" }}>−</button>
+                <span style={{ minWidth: 28, textAlign: "center", fontWeight: 500 }}>{editCantidadToAdd}</span>
+                <button onClick={() => setEditCantidadToAdd(editCantidadToAdd + 1)} style={{ width: 36, height: 36, borderRadius: 8, border: "1px solid var(--border)", background: "var(--cream)", fontSize: 18, cursor: "pointer" }}>+</button>
+                <button className="btn-primary" onClick={agregarProductoEnEdicion} disabled={!editRecetaToAdd} style={{ padding: "8px 16px", marginLeft: "auto" }}>Agregar</button>
               </div>
               {editItemsToAdd.length > 0 && (
                 <div style={{ marginTop: 8 }}>
@@ -1904,10 +2574,40 @@ function Ventas({ recetas, ventas, clientes, stock, actualizarStock, onRefresh, 
         </div>
       )}
 
-      {!manualScreenOpen && (
-        <button className="fab fab-receta" onClick={() => setManualScreenOpen(true)} title="Registro manual">
+      {newVentaModalOpen && (
+        <div className="modal-overlay" onClick={() => setNewVentaModalOpen(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <h2 className="modal-title">Nueva venta</h2>
+            <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 16 }}>
+              Elegí cómo querés cargar la venta.
+            </p>
+            <button
+              className="btn-primary"
+              style={{ marginBottom: 8 }}
+              onClick={() => {
+                setNewVentaModalOpen(false);
+                iniciarVoz();
+              }}
+            >
+              🎤 Venta por voz
+            </button>
+            <button
+              className="btn-secondary"
+              onClick={() => {
+                setNewVentaModalOpen(false);
+                setManualScreenOpen(true);
+              }}
+            >
+              📝 Cargar manualmente
+            </button>
+          </div>
+        </div>
+      )}
+
+      {!manualScreenOpen && !voiceModal && (
+        <button className="fab fab-receta" onClick={() => setNewVentaModalOpen(true)} title="Nueva venta">
           <span>+</span>
-          <span>Registro manual</span>
+          <span>Nueva venta</span>
         </button>
       )}
 
@@ -1915,7 +2615,7 @@ function Ventas({ recetas, ventas, clientes, stock, actualizarStock, onRefresh, 
         <div className="screen-overlay">
           <div className="screen-header">
             <button className="screen-back" onClick={closeManualScreen}>← Volver</button>
-            <span className="screen-title">Registro manual</span>
+            <span className="screen-title">Nueva venta manual</span>
           </div>
           <div className="screen-content">
             <div className="card" style={{ marginBottom: 16 }}>
@@ -1933,8 +2633,7 @@ function Ventas({ recetas, ventas, clientes, stock, actualizarStock, onRefresh, 
                       <div className="insumo-detalle">Rinde {r.rinde} {r.unidad_rinde} · Stock: {st}</div>
                     </div>
                     <div className="insumo-precio">
-                      <div className="insumo-precio-value">{fmt(r.precio_venta || 0)}</div>
-                      <div className="insumo-precio-unit">c/u</div>
+                      <div className="insumo-precio-value">{fmt(r.precio_venta || 0)}/{(r.unidad_rinde || "u").replace("porción", "porc.")}</div>
                     </div>
                   </div>
                 );
@@ -1959,11 +2658,11 @@ function Ventas({ recetas, ventas, clientes, stock, actualizarStock, onRefresh, 
               <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 20 }}>
                 <button onClick={() => setCantidad(Math.max(1, cantidad - 1))}
                   style={{ width: 44, height: 44, borderRadius: "50%", border: "1px solid #EDE8E0", background: "#FAF7F2", fontSize: 22, cursor: "pointer" }}>−</button>
-                <span style={{ fontFamily: "'Fraunces', serif", fontSize: 42, color: "var(--purple-dark)", minWidth: 60, textAlign: "center" }}>{cantidad}</span>
+                <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: 42, color: "var(--purple-dark)", minWidth: 60, textAlign: "center" }}>{cantidad}</span>
                 <button onClick={() => setCantidad(cantidad + 1)}
                   style={{ width: 44, height: 44, borderRadius: "50%", border: "1px solid #EDE8E0", background: "#FAF7F2", fontSize: 22, cursor: "pointer" }}>+</button>
               </div>
-              <div style={{ fontFamily: "'Fraunces', serif", fontSize: 22, color: "#4A7C59", marginTop: 16 }}>
+              <div style={{ fontFamily: "'Outfit', sans-serif", fontSize: 22, color: "#4A7C59", marginTop: 16 }}>
                 Total: {fmt(recetaSel.precio_venta * cantidad)}
               </div>
             </div>
@@ -1989,14 +2688,30 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [seeded, setSeeded] = useState(false);
   const [toast, setToast] = useState(null);
+  const [confirmState, setConfirmState] = useState(null);
+  const confirmResolveRef = useRef(null);
 
   const showToast = (msg) => setToast(msg);
+  const confirm = useCallback((message, { destructive = false } = {}) => {
+    return new Promise((resolve) => {
+      confirmResolveRef.current = resolve;
+      setConfirmState({ message, destructive });
+    });
+  }, []);
+
+  const handleConfirm = useCallback((ok) => {
+    if (confirmResolveRef.current) confirmResolveRef.current(ok);
+    confirmResolveRef.current = null;
+    setConfirmState(null);
+  }, []);
 
   const [recetaIngredientes, setRecetaIngredientes] = useState([]);
   const [clientes, setClientes] = useState([]);
   const [stock, setStock] = useState({});
   const [insumoStock, setInsumoStock] = useState({});
   const [insumoMovimientos, setInsumoMovimientos] = useState([]);
+  const [insumoComposicion, setInsumoComposicion] = useState([]);
+  const [errorLogOpen, setErrorLogOpen] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session: s } }) => {
@@ -2020,7 +2735,10 @@ export default function App() {
       .order("created_at", { ascending: false }).limit(100)
       .then(r => ({ ok: !r.error, data: r.data || [] }))
       .catch(() => ({ ok: false, data: [] }));
-    const [insRes, recRes, venRes, riRes, cliRes, stRes, insStRes, insMovRes] = await Promise.all([
+    const insCompPromise = supabase.from("insumo_composicion").select("insumo_id, insumo_id_componente, factor")
+      .then(r => ({ ok: !r.error, data: r.data || [] }))
+      .catch(() => ({ ok: false, data: [] }));
+    const [insRes, recRes, venRes, riRes, cliRes, stRes, insStRes, insMovRes, insCompRes] = await Promise.all([
       supabase.from("insumos").select("*").order("categoria").order("nombre"),
       supabase.from("recetas").select("*").order("nombre"),
       supabase.from("ventas").select("*").order("created_at", { ascending: false }).limit(200),
@@ -2028,7 +2746,8 @@ export default function App() {
       supabase.from("clientes").select("*").order("nombre"),
       stPromise,
       insStPromise,
-      insMovPromise
+      insMovPromise,
+      insCompPromise
     ]);
     const authErr = (e) => e && (e.status === 401 || e.status === 403);
     if ([insRes.error, recRes.error, venRes.error, riRes.error, cliRes.error].some(authErr)) {
@@ -2053,6 +2772,9 @@ export default function App() {
     }
     if (insMovRes.ok) {
       setInsumoMovimientos(insMovRes.data || []);
+    }
+    if (insCompRes.ok) {
+      setInsumoComposicion(insCompRes.data || []);
     }
     setLoading(false);
 
@@ -2117,6 +2839,41 @@ export default function App() {
     if (mov) setInsumoMovimientos(prev => [mov, ...prev]);
   }, []);
 
+  /** Consume insumos al cargar stock: si cargás +10 alfajores, descuenta los ingredientes (premezcla, etc.).
+   * Si un insumo tiene composición (ej. premezcla = harina+almidón+mandioca), descuenta los componentes. */
+  const consumirInsumosPorStock = useCallback(async (receta_id, cantidad) => {
+    const receta = recetas.find(r => r.id === receta_id);
+    if (!receta || !receta.rinde) return;
+    const ings = recetaIngredientes.filter(i => i.receta_id === receta_id && i.insumo_id);
+    const composicionPorInsumo = {};
+    for (const c of insumoComposicion || []) {
+      if (!composicionPorInsumo[c.insumo_id]) composicionPorInsumo[c.insumo_id] = [];
+      composicionPorInsumo[c.insumo_id].push(c);
+    }
+    for (const ing of ings) {
+      const insumo = insumos.find(x => x.id === ing.insumo_id);
+      if (!insumo) continue;
+      const cantPorUnidad = (parseFloat(ing.cantidad) || 0) / (receta.rinde || 1);
+      const cantTotalIng = cantPorUnidad * cantidad;
+      const cantGramos = aGramos(cantTotalIng, ing.unidad || "g");
+      const componentes = composicionPorInsumo[ing.insumo_id];
+      if (componentes && componentes.length > 0) {
+        for (const comp of componentes) {
+          const factor = parseFloat(comp.factor) || 0;
+          if (factor <= 0) continue;
+          const insumoHijo = insumos.find(x => x.id === comp.insumo_id_componente);
+          if (!insumoHijo) continue;
+          const cantHijoGramos = cantGramos * factor;
+          const cantHijo = convertirAUnidadInsumo(cantHijoGramos, "g", insumoHijo.unidad || "g");
+          if (cantHijo > 0) await registrarMovimientoInsumo(comp.insumo_id_componente, "egreso", cantHijo);
+        }
+      } else {
+        const cantEnUnidad = convertirAUnidadInsumo(cantTotalIng, ing.unidad || "g", insumo.unidad || "g");
+        if (cantEnUnidad > 0) await registrarMovimientoInsumo(ing.insumo_id, "egreso", cantEnUnidad);
+      }
+    }
+  }, [recetas, recetaIngredientes, insumos, insumoComposicion, registrarMovimientoInsumo]);
+
   const TABS = [
     { id: "dashboard", icon: "📊", label: "Inicio" },
     { id: "ventas", icon: "💰", label: "Ventas" },
@@ -2163,20 +2920,51 @@ export default function App() {
           <div className="header-top">
             <h1>🌾 Panadería SG</h1>
             <span className="header-badge">Gluten Free*</span>
-            <button type="button" className="auth-logout" onClick={() => supabase.auth.signOut()} title="Cerrar sesión">Salir</button>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              {getErrorLog().length > 0 && (
+                <button type="button" onClick={() => setErrorLogOpen(true)} title="Ver errores" style={{ background: "rgba(255,255,255,0.2)", border: "none", borderRadius: 6, padding: "4px 8px", fontSize: 11, color: "white", cursor: "pointer" }}>
+                  ⚠ {getErrorLog().length}
+                </button>
+              )}
+              <button type="button" className="auth-logout" onClick={() => supabase.auth.signOut()} title="Cerrar sesión">Salir</button>
+            </div>
           </div>
           <a href="/privacidad.html" target="_blank" rel="noopener noreferrer" style={{ fontSize: 10, color: "rgba(255,255,255,0.7)", marginTop: 6, display: "block" }}>Privacidad</a>
         </div>
+
+        {errorLogOpen && (
+          <div className="screen-overlay">
+            <div className="screen-header">
+              <button className="screen-back" onClick={() => setErrorLogOpen(false)}>← Cerrar</button>
+              <span className="screen-title">Log de errores</span>
+            </div>
+            <div className="screen-content" style={{ fontSize: 12 }}>
+              {getErrorLog().length === 0 ? (
+                <p style={{ color: "var(--text-muted)" }}>No hay errores registrados.</p>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  {getErrorLog().slice().reverse().map((e, i) => (
+                    <div key={i} style={{ padding: 12, background: "var(--cream)", borderRadius: 10, border: "1px solid var(--border)", wordBreak: "break-word" }}>
+                      <div style={{ fontSize: 10, color: "var(--text-muted)", marginBottom: 4 }}>{e.ts}</div>
+                      {e.action && <span style={{ color: "var(--purple)" }}>[{e.action}] </span>}
+                      {e.message}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {loading ? (
           <div className="loading"><div className="spinner" /><span>Cargando...</span></div>
         ) : (
           <>
             {tab === "dashboard" && <Dashboard insumos={insumos} recetas={recetas} ventas={ventas} clientes={clientes} stock={stock} onNavigate={setTab} />}
-            {tab === "insumos" && <Insumos insumos={insumos} insumoStock={insumoStock} insumoMovimientos={insumoMovimientos} registrarMovimientoInsumo={registrarMovimientoInsumo} onRefresh={loadData} showToast={showToast} />}
-            {tab === "recetas" && <Recetas recetas={recetas} insumos={insumos} recetaIngredientes={recetaIngredientes} showToast={showToast} onRefresh={loadData} />}
-            {tab === "ventas" && <Ventas recetas={recetas} ventas={ventas} clientes={clientes} stock={stock} actualizarStock={actualizarStock} onRefresh={loadData} showToast={showToast} />}
-            {tab === "stock" && <Stock recetas={recetas} stock={stock} actualizarStock={actualizarStock} onRefresh={loadData} showToast={showToast} />}
+            {tab === "insumos" && <Insumos insumos={insumos} insumoStock={insumoStock} insumoMovimientos={insumoMovimientos} insumoComposicion={insumoComposicion} registrarMovimientoInsumo={registrarMovimientoInsumo} onRefresh={loadData} showToast={showToast} confirm={confirm} />}
+            {tab === "recetas" && <Recetas recetas={recetas} insumos={insumos} recetaIngredientes={recetaIngredientes} showToast={showToast} onRefresh={loadData} confirm={confirm} />}
+            {tab === "ventas" && <Ventas recetas={recetas} ventas={ventas} clientes={clientes} stock={stock} actualizarStock={actualizarStock} onRefresh={loadData} showToast={showToast} confirm={confirm} />}
+            {tab === "stock" && <Stock recetas={recetas} stock={stock} actualizarStock={actualizarStock} consumirInsumosPorStock={consumirInsumosPorStock} insumoStock={insumoStock} insumos={insumos} recetaIngredientes={recetaIngredientes} insumoComposicion={insumoComposicion} registrarMovimientoInsumo={registrarMovimientoInsumo} onRefresh={loadData} showToast={showToast} />}
             {tab === "clientes" && <Clientes ventas={ventas} clientes={clientes} recetas={recetas} onRefresh={loadData} showToast={showToast} />}
           </>
         )}
@@ -2191,6 +2979,14 @@ export default function App() {
         </nav>
 
         {toast && <Toast msg={toast} onDone={() => setToast(null)} />}
+        {confirmState && (
+          <ConfirmDialog
+            message={confirmState.message}
+            destructive={confirmState.destructive}
+            onConfirm={() => handleConfirm(true)}
+            onCancel={() => handleConfirm(false)}
+          />
+        )}
       </div>
     </>
   );
