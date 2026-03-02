@@ -1,0 +1,746 @@
+[
+  {
+    "nombre": "PAN DE MOLDE",
+    "emoji": "🍞",
+    "rinde": 1,
+    "unidad_rinde": "u",
+    "precio_venta": 1500,
+    "ingredientes": [
+      {
+        "nombre": "Premezcla",
+        "cantidad": 425.0,
+        "unidad": "g",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Levadura",
+        "cantidad": 35.0,
+        "unidad": "g",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Azúcar",
+        "cantidad": 25.0,
+        "unidad": "g",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Aceite",
+        "cantidad": 25.0,
+        "unidad": "ml",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Huevos",
+        "cantidad": 1.5,
+        "unidad": "u",
+        "costo_fijo": null
+      }
+    ]
+  },
+  {
+    "nombre": "TARTA ALMENDRAS S/A",
+    "emoji": "🥧",
+    "rinde": 1,
+    "unidad_rinde": "u",
+    "precio_venta": 150,
+    "ingredientes": [
+      {
+        "nombre": "Harina de Almendras",
+        "cantidad": 10.0,
+        "unidad": "g",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Harina de Coco",
+        "cantidad": 2.5,
+        "unidad": "g",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Huevo",
+        "cantidad": 0.05,
+        "unidad": "u",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Manteca",
+        "cantidad": 5.0,
+        "unidad": "g",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Sacarina",
+        "cantidad": 0.3,
+        "unidad": "u",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Esencia de Vainilla",
+        "cantidad": 0.5,
+        "unidad": "ml",
+        "costo_fijo": null
+      }
+    ]
+  },
+  {
+    "nombre": "TARTA SALADA",
+    "emoji": "🥧",
+    "rinde": 1,
+    "unidad_rinde": "u",
+    "precio_venta": 4250,
+    "ingredientes": [
+      {
+        "nombre": "Premezcla",
+        "cantidad": 140.0,
+        "unidad": "g",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Huevo (masa)",
+        "cantidad": 0.5,
+        "unidad": "u",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Aceite",
+        "cantidad": 10.0,
+        "unidad": "ml",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Queso Mantecoso",
+        "cantidad": 25.0,
+        "unidad": "g",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Jamón",
+        "cantidad": 15.0,
+        "unidad": "g",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Huevos relleno",
+        "cantidad": 1.0,
+        "unidad": "u",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Relleno calabaza/acelga",
+        "cantidad": null,
+        "unidad": "g",
+        "costo_fijo": 250.0
+      }
+    ]
+  },
+  {
+    "nombre": "EMPANADA",
+    "emoji": "🥟",
+    "rinde": 1,
+    "unidad_rinde": "u",
+    "precio_venta": 85,
+    "ingredientes": [
+      {
+        "nombre": "Tapas de empanada",
+        "cantidad": 1.0,
+        "unidad": "u",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Acelga",
+        "cantidad": null,
+        "unidad": "g",
+        "costo_fijo": 62.5
+      },
+      {
+        "nombre": "Queso Tybo",
+        "cantidad": 2.5,
+        "unidad": "g",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Queso Mantecoso",
+        "cantidad": 1.25,
+        "unidad": "g",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Cebolla",
+        "cantidad": null,
+        "unidad": "u",
+        "costo_fijo": 8.33
+      }
+    ]
+  },
+  {
+    "nombre": "PREPIZZA",
+    "emoji": "🍕",
+    "rinde": 1,
+    "unidad_rinde": "u",
+    "precio_venta": 400,
+    "ingredientes": [
+      {
+        "nombre": "Premezcla",
+        "cantidad": 170.0,
+        "unidad": "g",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Levadura",
+        "cantidad": 14.0,
+        "unidad": "g",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Azúcar",
+        "cantidad": 10.0,
+        "unidad": "g",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Aceite",
+        "cantidad": 10.0,
+        "unidad": "ml",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Huevos",
+        "cantidad": 0.6,
+        "unidad": "u",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Puré de tomate (50%)",
+        "cantidad": 0.1,
+        "unidad": "u",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Orégano/provenzal/sal",
+        "cantidad": null,
+        "unidad": "g",
+        "costo_fijo": 25.0
+      }
+    ]
+  },
+  {
+    "nombre": "PIZZA COMPLETA",
+    "emoji": "🍕",
+    "rinde": 1,
+    "unidad_rinde": "u",
+    "precio_venta": 8500,
+    "ingredientes": [
+      {
+        "nombre": "Queso Cremoso",
+        "cantidad": 250.0,
+        "unidad": "g",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Caja packaging",
+        "cantidad": 1.0,
+        "unidad": "u",
+        "costo_fijo": null
+      }
+    ]
+  },
+  {
+    "nombre": "COOKIE CRUMBL OREO",
+    "emoji": "🍪",
+    "rinde": 1,
+    "unidad_rinde": "u",
+    "precio_venta": 2500,
+    "ingredientes": [
+      {
+        "nombre": "Oreo S/G",
+        "cantidad": 1.0,
+        "unidad": "u",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Dulce de Leche",
+        "cantidad": 10.0,
+        "unidad": "g",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Bolsita packaging",
+        "cantidad": 1.0,
+        "unidad": "u",
+        "costo_fijo": null
+      }
+    ]
+  },
+  {
+    "nombre": "BROWNIE",
+    "emoji": "🍫",
+    "rinde": 1,
+    "unidad_rinde": "u",
+    "precio_venta": 2500,
+    "ingredientes": [
+      {
+        "nombre": "Premezcla",
+        "cantidad": 95.0,
+        "unidad": "g",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Huevos",
+        "cantidad": 0.5,
+        "unidad": "u",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Azúcar",
+        "cantidad": 31.25,
+        "unidad": "g",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Manteca",
+        "cantidad": 13.75,
+        "unidad": "g",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Chocolate Semiamargo (Coverlux)",
+        "cantidad": 21.25,
+        "unidad": "g",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Polvo de Hornear",
+        "cantidad": 2.5,
+        "unidad": "g",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Rollo Aluminio",
+        "cantidad": 0.0010416666666666667,
+        "unidad": "u",
+        "costo_fijo": null
+      }
+    ]
+  },
+  {
+    "nombre": "BROWNIE — Tortera 16cm",
+    "emoji": "🍫",
+    "rinde": 1,
+    "unidad_rinde": "u",
+    "precio_venta": 12000,
+    "ingredientes": [
+      {
+        "nombre": "Premezcla",
+        "cantidad": 380.0,
+        "unidad": "g",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Huevos",
+        "cantidad": 2.0,
+        "unidad": "u",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Azúcar",
+        "cantidad": 125.0,
+        "unidad": "g",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Manteca",
+        "cantidad": 55.0,
+        "unidad": "g",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Chocolate Semiamargo (Coverlux)",
+        "cantidad": 85.0,
+        "unidad": "g",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Polvo de Hornear",
+        "cantidad": 10.0,
+        "unidad": "g",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Rollo Aluminio",
+        "cantidad": 0.004166666666666667,
+        "unidad": "u",
+        "costo_fijo": null
+      }
+    ]
+  },
+  {
+    "nombre": "PASTAFROLA",
+    "emoji": "🥧",
+    "rinde": 1,
+    "unidad_rinde": "u",
+    "precio_venta": 2500,
+    "ingredientes": [
+      {
+        "nombre": "Masa Sablée",
+        "cantidad": 60.0,
+        "unidad": "g",
+        "costo_fijo": 240
+      },
+      {
+        "nombre": "Membrillo",
+        "cantidad": 25.0,
+        "unidad": "g",
+        "costo_fijo": null
+      }
+    ]
+  },
+  {
+    "nombre": "CABSHA",
+    "emoji": "🍫",
+    "rinde": 1,
+    "unidad_rinde": "u",
+    "precio_venta": 2500,
+    "ingredientes": [
+      {
+        "nombre": "Dulce de Leche",
+        "cantidad": 20.0,
+        "unidad": "g",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Chocolate Semiamargo (Coverlux)",
+        "cantidad": 10.0,
+        "unidad": "g",
+        "costo_fijo": null
+      }
+    ]
+  },
+  {
+    "nombre": "CHIPA 100g",
+    "emoji": "🫓",
+    "rinde": 1,
+    "unidad_rinde": "u",
+    "precio_venta": 1500,
+    "ingredientes": [
+      {
+        "nombre": "Harina de Mandioca",
+        "cantidad": 62.5,
+        "unidad": "g",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Manteca",
+        "cantidad": 12.5,
+        "unidad": "g",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Queso Tybo",
+        "cantidad": 40.0,
+        "unidad": "g",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Sal",
+        "cantidad": null,
+        "unidad": "g",
+        "costo_fijo": 25
+      },
+      {
+        "nombre": "Huevo",
+        "cantidad": 0.5,
+        "unidad": "u",
+        "costo_fijo": null
+      }
+    ]
+  },
+  {
+    "nombre": "TORTA 2KG",
+    "emoji": "🎂",
+    "rinde": 1,
+    "unidad_rinde": "u",
+    "precio_venta": 36000,
+    "ingredientes": [
+      {
+        "nombre": "Dulce de Leche",
+        "cantidad": 500.0,
+        "unidad": "g",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Crema Ledevit (relleno)",
+        "cantidad": 250.0,
+        "unidad": "g",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Crema Ledevit (cobertura)",
+        "cantidad": 600.0,
+        "unidad": "g",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Cartón para Torta",
+        "cantidad": 1.0,
+        "unidad": "u",
+        "costo_fijo": null
+      }
+    ]
+  },
+  {
+    "nombre": "BUDÍN/ANILLO — Entero",
+    "emoji": "🍰",
+    "rinde": 1,
+    "unidad_rinde": "u",
+    "precio_venta": 7500,
+    "ingredientes": [
+      {
+        "nombre": "Premezcla",
+        "cantidad": 250.0,
+        "unidad": "g",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Azúcar",
+        "cantidad": 150.0,
+        "unidad": "g",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Aceite",
+        "cantidad": 100.0,
+        "unidad": "ml",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Huevos",
+        "cantidad": 4.0,
+        "unidad": "u",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Polvo de Hornear",
+        "cantidad": 5.0,
+        "unidad": "g",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Esencia de Vainilla",
+        "cantidad": 10.0,
+        "unidad": "ml",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Cobertura azúcar impalpable",
+        "cantidad": null,
+        "unidad": "g",
+        "costo_fijo": 135
+      },
+      {
+        "nombre": "Merengue en polvo",
+        "cantidad": 150.0,
+        "unidad": "g",
+        "costo_fijo": null
+      }
+    ]
+  },
+  {
+    "nombre": "BUDÍN porción",
+    "emoji": "🍰",
+    "rinde": 1,
+    "unidad_rinde": "u",
+    "precio_venta": 2500,
+    "ingredientes": [
+      {
+        "nombre": "Premezcla",
+        "cantidad": 41.67,
+        "unidad": "g",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Azúcar",
+        "cantidad": 25.0,
+        "unidad": "g",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Aceite",
+        "cantidad": 16.67,
+        "unidad": "ml",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Huevos",
+        "cantidad": 0.67,
+        "unidad": "u",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Polvo de Hornear",
+        "cantidad": 0.83,
+        "unidad": "g",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Esencia de Vainilla",
+        "cantidad": 1.67,
+        "unidad": "ml",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Cobertura azúcar impalpable",
+        "cantidad": null,
+        "unidad": "g",
+        "costo_fijo": 22.5
+      },
+      {
+        "nombre": "Merengue en polvo",
+        "cantidad": 25.0,
+        "unidad": "g",
+        "costo_fijo": null
+      }
+    ]
+  },
+  {
+    "nombre": "ALFAJOR MAICENA",
+    "emoji": "🍪",
+    "rinde": 1,
+    "unidad_rinde": "u",
+    "precio_venta": 800,
+    "ingredientes": [
+      {
+        "nombre": "Manteca",
+        "cantidad": 3.75,
+        "unidad": "g",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Azúcar",
+        "cantidad": 3.75,
+        "unidad": "g",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Huevos",
+        "cantidad": 0.175,
+        "unidad": "u",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Almidón de Maíz",
+        "cantidad": 12.5,
+        "unidad": "g",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Polvo de Hornear",
+        "cantidad": 0.25,
+        "unidad": "g",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Dulce de Leche",
+        "cantidad": 11.25,
+        "unidad": "g",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Coco Rallado",
+        "cantidad": 3.75,
+        "unidad": "g",
+        "costo_fijo": null
+      }
+    ]
+  },
+  {
+    "nombre": "MILA DE POLLO",
+    "emoji": "🍗",
+    "rinde": 1,
+    "unidad_rinde": "u",
+    "precio_venta": 14000,
+    "ingredientes": [
+      {
+        "nombre": "Pollo",
+        "cantidad": 8000.0,
+        "unidad": "kg",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Polenta (2x730g)",
+        "cantidad": 1460.0,
+        "unidad": "g",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Puré de Papas Maggi (2x200g)",
+        "cantidad": 400.0,
+        "unidad": "g",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Huevos",
+        "cantidad": 19.0,
+        "unidad": "u",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Condimentos (sal/ajo/pimienta)",
+        "cantidad": null,
+        "unidad": "g",
+        "costo_fijo": 250.0
+      },
+      {
+        "nombre": "Bolsa (packaging)",
+        "cantidad": null,
+        "unidad": "g",
+        "costo_fijo": 1110.0
+      }
+    ]
+  },
+  {
+    "nombre": "PAN HAMBURGUESA pack",
+    "emoji": "🍞",
+    "rinde": 1,
+    "unidad_rinde": "u",
+    "precio_venta": 5000,
+    "ingredientes": [
+      {
+        "nombre": "Premezcla",
+        "cantidad": 116.67,
+        "unidad": "g",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Levadura",
+        "cantidad": 11.67,
+        "unidad": "g",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Azúcar",
+        "cantidad": 5.83,
+        "unidad": "g",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Vinagre",
+        "cantidad": 1.67,
+        "unidad": "ml",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Aceite",
+        "cantidad": 11.67,
+        "unidad": "ml",
+        "costo_fijo": null
+      },
+      {
+        "nombre": "Huevos",
+        "cantidad": 0.83,
+        "unidad": "u",
+        "costo_fijo": null
+      }
+    ]
+  }
+]
