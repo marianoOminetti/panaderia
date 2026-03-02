@@ -2,6 +2,11 @@
 
 Panadería SG usa tres ambientes: **development**, **staging** y **production**.
 
+| Rama Git | Ambiente | Deploy |
+|----------|----------|--------|
+| `develop` | Staging | Vercel/Netlify preview |
+| `master` | Producción | Vercel/Netlify production |
+
 ## Archivos de configuración
 
 | Archivo | Propósito | Git |
