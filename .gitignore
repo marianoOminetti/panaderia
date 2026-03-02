@@ -13,7 +13,15 @@
 
 # misc
 .DS_Store
-.cursor
+# Ignore everything inside .cursor...
+.cursor/**
+
+# ...but allow project agents and rules (Cursor)
+!.cursor/
+!.cursor/agents/
+!.cursor/agents/**
+!.cursor/rules/
+!.cursor/rules/**
 .env
 .env.local
 .env.*.local
