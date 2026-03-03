@@ -3160,19 +3160,6 @@ function Stock({ recetas, stock, actualizarStock, consumirInsumosPorStock, insum
     setVoiceModal(true);
   };
 
-  const cargar = async (receta_id, cantidad) => {
-    if (!cantidad || cantidad <= 0) return;
-    const receta = recetas.find(r => r.id === receta_id);
-    const insumosEnCero = getInsumosEnCeroParaRecetas(
-      [{ receta, cantidad }], recetaIngredientes, insumos, insumoComposicion, insumoStock
-    );
-    if (insumosEnCero.length > 0 && registrarMovimientoInsumo) {
-      setInsumosEnCeroModal({ insumos: insumosEnCero, cantidades: {}, pendingOp: { type: "manual", receta_id, cantidad } });
-      return;
-    }
-    await ejecutarCargaManual(receta_id, cantidad);
-  };
-
   const ejecutarCargaManual = async (receta_id, cantidad) => {
     await actualizarStock(receta_id, cantidad);
     if (consumirInsumosPorStock) await consumirInsumosPorStock(receta_id, cantidad);
