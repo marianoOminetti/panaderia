@@ -1,63 +1,23 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { createClient } from "@supabase/supabase-js";
 import { reportError, getErrorLog } from "./utils/errorReport";
-
-const SUPABASE_URL = process.env.REACT_APP_SUPABASE_URL;
-const SUPABASE_ANON_KEY = process.env.REACT_APP_SUPABASE_ANON_KEY;
-const SUPABASE_CONFIG_OK = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
-
-// Importante: sin fallbacks hardcodeados. Si faltan envs, mostramos pantalla de configuración.
-const supabase = createClient(SUPABASE_URL || "", SUPABASE_ANON_KEY || "");
-
-// ─── INSUMOS INICIALES (del Excel) ───────────────────────────────────────────
-const INSUMOS_SEED = [
-  { nombre: "Premezcla (casera)", categoria: "Harinas", presentacion: "x kg", precio: 1680, cantidad_presentacion: 1000, unidad: "g" },
-  { nombre: "Almidón/Harina de Mandioca", categoria: "Harinas", presentacion: "x 10kg", precio: 23100, cantidad_presentacion: 10000, unidad: "g" },
-  { nombre: "Almidón de Maíz", categoria: "Harinas", presentacion: "x 10kg", precio: 14875, cantidad_presentacion: 10000, unidad: "g" },
-  { nombre: "Harina de Arroz", categoria: "Harinas", presentacion: "x 25kg", precio: 25000, cantidad_presentacion: 25000, unidad: "g" },
-  { nombre: "Harina de Almendras", categoria: "Harinas", presentacion: "x kg", precio: 21500, cantidad_presentacion: 1000, unidad: "g" },
-  { nombre: "Harina de Coco", categoria: "Harinas", presentacion: "x kg", precio: 5063.4, cantidad_presentacion: 1000, unidad: "g" },
-  { nombre: "Goma Xántica", categoria: "Harinas", presentacion: "x kg", precio: 11000, cantidad_presentacion: 1000, unidad: "g" },
-  { nombre: "Polenta (Harina de Maíz)", categoria: "Harinas", presentacion: "x 730g", precio: 2200, cantidad_presentacion: 730, unidad: "g" },
-  { nombre: "Puré de Papas Maggi", categoria: "Harinas", presentacion: "x 200g", precio: 2200, cantidad_presentacion: 200, unidad: "g" },
-  { nombre: "Manteca", categoria: "Lácteos", presentacion: "x 2.5kg", precio: 29485, cantidad_presentacion: 2500, unidad: "g" },
-  { nombre: "Crema Ledevit", categoria: "Lácteos", presentacion: "x 4.7l", precio: 35750, cantidad_presentacion: 4700, unidad: "ml" },
-  { nombre: "Queso Tybo", categoria: "Lácteos", presentacion: "x kg", precio: 8676, cantidad_presentacion: 1000, unidad: "g" },
-  { nombre: "Queso Mantecoso", categoria: "Lácteos", presentacion: "x kg", precio: 6000, cantidad_presentacion: 1000, unidad: "g" },
-  { nombre: "Queso Cremoso", categoria: "Lácteos", presentacion: "x kg", precio: 5900, cantidad_presentacion: 1000, unidad: "g" },
-  { nombre: "Huevos", categoria: "Lácteos", presentacion: "x 30 u", precio: 4500, cantidad_presentacion: 30, unidad: "u" },
-  { nombre: "Azúcar", categoria: "Azúcares", presentacion: "x kg", precio: 1030, cantidad_presentacion: 1000, unidad: "g" },
-  { nombre: "Azúcar Mascabo", categoria: "Azúcares", presentacion: "x kg", precio: 1300, cantidad_presentacion: 1000, unidad: "g" },
-  { nombre: "Sacarina", categoria: "Azúcares", presentacion: "x sobre", precio: 10, cantidad_presentacion: 1, unidad: "u" },
-  { nombre: "Merengue en Polvo", categoria: "Azúcares", presentacion: "x kg", precio: 8000, cantidad_presentacion: 1000, unidad: "g" },
-  { nombre: "Chocolate Semiamargo Coverlux", categoria: "Chocolates", presentacion: "x 800g", precio: 10600, cantidad_presentacion: 800, unidad: "g" },
-  { nombre: "Chocolate s/azúcar", categoria: "Chocolates", presentacion: "x 800g", precio: 13000, cantidad_presentacion: 800, unidad: "g" },
-  { nombre: "Dulce de Leche", categoria: "Rellenos", presentacion: "x 10kg", precio: 14625, cantidad_presentacion: 10000, unidad: "g" },
-  { nombre: "Dulce de Leche s/azúcar", categoria: "Rellenos", presentacion: "x 10kg", precio: 18000, cantidad_presentacion: 10000, unidad: "g" },
-  { nombre: "Membrillo", categoria: "Rellenos", presentacion: "x 5kg", precio: 14875, cantidad_presentacion: 5000, unidad: "g" },
-  { nombre: "Pollo", categoria: "Proteínas", presentacion: "x kg", precio: 9000, cantidad_presentacion: 1000, unidad: "g" },
-  { nombre: "Jamón", categoria: "Proteínas", presentacion: "x kg", precio: 6298.1, cantidad_presentacion: 1000, unidad: "g" },
-  { nombre: "Aceite", categoria: "Condimentos", presentacion: "x 1.5l", precio: 4860, cantidad_presentacion: 1500, unidad: "ml" },
-  { nombre: "Levadura", categoria: "Condimentos", presentacion: "x 500g", precio: 3200, cantidad_presentacion: 500, unidad: "g" },
-  { nombre: "Polvo de Hornear", categoria: "Condimentos", presentacion: "x kg", precio: 10000, cantidad_presentacion: 1000, unidad: "g" },
-  { nombre: "Esencia de Vainilla", categoria: "Condimentos", presentacion: "x 2l", precio: 5800, cantidad_presentacion: 2000, unidad: "ml" },
-  { nombre: "Coco Rallado", categoria: "Condimentos", presentacion: "x kg", precio: 11333, cantidad_presentacion: 1000, unidad: "g" },
-  { nombre: "Puré de Tomate", categoria: "Condimentos", presentacion: "x u", precio: 501.8, cantidad_presentacion: 1, unidad: "u" },
-  { nombre: "Vinagre de Manzana", categoria: "Condimentos", presentacion: "x 500ml", precio: 1360, cantidad_presentacion: 500, unidad: "ml" },
-  { nombre: "Oreo S/G", categoria: "Condimentos", presentacion: "x u", precio: 280, cantidad_presentacion: 1, unidad: "u" },
-  { nombre: "Caja Plástica 1500cc", categoria: "Packaging", presentacion: "x u", precio: 400, cantidad_presentacion: 1, unidad: "u" },
-  { nombre: "Bandeja N°13 Cartón", categoria: "Packaging", presentacion: "x u", precio: 350, cantidad_presentacion: 1, unidad: "u" },
-  { nombre: "Cartón para Torta", categoria: "Packaging", presentacion: "x u", precio: 500, cantidad_presentacion: 1, unidad: "u" },
-  { nombre: "Bolsa Camiseta", categoria: "Packaging", presentacion: "x u", precio: 7, cantidad_presentacion: 1, unidad: "u" },
-  { nombre: "Papel Manteca", categoria: "Packaging", presentacion: "x u", precio: 50, cantidad_presentacion: 1, unidad: "u" },
-];
-
-const CATEGORIAS = ["Harinas", "Lácteos", "Azúcares", "Chocolates", "Rellenos", "Proteínas", "Condimentos", "Packaging"];
-const CAT_COLORS = {
-  "Harinas": "#C8A97E", "Lácteos": "#A8D5E2", "Azúcares": "#F4A8C0",
-  "Chocolates": "#8B6040", "Rellenos": "#D4A843", "Proteínas": "#E8907A",
-  "Condimentos": "#9BC18C", "Packaging": "#B0A8C8"
-};
+import { fmt, pctFmt } from "./lib/format";
+import { aGramos, convertirAUnidadInsumo } from "./lib/units";
+import { getSemanaInicioISO, hoyLocalISO } from "./lib/dates";
+import { supabase, SUPABASE_CONFIG_OK } from "./lib/supabaseClient";
+import {
+  INSUMOS_SEED,
+  CATEGORIAS,
+  CAT_COLORS,
+  METRICAS_VENTANA_DIAS,
+  DIAS_ALERTA_ROJA,
+  DIAS_ALERTA_AMARILLA,
+  DIAS_OBJETIVO_PRODUCCION,
+} from "./config/appConfig";
+import {
+  saveVentaPendiente,
+  getVentasPendientes,
+  deleteVentaPendiente,
+} from "./lib/offlineVentas";
 
 // ─── STYLES ──────────────────────────────────────────────────────────────────
 const styles = `
@@ -101,7 +61,8 @@ const styles = `
   .nav-btn { flex: 1; padding: 10px 4px 12px; display: flex; flex-direction: column; align-items: center; gap: 3px; background: none; border: none; cursor: pointer; color: rgba(255,255,255,0.7); transition: color 0.2s; }
   .nav-btn.active { color: var(--purple-light); }
   .nav-btn .nav-icon { font-size: 20px; }
-  .nav-btn .nav-label { font-size: 9px; letter-spacing: 0.8px; text-transform: uppercase; font-family: 'Plus Jakarta Sans', sans-serif; color: inherit; }
+  .nav-btn .nav-label { font-size: 9px; letter-spacing: 0.8px; text-transform: uppercase; font-family: 'Plus Jakarta Sans', sans-serif; color: inherit; display: inline-flex; align-items: center; gap: 4px; }
+  .nav-badge-stock { background: var(--danger); color: white; font-size: 9px; font-weight: 600; padding: 2px 6px; border-radius: 999px; }
 
   /* Content */
   .content { padding: 16px; }
@@ -295,10 +256,56 @@ const styles = `
   .voice-parsed-list { margin: 12px 0; text-align: left; }
   .voice-parsed-item { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border); }
   .voice-parsed-item:last-child { border-bottom: none; }
+
+  /* Analytics */
+  .analytics-section { display: flex; flex-direction: column; gap: 12px; }
+  .analytics-kpi-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 4px; }
+  .analytics-kpi-card { background: var(--surface); border-radius: 14px; padding: 12px; box-shadow: var(--shadow); border: 1px solid var(--border); }
+  .analytics-kpi-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
+  .analytics-kpi-value { font-family: 'Outfit', sans-serif; font-size: 18px; font-weight: 600; color: var(--purple-dark); }
+  .analytics-kpi-sub { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+  .analytics-trend { font-size: 11px; font-weight: 600; margin-left: 4px; }
+  .analytics-trend.up { color: var(--green); }
+  .analytics-trend.down { color: var(--danger); }
+  .analytics-trend.flat { color: var(--text-muted); }
+
+  .analytics-list { display: flex; flex-direction: column; gap: 8px; }
+  .analytics-item { display: flex; align-items: center; gap: 10px; }
+  .analytics-item-main { flex: 1; min-width: 0; }
+  .analytics-item-title { font-size: 13px; font-weight: 500; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .analytics-item-sub { font-size: 11px; color: var(--text-muted); }
+  .analytics-item-badge { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--cream); border: 1px solid var(--border); }
+
+  .bar-chart { display: flex; align-items: flex-end; gap: 6px; height: 90px; }
+  .bar-chart-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .bar-chart-bar { width: 100%; max-width: 20px; border-radius: 8px 8px 4px 4px; background: linear-gradient(180deg, var(--purple) 0%, var(--purple-dark) 100%); transition: height 0.2s; }
+  .bar-chart-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; }
+  .bar-chart-value { font-size: 10px; color: var(--text-muted); }
+
+  .pie-chart { display: flex; align-items: center; gap: 12px; }
+  .pie-chart-figure { position: relative; width: 110px; height: 110px; border-radius: 50%; box-shadow: var(--shadow); border: 1px solid var(--border); background: var(--cream); flex-shrink: 0; }
+  .pie-chart-figure::after { content: ""; position: absolute; inset: 20px; border-radius: 50%; background: var(--surface); }
+  .pie-chart-legend { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+  .pie-chart-legend-item { display: flex; align-items: center; gap: 8px; font-size: 11px; }
+  .pie-chart-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .pie-chart-label { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pie-chart-pct { font-weight: 600; color: var(--purple-dark); }
+
+  .analytics-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .analytics-chip { font-size: 11px; padding: 4px 10px; border-radius: 999px; background: var(--cream); border: 1px solid var(--border); }
+
+  /* Offline banner */
+  .offline-banner {
+    background: #FDF3C4;
+    color: #8B6B1F;
+    font-size: 12px;
+    padding: 8px 16px;
+    text-align: center;
+    border-bottom: 1px solid #F0E0A0;
+  }
 `;
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
-const fmt = (n) => new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(n);
 
 /** Contact Picker API - selecciona un contacto del celular (Chrome Android con HTTPS) */
 async function selectContactFromPhone() {
@@ -333,30 +340,47 @@ async function selectContactsFromPhoneMultiple() {
     return { error: "cancelled", contacts: [] };
   }
 }
-const pctFmt = (n) => `${Math.round(n * 100)}%`;
+/** Contact Picker API - helpers, unidades y fechas ahora viven en lib/format, lib/units y lib/dates */
 
-/** Convierte cantidad a gramos (para composición de insumos) */
-function aGramos(cantidad, unidad) {
-  const u = (unidad || "g").toLowerCase();
-  if (u === "g") return cantidad;
-  if (u === "kg") return cantidad * 1000;
-  if (u === "ml" || u === "l") return cantidad * (u === "l" ? 1000 : 1);
-  return cantidad;
-}
-
-/** Convierte cantidad de una unidad a la unidad del insumo para el cálculo de costo */
-function convertirAUnidadInsumo(cantidad, desdeUnidad, haciaUnidad) {
-  const desde = (desdeUnidad || "g").toLowerCase();
-  const hacia = (haciaUnidad || "g").toLowerCase();
-  if (hacia === "g" || hacia === "kg") {
-    const gramos = desde === "kg" ? cantidad * 1000 : cantidad;
-    return hacia === "kg" ? gramos / 1000 : gramos;
+/** Calcula cuántos insumos se necesitan para una lista de recetas y cantidades.
+ * Devuelve [{ insumo_id, insumo, cantidad }] donde cantidad está en la unidad del insumo. */
+function calcularRequerimientoInsumosParaItems(items, recetaIngredientes, insumos, insumoComposicion) {
+  if (!items?.length || !recetaIngredientes?.length || !insumos?.length) return [];
+  const composicionPorInsumo = {};
+  for (const c of insumoComposicion || []) {
+    if (!composicionPorInsumo[c.insumo_id]) composicionPorInsumo[c.insumo_id] = [];
+    composicionPorInsumo[c.insumo_id].push(c);
   }
-  if (hacia === "ml" || hacia === "l") {
-    const ml = desde === "l" ? cantidad * 1000 : cantidad;
-    return hacia === "l" ? ml / 1000 : ml;
+  const requeridos = {};
+  for (const { receta, cantidad } of items) {
+    if (!receta?.id || !receta.rinde || !cantidad || cantidad <= 0) continue;
+    const ings = (recetaIngredientes || []).filter(i => i.receta_id === receta.id && i.insumo_id);
+    for (const ing of ings) {
+      const insumo = insumos.find(x => x.id === ing.insumo_id);
+      if (!insumo) continue;
+      const cantPorUnidad = (parseFloat(ing.cantidad) || 0) / (receta.rinde || 1);
+      const cantTotalIng = cantPorUnidad * cantidad;
+      const cantGramos = aGramos(cantTotalIng, ing.unidad || "g");
+      const componentes = composicionPorInsumo[ing.insumo_id];
+      if (componentes && componentes.length > 0) {
+        for (const comp of componentes) {
+          const factor = parseFloat(comp.factor) || 0;
+          if (factor <= 0) continue;
+          const insumoHijo = insumos.find(x => x.id === comp.insumo_id_componente);
+          if (!insumoHijo) continue;
+          const cantHijoGramos = cantGramos * factor;
+          const cantHijo = convertirAUnidadInsumo(cantHijoGramos, "g", insumoHijo.unidad || "g");
+          if (!requeridos[insumoHijo.id]) requeridos[insumoHijo.id] = { insumo_id: insumoHijo.id, insumo: insumoHijo, cantidad: 0 };
+          requeridos[insumoHijo.id].cantidad += cantHijo;
+        }
+      } else {
+        const cantEnUnidad = convertirAUnidadInsumo(cantTotalIng, ing.unidad || "g", insumo.unidad || "g");
+        if (!requeridos[insumo.id]) requeridos[insumo.id] = { insumo_id: insumo.id, insumo, cantidad: 0 };
+        requeridos[insumo.id].cantidad += cantEnUnidad;
+      }
+    }
   }
-  return cantidad; // u
+  return Object.values(requeridos);
 }
 
 /** Devuelve insumos con stock 0 que se consumirían al cargar stock de las recetas dadas.
@@ -453,6 +477,130 @@ function parsearVozAVentas(texto, recetas) {
   return resultado;
 }
 
+/** Parsea texto de voz a compras de insumos: "compré 2kg de harina de almendras a 43000 pesos y 500g de levadura" */
+function parsearVozAComprasInsumos(texto, insumos) {
+  if (!texto || !insumos?.length) return [];
+  const norm = (s) =>
+    (s || "")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim();
+
+  const txt = norm(texto).replace(/compr[eé]/g, "compre");
+  const segmentos = txt
+    .split(/[,y]+/g)
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  const matchInsumo = (nombreBuscado) => {
+    const nb = norm(nombreBuscado);
+    if (!nb) return null;
+    let mejor = null;
+    let mejorScore = 0;
+    for (const ins of insumos) {
+      const ni = norm(ins.nombre);
+      if (!ni) continue;
+      if (ni.includes(nb) || nb.includes(ni)) {
+        const score = Math.min(ni.length, nb.length);
+        if (score > mejorScore) {
+          mejor = ins;
+          mejorScore = score;
+        }
+      }
+    }
+    return mejor;
+  };
+
+  const parseNumero = (s) => {
+    if (!s) return NaN;
+    const n = parseFloat(String(s).replace(",", "."));
+    return Number.isNaN(n) ? NaN : n;
+  };
+
+  const unidadesKg = ["kg", "kilo", "kilos"];
+  const unidadesG = ["g", "gramo", "gramos"];
+  const unidadesMl = ["ml", "mililitro", "mililitros"];
+  const unidadesL = ["l", "litro", "litros"];
+  const unidadesU = ["u", "unidad", "unidades"];
+
+  const resultado = [];
+
+  for (const seg of segmentos) {
+    if (!seg) continue;
+    // Ej: "2kg de harina de almendras a 43000 pesos"
+    const m = seg.match(
+      /(\d+(?:[.,]\d+)?)\s*(kg|kilo|kilos|g|gramos?|ml|mililitros?|l|litros?|u|unidad(?:es)?)?\s*(?:de)?\s+(.+)/
+    );
+    if (!m) continue;
+    const cantidad = parseNumero(m[1]);
+    if (!cantidad || cantidad <= 0) continue;
+    const unidadFrase = (m[2] || "").trim();
+    const resto = (m[3] || "").trim();
+
+    let nombreParte = resto;
+    let precioParte = "";
+    const splitPrecio = resto.split(/\sa\s+/);
+    if (splitPrecio.length >= 2) {
+      nombreParte = splitPrecio[0].trim();
+      precioParte = splitPrecio.slice(1).join(" a ").trim();
+    }
+
+    const insumo = matchInsumo(nombreParte);
+    if (!insumo) continue;
+
+    let precioPresentacion = null;
+    if (precioParte) {
+      const mPrecio = precioParte.match(/(\d+(?:[.,]\d+)?)/);
+      if (mPrecio) {
+        const p = parseNumero(mPrecio[1]);
+        if (p > 0) precioPresentacion = p;
+      }
+    }
+
+    const uFrase = unidadFrase.toLowerCase();
+    const uInsumo = (insumo.unidad || "g").toLowerCase();
+    const cantPres = Number(insumo.cantidad_presentacion) || 1;
+
+    let presentaciones = cantidad;
+
+    const es = (lista) => lista.includes(uFrase);
+
+    if (unidadFrase) {
+      // Convertir a presentaciones en base a unidad del insumo
+      if (es(unidadesKg) && uInsumo === "g") {
+        presentaciones = (cantidad * 1000) / cantPres;
+      } else if (es(unidadesG) && uInsumo === "g") {
+        presentaciones = cantidad / cantPres;
+      } else if (es(unidadesL) && uInsumo === "ml") {
+        presentaciones = (cantidad * 1000) / cantPres;
+      } else if (es(unidadesMl) && uInsumo === "ml") {
+        presentaciones = cantidad / cantPres;
+      } else if (es(unidadesU) && uInsumo === "u") {
+        presentaciones = cantidad / cantPres;
+      } else {
+        // Unidad no compatible: usar cantidad como número de presentaciones
+        presentaciones = cantidad;
+      }
+    }
+
+    if (!Number.isFinite(presentaciones) || presentaciones <= 0) continue;
+
+    resultado.push({
+      insumo,
+      presentaciones,
+      precioPresentacion:
+        precioPresentacion != null
+          ? precioPresentacion
+          : typeof insumo.precio === "number"
+          ? insumo.precio
+          : Number(insumo.precio) || 0,
+    });
+  }
+
+  return resultado;
+}
+
 /** Calcula el costo total desde ingredientes del formulario (antes de guardar) */
 function costoDesdeIngredientes(ingredientes, insumos) {
   let total = 0;
@@ -471,6 +619,30 @@ function costoDesdeIngredientes(ingredientes, insumos) {
     total += precioUnitario * cantConvertida;
   }
   return total;
+}
+
+/** Normaliza gastos fijos a valores diarios y semanales */
+function calcularGastosFijosNormalizados(gastos) {
+  let dia = 0;
+  let semana = 0;
+  for (const g of gastos || []) {
+    if (g.activo === false) continue;
+    const monto = Number(g.monto) || 0;
+    if (!monto) continue;
+    const freq = (g.frecuencia || "").toLowerCase();
+    if (freq === "diario") {
+      dia += monto;
+      semana += monto * 7;
+    } else if (freq === "semanal") {
+      semana += monto;
+      dia += monto / 7;
+    } else if (freq === "mensual") {
+      const porDia = monto / 30; // aproximación simple
+      dia += porDia;
+      semana += porDia * 7;
+    }
+  }
+  return { dia, semana };
 }
 
 /** Agrupa ventas por transaccion_id (1 venta por voz) o individuales */
@@ -537,6 +709,79 @@ function agregarItemsPorReceta(items) {
     if (v.estado_pago === "debe") porReceta[rid].estado_pago = "debe";
   }
   return Object.values(porReceta);
+}
+
+/** Agrupa pedidos futuros por pedido_id y resume totales */
+function agruparPedidos(pedidos) {
+  if (!pedidos || pedidos.length === 0) return [];
+  const porPedido = {};
+  for (const p of pedidos) {
+    if (!p) continue;
+    const pid = p.pedido_id || p.id;
+    if (!pid) continue;
+    if (!porPedido[pid]) porPedido[pid] = [];
+    porPedido[pid].push(p);
+  }
+  const grupos = Object.entries(porPedido).map(([pid, items]) => {
+    const agregados = agregarItemsPorReceta(items);
+    const base = items[0] || {};
+    const total = items.reduce(
+      (s, i) => s + (i.precio_unitario || 0) * (i.cantidad || 0),
+      0
+    );
+    const senia = base.senia || 0;
+    return {
+      key: pid,
+      items: agregados.length > 0 ? agregados : items,
+      rawItems: items,
+      total,
+      senia,
+      estado: base.estado || "pendiente",
+      fecha_entrega: base.fecha_entrega || null,
+      cliente_id: base.cliente_id,
+    };
+  });
+  return grupos.sort((a, b) => {
+    const aDate = a.fecha_entrega || "";
+    const bDate = b.fecha_entrega || "";
+    return aDate.localeCompare(bDate);
+  });
+}
+
+/** Calcula promedio diario de ventas y días de stock restante por receta usando una ventana de N días. */
+function calcularMetricasVentasYStock(recetas, ventas, stock, diasVentana = METRICAS_VENTANA_DIAS) {
+  if (!recetas?.length || !ventas?.length || diasVentana <= 0) return {};
+  const hoy = new Date();
+  const MS_POR_DIA = 24 * 60 * 60 * 1000;
+  const cantidadesPorReceta = {};
+
+  for (const v of ventas) {
+    if (!v || v.receta_id == null || !v.fecha) continue;
+    const fechaVenta = new Date(v.fecha);
+    if (Number.isNaN(fechaVenta.getTime())) continue;
+    const diffDias = (hoy - fechaVenta) / MS_POR_DIA;
+    if (diffDias < 0 || diffDias >= diasVentana) continue;
+    const rid = v.receta_id;
+    cantidadesPorReceta[rid] = (cantidadesPorReceta[rid] || 0) + (Number(v.cantidad) || 0);
+  }
+
+  const resultado = {};
+  for (const r of recetas) {
+    const totalVentana = cantidadesPorReceta[r.id] || 0;
+    const promedioDiario = totalVentana / diasVentana;
+    const stockActual = (stock || {})[r.id] ?? 0;
+    const stockClamped = Math.max(0, stockActual);
+    const diasRestantes = promedioDiario > 0 ? stockClamped / promedioDiario : null;
+    resultado[r.id] = { promedioDiario, diasRestantes, totalVentana, stockActual };
+  }
+  return resultado;
+}
+
+function formatearDiasStock(d) {
+  if (d == null) return "—";
+  if (d < 0.5) return "<0.5";
+  if (Math.abs(d - 1) < 0.01) return "1";
+  return d.toFixed(1);
 }
 
 /** Calcula el costo total de una receta según sus ingredientes e insumos */
@@ -682,10 +927,38 @@ function AuthScreen() {
   );
 }
 
+// ── MÁS (menú secundario) ────────────────────────────────────────────────────
+function MoreMenuScreen({ items, onNavigate }) {
+  return (
+    <div className="content">
+      <p className="page-title">Más</p>
+      <p className="page-subtitle">Acceso rápido al resto de la app</p>
+      <div className="dashboard-quick-grid">
+        {items.map(({ id, icon, label, sub }) => (
+          <button
+            key={id}
+            type="button"
+            className="dashboard-quick"
+            onClick={() => onNavigate?.(id)}
+          >
+            <span className="dashboard-quick-icon">{icon}</span>
+            <div className="dashboard-quick-text">
+              <span className="dashboard-quick-label">{label}</span>
+              <span className="dashboard-quick-sub">{sub}</span>
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── DASHBOARD ────────────────────────────────────────────────────────────────
-function Dashboard({ insumos, recetas, ventas, clientes, stock, onNavigate }) {
-  const hoy = new Date().toISOString().split("T")[0];
-  const ventasHoy = ventas.filter(v => v.fecha === hoy);
+function Dashboard({ insumos, recetas, ventas, clientes, stock, pedidos, resumenPlanSemanal, onNavigate }) {
+  const hoyStr = hoyLocalISO();
+  const hoyDate = new Date(hoyStr);
+  const MS_POR_DIA = 24 * 60 * 60 * 1000;
+  const ventasHoy = ventas.filter(v => v.fecha === hoyStr);
   const ingresoHoy = ventasHoy.reduce(
     (s, v) =>
       s +
@@ -695,7 +968,14 @@ function Dashboard({ insumos, recetas, ventas, clientes, stock, onNavigate }) {
     0
   );
   const unidadesHoy = ventasHoy.reduce((s, v) => s + v.cantidad, 0);
-  const stockBajo = recetas.filter(r => (stock || {})[r.id] <= 0);
+  const stockBajo = recetas.filter(r => ((stock || {})[r.id] ?? 0) <= 0);
+  const recetasMargenBajo = (recetas || []).filter((r) => {
+    const precio = Number(r.precio_venta) || 0;
+    const costoUnit = typeof r.costo_unitario === "number" ? Number(r.costo_unitario) : null;
+    if (!precio || costoUnit == null || !isFinite(costoUnit)) return false;
+    const margenVal = (precio - costoUnit) / precio;
+    return margenVal < 0.5;
+  });
   const debeTotal = ventas
     .filter((v) => v.estado_pago === "debe")
     .reduce(
@@ -706,6 +986,76 @@ function Dashboard({ insumos, recetas, ventas, clientes, stock, onNavigate }) {
           : (v.precio_unitario || 0) * (v.cantidad || 0)),
       0
     );
+
+  const metricasStock = calcularMetricasVentasYStock(recetas, ventas, stock, METRICAS_VENTANA_DIAS);
+  const alertaRoja = recetas.filter((r) => {
+    const m = metricasStock[r.id];
+    return m && m.diasRestantes != null && m.diasRestantes < DIAS_ALERTA_ROJA;
+  });
+  const alertaAmarilla = recetas.filter((r) => {
+    const m = metricasStock[r.id];
+    return m && m.diasRestantes != null && m.diasRestantes >= DIAS_ALERTA_ROJA && m.diasRestantes < DIAS_ALERTA_AMARILLA;
+  });
+
+  const pedidosList = pedidos || [];
+  const pedidosConFecha = pedidosList.filter((p) => p && p.fecha_entrega);
+  const pedidosNormalizados = pedidosConFecha
+    .map((p) => {
+      try {
+        const fechaDate = new Date(p.fecha_entrega);
+        if (Number.isNaN(fechaDate.getTime())) return null;
+        return { ...p, _fechaDate: fechaDate };
+      } catch {
+        return null;
+      }
+    })
+    .filter(Boolean);
+
+  const pedidosProximos = pedidosNormalizados.filter((p) => {
+    if (p.estado === "entregado") return false;
+    const diffDias = Math.floor((p._fechaDate.getTime() - hoyDate.getTime()) / MS_POR_DIA);
+    return diffDias >= 0 && diffDias <= 2; // hoy y próximos 2 días
+  });
+
+  const pedidosAgrupadosProximos = agruparPedidos(pedidosProximos);
+
+  const pedidosPorDia = { 0: 0, 1: 0, 2: 0 };
+  for (const p of pedidosProximos) {
+    const diffDias = Math.floor((p._fechaDate.getTime() - hoyDate.getTime()) / MS_POR_DIA);
+    if (diffDias >= 0 && diffDias <= 2) {
+      pedidosPorDia[diffDias] = (pedidosPorDia[diffDias] || 0) + 1;
+    }
+  }
+  const pedidosHoyCount = pedidosPorDia[0] || 0;
+  const pedidosManianaCountResumen = pedidosPorDia[1] || 0;
+  const pedidosPasadoCount = pedidosPorDia[2] || 0;
+
+  const pedidosManiana = pedidosNormalizados.filter((p) => {
+    if (p.estado === "entregado") return false;
+    const diffDias = Math.floor((p._fechaDate.getTime() - hoyDate.getTime()) / MS_POR_DIA);
+    return diffDias === 1;
+  });
+
+  const pedidosManianaPorReceta = {};
+  for (const p of pedidosManiana) {
+    const rid = p.receta_id;
+    if (rid == null) continue;
+    pedidosManianaPorReceta[rid] = (pedidosManianaPorReceta[rid] || 0) + (p.cantidad || 0);
+  }
+
+  const alertasPedidosManiana = recetas.filter((r) => {
+    const pedidosCant = pedidosManianaPorReceta[r.id] || 0;
+    if (!pedidosCant) return false;
+    const stockActual = (stock || {})[r.id] ?? 0;
+    return stockActual < pedidosCant;
+  });
+
+  const clientesConDeudaSet = new Set(
+    (ventas || [])
+      .filter((v) => v.estado_pago === "debe" && v.cliente_id != null)
+      .map((v) => v.cliente_id)
+  );
+  const clientesConDeudaCount = clientesConDeudaSet.size;
 
   const QuickAction = ({ icon, label, sub, tab, alert }) => (
     <button className="dashboard-quick" onClick={() => onNavigate?.(tab)}>
@@ -740,18 +1090,82 @@ function Dashboard({ insumos, recetas, ventas, clientes, stock, onNavigate }) {
             </div>
           )}
         </div>
+        {resumenPlanSemanal && (
+          <div className="dashboard-metric-plan" style={{ marginTop: 12, fontSize: 13 }}>
+            <div className="dashboard-metric-label" style={{ marginBottom: 4 }}>
+              Plan de producción semanal
+            </div>
+            <div>
+              {resumenPlanSemanal.totalUnidades > 0 ? (
+                <>
+                  Esta semana producís <strong>{resumenPlanSemanal.totalUnidades}</strong> u, necesitás comprar{" "}
+                  <strong>{fmt(resumenPlanSemanal.totalCompra || 0)}</strong> en insumos.
+                </>
+              ) : (
+                "Todavía no cargaste un plan de producción para esta semana."
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
-      <div className="card">
-        <div className="card-header"><span className="card-title">Acceso rápido</span></div>
-        <div className="dashboard-quick-grid">
-          <QuickAction icon="💰" label="Registrar venta" sub="Manual o por voz" tab="ventas" />
-          <QuickAction icon="📥" label="Cargar stock" sub={stockBajo.length > 0 ? `${stockBajo.length} sin stock` : "Por voz o manual"} tab="stock" alert={stockBajo.length > 0 ? stockBajo.length : null} />
-          <QuickAction icon="👥" label="Clientes" sub={`${clientes?.length || 0} registrados`} tab="clientes" />
-          <QuickAction icon="📦" label="Insumos" sub={`${insumos?.length || 0} productos`} tab="insumos" />
-          <QuickAction icon="📋" label="Recetas" sub={`${recetas?.length || 0} recetas`} tab="recetas" />
+      {(pedidosHoyCount > 0 || pedidosManianaCountResumen > 0 || stockBajo.length > 0 || clientesConDeudaCount > 0) && (
+        <div className="card">
+          <div className="card-header">
+            <span className="card-title">Pendientes de hoy</span>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 13 }}>
+            {pedidosHoyCount > 0 && (
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span>📦 Pedidos para hoy: <strong>{pedidosHoyCount}</strong></span>
+                <button
+                  type="button"
+                  className="card-link"
+                  onClick={() => onNavigate?.("plan")}
+                >
+                  Ver pedidos →
+                </button>
+              </div>
+            )}
+            {pedidosManianaCountResumen > 0 && (
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span>📆 Pedidos para mañana: <strong>{pedidosManianaCountResumen}</strong></span>
+                <button
+                  type="button"
+                  className="card-link"
+                  onClick={() => onNavigate?.("plan")}
+                >
+                  Ver pedidos →
+                </button>
+              </div>
+            )}
+            {stockBajo.length > 0 && (
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span>🥐 Productos sin stock: <strong>{stockBajo.length}</strong></span>
+                <button
+                  type="button"
+                  className="card-link"
+                  onClick={() => onNavigate?.("stock")}
+                >
+                  Ir a Stock →
+                </button>
+              </div>
+            )}
+            {clientesConDeudaCount > 0 && (
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span>💸 Clientes con deuda: <strong>{clientesConDeudaCount}</strong></span>
+                <button
+                  type="button"
+                  className="card-link"
+                  onClick={() => onNavigate?.("ventas")}
+                >
+                  Ver deudas →
+                </button>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {stockBajo.length > 0 && (
         <div className="card dashboard-alert" onClick={() => onNavigate?.("stock")}>
@@ -764,6 +1178,238 @@ function Dashboard({ insumos, recetas, ventas, clientes, stock, onNavigate }) {
           </div>
         </div>
       )}
+
+      {recetasMargenBajo.length > 0 && (
+        <div className="card dashboard-alert" onClick={() => onNavigate?.("recetas")}>
+          <div className="card-header">
+            <span className="card-title">⚠️ Margen bajo</span>
+            <span className="card-link" style={{ cursor: "pointer" }}>Ver recetas →</span>
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {recetasMargenBajo.slice(0, 6).map(r => {
+              const precio = Number(r.precio_venta) || 0;
+              const costoUnit = typeof r.costo_unitario === "number" ? Number(r.costo_unitario) : null;
+              const margenVal = precio && costoUnit != null ? (precio - costoUnit) / precio : null;
+              const margenTxt = margenVal != null ? pctFmt(margenVal) : "—";
+              return (
+                <span
+                  key={r.id}
+                  style={{
+                    fontSize: 12,
+                    padding: "4px 10px",
+                    background: "var(--surface)",
+                    borderRadius: 20,
+                    border: "1px solid var(--border)"
+                  }}
+                >
+                  {r.emoji || "🍞"} {r.nombre} · {margenTxt}
+                </span>
+              );
+            })}
+            {recetasMargenBajo.length > 6 && (
+              <span style={{ fontSize: 12, color: "var(--text-muted)" }}>+{recetasMargenBajo.length - 6} más</span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {(alertaRoja.length > 0 || alertaAmarilla.length > 0) && (
+        <div className="card">
+          <div className="card-header">
+            <span className="card-title">Alertas de stock por ventas (últimos {METRICAS_VENTANA_DIAS} días)</span>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {alertaRoja.slice(0, 5).map((r) => {
+              const m = metricasStock[r.id];
+              const diasTxt = formatearDiasStock(m?.diasRestantes);
+              return (
+                <div
+                  key={r.id}
+                  style={{
+                    fontSize: 13,
+                    color: "var(--danger)",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center"
+                  }}
+                >
+                  <span>⚠️ {r.nombre}: stock para {diasTxt} día{diasTxt === "1" ? "" : "s"}</span>
+                  <button
+                    type="button"
+                    className="card-link"
+                    onClick={() => onNavigate?.("stock")}
+                  >
+                    Ver
+                  </button>
+                </div>
+              );
+            })}
+            {alertaAmarilla.slice(0, 5).map((r) => {
+              const m = metricasStock[r.id];
+              const diasTxt = formatearDiasStock(m?.diasRestantes);
+              return (
+                <div
+                  key={r.id}
+                  style={{
+                    fontSize: 13,
+                    color: "#C48F00",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center"
+                  }}
+                >
+                  <span>🟡 {r.nombre}: stock para {diasTxt} día{diasTxt === "1" ? "" : "s"}</span>
+                  <button
+                    type="button"
+                    className="card-link"
+                    onClick={() => onNavigate?.("stock")}
+                  >
+                    Ver
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {pedidosAgrupadosProximos.length > 0 && (
+        <div className="card">
+          <div className="card-header">
+            <span className="card-title">Pedidos próximos 3 días</span>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 8, padding: "0 16px 8px", fontSize: 12, color: "var(--text-muted)" }}>
+            <div>
+              <div style={{ fontWeight: 600 }}>Hoy</div>
+              <div>{pedidosHoyCount} pedido(s)</div>
+            </div>
+            <div>
+              <div style={{ fontWeight: 600 }}>Mañana</div>
+              <div>{pedidosManianaCountResumen} pedido(s)</div>
+            </div>
+            <div>
+              <div style={{ fontWeight: 600 }}>Pasado</div>
+              <div>{pedidosPasadoCount} pedido(s)</div>
+            </div>
+          </div>
+          <div>
+            {pedidosAgrupadosProximos.slice(0, 5).map((grupo) => {
+              const cliente = (clientes || []).find((c) => c.id === grupo.cliente_id);
+              let fechaLabel = grupo.fecha_entrega || "";
+              try {
+                if (grupo.fecha_entrega) {
+                  fechaLabel = new Date(grupo.fecha_entrega).toLocaleDateString("es-AR");
+                }
+              } catch {
+                // ignore
+              }
+              const unidades = (grupo.items || []).reduce(
+                (s, it) => s + (it.cantidad || 0),
+                0
+              );
+              const estado = grupo.estado || "pendiente";
+              const estadoLabel =
+                estado === "en_preparacion"
+                  ? "En preparación"
+                  : estado === "listo"
+                  ? "Listo"
+                  : estado === "entregado"
+                  ? "Entregado"
+                  : "Pendiente";
+              return (
+                <div
+                  key={grupo.key}
+                  className="venta-item venta-item-simple"
+                  style={{ padding: "10px 16px" }}
+                >
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 500 }}>
+                      {fechaLabel} · {cliente?.nombre || "Cliente sin nombre"}
+                    </div>
+                    <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                      {unidades} u · {estadoLabel}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+            {pedidosAgrupadosProximos.length > 5 && (
+              <p style={{ fontSize: 12, color: "var(--text-muted)", padding: "0 16px 8px" }}>
+                +{pedidosAgrupadosProximos.length - 5} pedido(s) más
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {pedidosAgrupadosProximos.length === 0 && pedidosList.length > 0 && (
+        <div className="card">
+          <div className="card-header">
+            <span className="card-title">Pedidos próximos 3 días</span>
+          </div>
+          <p
+            style={{
+              fontSize: 13,
+              color: "var(--text-muted)",
+              padding: "12px 16px",
+            }}
+          >
+            No hay pedidos para los próximos 3 días.
+          </p>
+        </div>
+      )}
+
+      {alertasPedidosManiana.length > 0 && (
+        <div className="card dashboard-alert" onClick={() => onNavigate?.("stock")}>
+          <div className="card-header">
+            <span className="card-title">⚠️ Pedidos de mañana sin stock</span>
+            <span className="card-link" style={{ cursor: "pointer" }}>Ver en Stock →</span>
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {alertasPedidosManiana.slice(0, 6).map((r) => {
+              const pedidosCant = pedidosManianaPorReceta[r.id] || 0;
+              const stockActual = (stock || {})[r.id] ?? 0;
+              return (
+                <span
+                  key={r.id}
+                  style={{
+                    fontSize: 12,
+                    padding: "4px 10px",
+                    background: "var(--surface)",
+                    borderRadius: 20,
+                    border: "1px solid var(--border)"
+                  }}
+                >
+                  {(r.emoji || "🥐")} {r.nombre} · pedidos {pedidosCant} · stock {stockActual}
+                </span>
+              );
+            })}
+            {alertasPedidosManiana.length > 6 && (
+              <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                +{alertasPedidosManiana.length - 6} más
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
+      <div className="card">
+        <div className="card-header"><span className="card-title">Accesos rápidos</span></div>
+        <div className="dashboard-quick-grid">
+          <QuickAction icon="💰" label="Registrar venta" sub="Manual o por voz" tab="ventas" />
+          <QuickAction icon="📥" label="Cargar stock" sub={stockBajo.length > 0 ? `${stockBajo.length} sin stock` : "Por voz o manual"} tab="stock" alert={stockBajo.length > 0 ? stockBajo.length : null} />
+          <QuickAction icon="📆" label="Plan y pedidos" sub="Semana y pedidos futuros" tab="plan" />
+          <QuickAction icon="👥" label="Clientes" sub={`${clientes?.length || 0} registrados`} tab="clientes" />
+          <QuickAction icon="📦" label="Insumos" sub={`${insumos?.length || 0} productos`} tab="insumos" />
+          <QuickAction
+            icon="📋"
+            label="Recetas"
+            sub={`${recetas?.length || 0} recetas`}
+            tab="recetas"
+            alert={recetasMargenBajo.length > 0 ? recetasMargenBajo.length : null}
+          />
+        </div>
+      </div>
 
       {ventasHoy.length > 0 && (
         <div className="card">
@@ -799,7 +1445,20 @@ function Dashboard({ insumos, recetas, ventas, clientes, stock, onNavigate }) {
 }
 
 // ── INSUMOS ──────────────────────────────────────────────────────────────────
-function Insumos({ insumos, insumoStock, insumoMovimientos, insumoComposicion, registrarMovimientoInsumo, onRefresh, showToast, confirm }) {
+function Insumos({
+  insumos,
+  insumoStock,
+  insumoMovimientos,
+  insumoComposicion,
+  registrarMovimientoInsumo,
+  recetas,
+  recetaIngredientes,
+  onRefresh,
+  showToast,
+  confirm,
+  onVerRecetasAfectadas,
+  precioHistorial
+}) {
   const [search, setSearch] = useState("");
   const [catActiva, setCatActiva] = useState("Todos");
   const [modal, setModal] = useState(false);
@@ -816,6 +1475,15 @@ function Insumos({ insumos, insumoStock, insumoMovimientos, insumoComposicion, r
   const [compInsumoSel, setCompInsumoSel] = useState("");
   const [compFactor, setCompFactor] = useState("");
   const [compSaving, setCompSaving] = useState(false);
+  const [compraScreenOpen, setCompraScreenOpen] = useState(false);
+  const [compraCart, setCompraCart] = useState([]);
+  const [compraSaving, setCompraSaving] = useState(false);
+  const [precioDecisionModal, setPrecioDecisionModal] = useState(null);
+  const [compraResultado, setCompraResultado] = useState(null);
+  const [compraListening, setCompraListening] = useState(false);
+  const [compraTranscript, setCompraTranscript] = useState("");
+  const compraRecRef = useRef(null);
+  const compraTranscriptRef = useRef("");
 
   const filtrados = insumos.filter(i => {
     const matchCat = catActiva === "Todos" || i.categoria === catActiva;
@@ -834,6 +1502,369 @@ function Insumos({ insumos, insumoStock, insumoMovimientos, insumoComposicion, r
   const openEdit = (i) => { setEditando(i); setForm({ nombre: i.nombre, categoria: i.categoria, presentacion: i.presentacion || "", precio: i.precio, cantidad_presentacion: i.cantidad_presentacion, unidad: i.unidad }); setModal(true); };
   const openMov = (i, tipo) => { setMovInsumo(i); setMovTipo(tipo); setMovCantidad(""); setMovValor(""); setMovModal(true); };
 
+  const agregarAlCarritoCompra = (insumo) => {
+    if (!insumo) return;
+    setCompraCart((prev) => {
+      const idx = prev.findIndex((it) => it.insumo.id === insumo.id);
+      if (idx >= 0) {
+        const copy = [...prev];
+        copy[idx] = { ...copy[idx], presentaciones: copy[idx].presentaciones + 1 };
+        return copy;
+      }
+      return [
+        ...prev,
+        {
+          insumo,
+          presentaciones: 1,
+          precioPresentacion: typeof insumo.precio === "number" ? insumo.precio : Number(insumo.precio) || 0,
+          precioOriginal: typeof insumo.precio === "number" ? insumo.precio : Number(insumo.precio) || 0
+        }
+      ];
+    });
+  };
+
+  const actualizarCantidadCarrito = (insumoId, delta) => {
+    setCompraCart((prev) =>
+      prev
+        .map((item) =>
+          item.insumo.id === insumoId
+            ? { ...item, presentaciones: Math.max(1, (item.presentaciones || 1) + delta) }
+            : item
+        )
+        .filter((item) => (item.presentaciones || 0) > 0)
+    );
+  };
+
+  const eliminarDeCarritoCompra = (insumoId) => {
+    setCompraCart((prev) => prev.filter((item) => item.insumo.id !== insumoId));
+  };
+
+  const actualizarPrecioCarrito = (insumoId, value) => {
+    const text = String(value).trim();
+    if (text === "") {
+      setCompraCart((prev) =>
+        prev.map((item) =>
+          item.insumo.id === insumoId ? { ...item, precioPresentacion: "" } : item
+        )
+      );
+      return;
+    }
+    const num = parseFloat(text.replace(",", "."));
+    if (Number.isNaN(num) || num < 0) return;
+    setCompraCart((prev) =>
+      prev.map((item) =>
+        item.insumo.id === insumoId ? { ...item, precioPresentacion: num } : item
+      )
+    );
+  };
+
+  const totalCompra = compraCart.reduce((s, item) => {
+    const precio =
+      typeof item.precioPresentacion === "number"
+        ? item.precioPresentacion
+        : Number(item.precioPresentacion) || 0;
+    return s + precio * (item.presentaciones || 0);
+  }, 0);
+
+  const construirDecisionesPrecio = () => {
+    if (!compraCart.length) return null;
+    const items = [];
+    const originalPrices = {};
+    for (const item of compraCart) {
+      const ins = item.insumo;
+      const anterior = Number(ins.precio) || 0;
+      const nuevoValRaw =
+        typeof item.precioPresentacion === "number"
+          ? item.precioPresentacion
+          : Number(item.precioPresentacion) || 0;
+      originalPrices[ins.id] = anterior;
+      if (!anterior || !nuevoValRaw) continue;
+      const diffAbs = Math.abs(nuevoValRaw - anterior);
+      if (diffAbs < 0.01) continue;
+      const diffPct = anterior ? (nuevoValRaw - anterior) / anterior : null;
+      items.push({
+        insumoId: ins.id,
+        nombre: ins.nombre,
+        precioAnterior: anterior,
+        precioNuevo: nuevoValRaw,
+        diffPct,
+        accion: "update"
+      });
+    }
+    if (!items.length) return null;
+    return {
+      items,
+      originalPrices,
+      applyToAll: false
+    };
+  };
+
+  const registrarCompraSoloStock = async () => {
+    if (!compraCart.length) return;
+    setCompraSaving(true);
+    try {
+      for (const item of compraCart) {
+        const ins = item.insumo;
+        const presentaciones = item.presentaciones || 0;
+        if (!ins.id || presentaciones <= 0) continue;
+        const unidadCantidad = Number(ins.cantidad_presentacion) || 1;
+        const cantidadTotal = presentaciones * unidadCantidad;
+        const precio =
+          typeof item.precioPresentacion === "number"
+            ? item.precioPresentacion
+            : Number(item.precioPresentacion) || 0;
+        const valorMovimiento = precio > 0 ? precio * presentaciones : null;
+        await registrarMovimientoInsumo(ins.id, "ingreso", cantidadTotal, valorMovimiento);
+      }
+      showToast("✅ Compra de stock registrada");
+      setCompraCart([]);
+      setCompraScreenOpen(false);
+      onRefresh();
+    } catch (err) {
+      reportError(err, { action: "registrarCompraStock" });
+      showToast("⚠️ Error al registrar compra");
+    } finally {
+      setCompraSaving(false);
+    }
+  };
+
+  const confirmarCompra = async () => {
+    if (!compraCart.length || compraSaving) return;
+    const tienePrecioInvalido = compraCart.some((item) => {
+      const precio =
+        typeof item.precioPresentacion === "number"
+          ? item.precioPresentacion
+          : Number(item.precioPresentacion) || 0;
+      return precio <= 0;
+    });
+    if (tienePrecioInvalido) {
+      showToast("⚠️ Completá el precio de todos los insumos (mayor a 0)");
+      return;
+    }
+    const decisiones = construirDecisionesPrecio();
+    if (!decisiones) {
+      await registrarCompraSoloStock();
+      return;
+    }
+    setPrecioDecisionModal(decisiones);
+  };
+
+  const aplicarDecisionesPrecio = async () => {
+    if (!precioDecisionModal || !compraCart.length) return;
+    const { items } = precioDecisionModal;
+    const cambiosAplicar = items.filter((it) => it.accion === "update");
+    if (!cambiosAplicar.length) {
+      await registrarCompraSoloStock();
+      setPrecioDecisionModal(null);
+      return;
+    }
+    setCompraSaving(true);
+    try {
+      // 1) Registrar movimientos de stock (ingresos)
+      for (const item of compraCart) {
+        const ins = item.insumo;
+        const presentaciones = item.presentaciones || 0;
+        if (!ins.id || presentaciones <= 0) continue;
+        const unidadCantidad = Number(ins.cantidad_presentacion) || 1;
+        const cantidadTotal = presentaciones * unidadCantidad;
+        const precio =
+          typeof item.precioPresentacion === "number"
+            ? item.precioPresentacion
+            : Number(item.precioPresentacion) || 0;
+        const valorMovimiento = precio > 0 ? precio * presentaciones : null;
+        await registrarMovimientoInsumo(ins.id, "ingreso", cantidadTotal, valorMovimiento);
+      }
+
+      // 2) Actualizar precios de insumos
+      const preciosOriginales = {};
+      const preciosNuevos = {};
+      for (const cambio of cambiosAplicar) {
+        preciosOriginales[cambio.insumoId] = cambio.precioAnterior;
+        preciosNuevos[cambio.insumoId] = cambio.precioNuevo;
+        const { error } = await supabase
+          .from("insumos")
+          .update({ precio: cambio.precioNuevo })
+          .eq("id", cambio.insumoId);
+        if (error) throw error;
+        try {
+          await supabase.from("precio_historial").insert({
+            insumo_id: cambio.insumoId,
+            precio_anterior: cambio.precioAnterior,
+            precio_nuevo: cambio.precioNuevo,
+            motivo: "compra_stock"
+          });
+        } catch (err) {
+          reportError(err, { action: "precioHistorialCompraStock", insumo_id: cambio.insumoId });
+        }
+      }
+
+      // 3) Recalcular costos y márgenes de recetas afectadas
+      const recetasPorId = Object.fromEntries((recetas || []).map((r) => [r.id, r]));
+      const recetasAfectadasIds = new Set();
+      for (const cambio of cambiosAplicar) {
+        const recsIds = (recetaIngredientes || [])
+          .filter((ri) => ri.insumo_id === cambio.insumoId)
+          .map((ri) => ri.receta_id);
+        for (const id of recsIds) {
+          if (id) recetasAfectadasIds.add(id);
+        }
+      }
+
+      const insumosById = Object.fromEntries((insumos || []).map((i) => [i.id, i]));
+      const insumosBefore = Object.values(insumosById).map((i) => ({
+        ...i,
+        precio: preciosOriginales[i.id] != null ? preciosOriginales[i.id] : i.precio
+      }));
+      const insumosAfter = Object.values(insumosById).map((i) => ({
+        ...i,
+        precio: preciosNuevos[i.id] != null ? preciosNuevos[i.id] : i.precio
+      }));
+
+      const recetasAfectadas = [];
+      for (const recId of recetasAfectadasIds) {
+        const receta = recetasPorId[recId];
+        if (!receta) continue;
+        const rindeNum = Number(receta.rinde) || 1;
+        const costoAntes = costoReceta(recId, recetaIngredientes || [], insumosBefore);
+        const costoDespues = costoReceta(recId, recetaIngredientes || [], insumosAfter);
+        const costoUnitAntes = rindeNum > 0 ? costoAntes / rindeNum : 0;
+        const costoUnitDespues = rindeNum > 0 ? costoDespues / rindeNum : 0;
+        const precioVenta = Number(receta.precio_venta) || 0;
+        const margenAntes =
+          precioVenta > 0 ? (precioVenta - costoUnitAntes) / precioVenta : null;
+        const margenDespues =
+          precioVenta > 0 ? (precioVenta - costoUnitDespues) / precioVenta : null;
+
+        // Guardar nuevos costos en DB
+        const { error } = await supabase
+          .from("recetas")
+          .update({ costo_lote: costoDespues, costo_unitario: costoUnitDespues })
+          .eq("id", recId);
+        if (error) throw error;
+
+        recetasAfectadas.push({
+          id: recId,
+          nombre: receta.nombre,
+          emoji: receta.emoji || "🍞",
+          margenAntes,
+          margenDespues
+        });
+      }
+
+      setCompraResultado({
+        preciosActualizados: cambiosAplicar.length,
+        recetasAfectadas
+      });
+      showToast("✅ Compra registrada y costos actualizados");
+      setPrecioDecisionModal(null);
+      setCompraCart([]);
+      onRefresh();
+    } catch (err) {
+      reportError(err, { action: "actualizarPreciosPorCompra" });
+      showToast("⚠️ Error al actualizar precios y costos");
+    } finally {
+      setCompraSaving(false);
+    }
+  };
+
+  const iniciarRecCompra = () => {
+    if (compraListening) return;
+    const API =
+      typeof window !== "undefined" &&
+      (window.SpeechRecognition || window.webkitSpeechRecognition);
+    if (!API) {
+      showToast("⚠️ Tu navegador no soporta reconocimiento de voz");
+      return;
+    }
+    setCompraTranscript("");
+    compraTranscriptRef.current = "";
+    try {
+      const rec = new API();
+      compraRecRef.current = rec;
+      rec.lang = "es-AR";
+      rec.continuous = true;
+      rec.interimResults = true;
+      rec.onresult = (e) => {
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          const res = e.results[i];
+          if (res.isFinal) {
+            compraTranscriptRef.current +=
+              (compraTranscriptRef.current ? " " : "") + res[0].transcript;
+            setCompraTranscript(compraTranscriptRef.current);
+          }
+        }
+      };
+      rec.onend = () => {
+        setCompraListening(false);
+        compraRecRef.current = null;
+        const texto = compraTranscriptRef.current;
+        if (!texto) return;
+        const items = parsearVozAComprasInsumos(texto, insumos);
+        if (!items.length) {
+          showToast("No se detectaron insumos. Probá con nombres más específicos.");
+          return;
+        }
+        setCompraCart((prev) => {
+          const merged = [...prev];
+          for (const it of items) {
+            const ins = it.insumo;
+            const idx = merged.findIndex((m) => m.insumo.id === ins.id);
+            if (idx >= 0) {
+              const base = merged[idx];
+              const presBase = base.presentaciones || 0;
+              merged[idx] = {
+                ...base,
+                presentaciones: presBase + (it.presentaciones || 0),
+                precioPresentacion:
+                  it.precioPresentacion != null
+                    ? it.precioPresentacion
+                    : base.precioPresentacion,
+              };
+            } else {
+              merged.push({
+                insumo: ins,
+                presentaciones: it.presentaciones || 1,
+                precioPresentacion:
+                  it.precioPresentacion != null
+                    ? it.precioPresentacion
+                    : typeof ins.precio === "number"
+                    ? ins.precio
+                    : Number(ins.precio) || 0,
+                precioOriginal:
+                  typeof ins.precio === "number"
+                    ? ins.precio
+                    : Number(ins.precio) || 0,
+              });
+            }
+          }
+          return merged;
+        });
+        showToast(`✅ Compra por voz: ${items.length} insumo(s) agregados`);
+      };
+      rec.start();
+      setCompraListening(true);
+    } catch {
+      setCompraListening(false);
+      compraRecRef.current = null;
+      showToast("⚠️ No se pudo iniciar el reconocimiento de voz");
+    }
+  };
+
+  const detenerRecCompra = () => {
+    try {
+      compraRecRef.current?.abort?.();
+    } catch {
+      // ignore
+    }
+    try {
+      compraRecRef.current?.stop?.();
+    } catch {
+      // ignore
+    }
+    compraRecRef.current = null;
+    setCompraListening(false);
+  };
+
   const save = async () => {
     const precio = parseFloat(form.precio);
     const cantidad_presentacion = parseFloat(form.cantidad_presentacion) || 0;
@@ -842,16 +1873,50 @@ function Insumos({ insumos, insumoStock, insumoMovimientos, insumoComposicion, r
       return;
     }
     setSaving(true);
-    const data = { nombre: form.nombre, categoria: form.categoria, presentacion: form.presentacion, precio, cantidad_presentacion, unidad: form.unidad };
-    const { error } = editando
-      ? await supabase.from("insumos").update(data).eq("id", editando.id)
-      : await supabase.from("insumos").insert(data);
+    const data = {
+      nombre: form.nombre,
+      categoria: form.categoria,
+      presentacion: form.presentacion,
+      precio,
+      cantidad_presentacion,
+      unidad: form.unidad
+    };
+    const isUpdate = Boolean(editando);
+    const precioAnterior =
+      isUpdate && editando
+        ? (typeof editando.precio === "number"
+            ? editando.precio
+            : Number(editando.precio) || 0)
+        : null;
+    const { error } = isUpdate
+      ? await supabase
+          .from("insumos")
+          .update(data)
+          .eq("id", editando.id)
+          .select("id, precio")
+      : await supabase
+          .from("insumos")
+          .insert(data)
+          .select("id, precio");
     if (error) {
       showToast("⚠️ Error al guardar");
       setSaving(false);
       return;
     }
-    showToast(editando ? "✅ Precio actualizado" : "✅ Insumo agregado");
+    if (isUpdate && precioAnterior != null && Math.abs(precio - precioAnterior) >= 0.01) {
+      const insumoId = editando.id;
+      try {
+        await supabase.from("precio_historial").insert({
+          insumo_id: insumoId,
+          precio_anterior: precioAnterior,
+          precio_nuevo: precio,
+          motivo: "edicion_manual"
+        });
+      } catch (err) {
+        reportError(err, { action: "precioHistorialEdicionManual", insumo_id: insumoId });
+      }
+    }
+    showToast(isUpdate ? "✅ Precio actualizado" : "✅ Insumo agregado");
     setSaving(false);
     setModal(false);
     onRefresh();
@@ -885,6 +1950,24 @@ function Insumos({ insumos, insumoStock, insumoMovimientos, insumoComposicion, r
     <div className="content">
       <p className="page-title">Insumos</p>
       <p className="page-subtitle">{insumos.length} materias primas · ingresos y egresos para calcular ganancia</p>
+
+      <div className="card" style={{ marginBottom: 12 }}>
+        <div className="card-header">
+          <span className="card-title">Compras de stock</span>
+        </div>
+        <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 10 }}>
+          Registrá en un solo paso lo que compraste y cuánto pagaste. Ideal cuando volvés del súper.
+        </p>
+        <button
+          type="button"
+          className="btn-primary"
+          onClick={() => {
+            setCompraScreenOpen(true);
+          }}
+        >
+          📥 Registrar compra de stock
+        </button>
+      </div>
 
       <div className="search-bar">
         <span className="search-icon">🔍</span>
@@ -961,6 +2044,258 @@ function Insumos({ insumos, insumoStock, insumoMovimientos, insumoComposicion, r
       )}
 
       <button className="fab" onClick={openNew}>+</button>
+
+      {compraScreenOpen && (
+        <div className="screen-overlay">
+          <div className="screen-header">
+            <button
+              className="screen-back"
+              onClick={() => {
+                if (compraSaving) return;
+                setCompraScreenOpen(false);
+              }}
+              disabled={compraSaving}
+            >
+              ← Volver
+            </button>
+            <span className="screen-title">Registrar compra de stock</span>
+          </div>
+          <div className="screen-content">
+            <div className="voice-row" style={{ marginBottom: 16 }}>
+              <div className="voice-area">
+                <div className="voice-icon">🎤</div>
+                <div className="voice-text" style={{ marginBottom: 8 }}>
+                  Dictá por ejemplo: "compré 2kg de harina de almendras a 43000 pesos y 500g de levadura".
+                </div>
+                <button
+                  type="button"
+                  className={`voice-btn ${compraListening ? "listening" : ""}`}
+                  onClick={compraListening ? detenerRecCompra : iniciarRecCompra}
+                  disabled={compraSaving}
+                  style={{ marginBottom: 8 }}
+                >
+                  {compraListening ? "Detener" : "Hablar"}
+                </button>
+                {compraTranscript && (
+                  <p className="voice-transcript">“{compraTranscript}”</p>
+                )}
+              </div>
+            </div>
+
+            <div className="card" style={{ marginBottom: 16 }}>
+              <div className="card-header">
+                <span className="card-title">Carrito de compra</span>
+              </div>
+              {compraCart.length === 0 ? (
+                <p style={{ fontSize: 13, color: "var(--text-muted)" }}>
+                  Tocá un insumo de la lista de abajo para agregarlo al carrito.
+                </p>
+              ) : (
+                <>
+                  {compraCart.map((item) => {
+                    const ins = item.insumo;
+                    const unidad = ins.unidad || "g";
+                    const cantPorPres = Number(ins.cantidad_presentacion) || 1;
+                    const cantidadTotal = (item.presentaciones || 0) * cantPorPres;
+                    const precio =
+                      typeof item.precioPresentacion === "number"
+                        ? item.precioPresentacion
+                        : Number(item.precioPresentacion) || 0;
+                    const subtotal = precio * (item.presentaciones || 0);
+                    const precioOriginal =
+                      typeof ins.precio === "number" ? ins.precio : Number(ins.precio) || 0;
+                    const cambioPrecio =
+                      precioOriginal > 0 && Math.abs(precio - precioOriginal) >= 0.01;
+                    const diffPct =
+                      cambioPrecio && precioOriginal
+                        ? (precio - precioOriginal) / precioOriginal
+                        : null;
+                    return (
+                      <div
+                        key={ins.id}
+                        className="insumo-item"
+                        style={{ alignItems: "flex-start", padding: "10px 0" }}
+                      >
+                        <div className="insumo-info" style={{ flex: 1 }}>
+                          <div className="insumo-nombre">{ins.nombre}</div>
+                          <div className="insumo-detalle" style={{ marginTop: 4 }}>
+                            Cantidad:{" "}
+                            <strong>
+                              {cantidadTotal} {unidad}
+                            </strong>{" "}
+                            ({item.presentaciones || 0} × {cantPorPres} {unidad})
+                          </div>
+                          <div className="insumo-detalle" style={{ marginTop: 4 }}>
+                            Precio por presentación:{" "}
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={item.precioPresentacion}
+                              onChange={(e) => actualizarPrecioCarrito(ins.id, e.target.value)}
+                              style={{
+                                width: 110,
+                                padding: "6px 8px",
+                                borderRadius: 8,
+                                border: "1px solid var(--border)",
+                                fontSize: 13
+                              }}
+                            />{" "}
+                            {cambioPrecio && (
+                              <span style={{ fontSize: 11, color: "var(--danger)", marginLeft: 4 }}>
+                                antes {fmt(precioOriginal)}
+                                {diffPct != null && ` · ${pctFmt(diffPct)}`}
+                              </span>
+                            )}
+                          </div>
+                          <div className="insumo-detalle" style={{ marginTop: 4 }}>
+                            Subtotal: <strong>{fmt(subtotal || 0)}</strong>
+                          </div>
+                        </div>
+                        <div
+                          style={{
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: "flex-end",
+                            gap: 6
+                          }}
+                        >
+                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            <button
+                              type="button"
+                              onClick={() => actualizarCantidadCarrito(ins.id, -1)}
+                              style={{
+                                width: 28,
+                                height: 28,
+                                borderRadius: "50%",
+                                border: "1px solid var(--border)",
+                                background: "var(--cream)",
+                                cursor: "pointer"
+                              }}
+                              disabled={compraSaving}
+                            >
+                              −
+                            </button>
+                            <span style={{ minWidth: 20, textAlign: "center", fontSize: 14 }}>
+                              {item.presentaciones || 0}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => actualizarCantidadCarrito(ins.id, 1)}
+                              style={{
+                                width: 28,
+                                height: 28,
+                                borderRadius: "50%",
+                                border: "1px solid var(--border)",
+                                background: "var(--cream)",
+                                cursor: "pointer"
+                              }}
+                              disabled={compraSaving}
+                            >
+                              +
+                            </button>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => eliminarDeCarritoCompra(ins.id)}
+                            style={{
+                              background: "none",
+                              border: "none",
+                              color: "var(--danger)",
+                              fontSize: 18,
+                              cursor: "pointer"
+                            }}
+                            disabled={compraSaving}
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      marginTop: 12,
+                      borderTop: "1px dashed var(--border)",
+                      paddingTop: 8
+                    }}
+                  >
+                    <span style={{ fontSize: 13, color: "var(--text-muted)" }}>
+                      Total de la compra
+                    </span>
+                    <span
+                      style={{
+                        fontFamily: "'Outfit', sans-serif",
+                        fontSize: 18,
+                        fontWeight: 600
+                      }}
+                    >
+                      {fmt(totalCompra)}
+                    </span>
+                  </div>
+                  <button
+                    className="btn-primary"
+                    style={{ marginTop: 12 }}
+                    onClick={confirmarCompra}
+                    disabled={compraSaving || compraCart.length === 0}
+                  >
+                    {compraSaving ? "Guardando…" : "✓ Registrar compra"}
+                  </button>
+                </>
+              )}
+            </div>
+
+            <div className="card">
+              <div className="card-header">
+                <span className="card-title">Insumos</span>
+              </div>
+              <p style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 8 }}>
+                Tocá un insumo para agregar 1 presentación al carrito.
+              </p>
+              {filtrados.length === 0 ? (
+                <div className="empty">
+                  <div className="empty-icon">📦</div>
+                  <p>Sin resultados</p>
+                </div>
+              ) : (
+                filtradosOrdenados.map((i) => {
+                  const stockActual = (insumoStock || {})[i.id] ?? 0;
+                  const unidad = i.unidad || "g";
+                  return (
+                    <div
+                      key={i.id}
+                      className="insumo-item"
+                      onClick={() => {
+                        agregarAlCarritoCompra(i);
+                        showToast(`➕ ${i.nombre} agregado al carrito`);
+                      }}
+                      style={{ cursor: "pointer" }}
+                    >
+                      <div
+                        className="insumo-dot"
+                        style={{ background: CAT_COLORS[i.categoria] || "#ccc" }}
+                      />
+                      <div className="insumo-info" style={{ flex: 1 }}>
+                        <div className="insumo-nombre">{i.nombre}</div>
+                        <div className="insumo-detalle">
+                          {i.presentacion} · <span className="chip">{precioPorU(i)}</span> · Stock:{" "}
+                          {stockActual} {unidad}
+                        </div>
+                      </div>
+                      <div className="insumo-precio" style={{ marginLeft: 8 }}>
+                        <div className="insumo-precio-value">{fmt(i.precio)}</div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {movModal && movInsumo && (
         <div className="screen-overlay">
@@ -1181,19 +2516,235 @@ function Insumos({ insumos, insumoStock, insumoMovimientos, insumoComposicion, r
           </div>
         </div>
       )}
+
+      {precioDecisionModal && (
+        <div className="screen-overlay">
+          <div className="screen-header">
+            <button
+              className="screen-back"
+              onClick={() => setPrecioDecisionModal(null)}
+              disabled={compraSaving}
+            >
+              ← Volver
+            </button>
+            <span className="screen-title">Precios actualizados</span>
+          </div>
+          <div className="screen-content">
+            <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 12 }}>
+              Algunos insumos tienen un precio distinto al registrado. Elegí qué hacer con
+              cada uno:
+            </p>
+            <div className="card" style={{ marginBottom: 16 }}>
+              {(precioDecisionModal.items || []).map((item) => (
+                <div
+                  key={item.insumoId}
+                  style={{
+                    padding: "10px 14px",
+                    borderBottom: "1px solid var(--border)",
+                    fontSize: 13
+                  }}
+                >
+                  <div style={{ fontWeight: 600, marginBottom: 4 }}>{item.nombre}</div>
+                  <div style={{ color: "var(--text-muted)", marginBottom: 4 }}>
+                    Precio anterior: <strong>{fmt(item.precioAnterior)}</strong>
+                    <br />
+                    Precio nuevo: <strong>{fmt(item.precioNuevo)}</strong>
+                    {item.diffPct != null && (
+                      <>
+                        <br />
+                        Diferencia:{" "}
+                        <strong
+                          style={{
+                            color: item.diffPct > 0 ? "var(--danger)" : "var(--green)"
+                          }}
+                        >
+                          {pctFmt(item.diffPct)}
+                        </strong>
+                      </>
+                    )}
+                  </div>
+                  <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+                    <button
+                      type="button"
+                      className="btn-primary"
+                      style={{
+                        flex: 1,
+                        padding: "8px 10px",
+                        fontSize: 12,
+                        borderRadius: 10
+                      }}
+                      onClick={() =>
+                        setPrecioDecisionModal((prev) => ({
+                          ...prev,
+                          items: (prev.items || []).map((it) =>
+                            it.insumoId === item.insumoId
+                              ? { ...it, accion: "update" }
+                              : it
+                          )
+                        }))
+                      }
+                      disabled={compraSaving}
+                    >
+                      ✅ Actualizar precio
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      style={{
+                        flex: 1,
+                        padding: "8px 10px",
+                        fontSize: 12,
+                        borderRadius: 10
+                      }}
+                      onClick={() =>
+                        setPrecioDecisionModal((prev) => ({
+                          ...prev,
+                          items: (prev.items || []).map((it) =>
+                            it.insumoId === item.insumoId
+                              ? { ...it, accion: "keep" }
+                              : it
+                          )
+                        }))
+                      }
+                      disabled={compraSaving}
+                    >
+                      🕓 Mantener precio anterior
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <button
+              className="btn-primary"
+              onClick={aplicarDecisionesPrecio}
+              disabled={compraSaving}
+              style={{ marginBottom: 8 }}
+            >
+              {compraSaving ? "Aplicando…" : "Aplicar y registrar compra"}
+            </button>
+            <button
+              className="btn-secondary"
+              onClick={async () => {
+                setPrecioDecisionModal(null);
+                await registrarCompraSoloStock();
+              }}
+              disabled={compraSaving}
+            >
+              Registrar solo el stock
+            </button>
+          </div>
+        </div>
+      )}
+
+      {compraResultado && (
+        <div className="screen-overlay">
+          <div className="screen-header">
+            <button
+              className="screen-back"
+              onClick={() => setCompraResultado(null)}
+            >
+              ← Cerrar
+            </button>
+            <span className="screen-title">Resumen de actualización</span>
+          </div>
+          <div className="screen-content">
+            <div className="card" style={{ marginBottom: 16 }}>
+              <div className="card-header">
+                <span className="card-title">
+                  Se actualizaron {compraResultado.preciosActualizados} precios
+                </span>
+              </div>
+              <p style={{ fontSize: 13, color: "var(--text-muted)" }}>
+                Estos cambios impactaron en las recetas y sus márgenes:
+              </p>
+            </div>
+            {compraResultado.recetasAfectadas &&
+              compraResultado.recetasAfectadas.length > 0 && (
+                <div className="card" style={{ marginBottom: 16 }}>
+                  <div className="card-header">
+                    <span className="card-title">Recetas afectadas</span>
+                  </div>
+                  {compraResultado.recetasAfectadas.map((r) => {
+                    const margenAntesTxt =
+                      r.margenAntes != null ? pctFmt(r.margenAntes) : "—";
+                    const margenDespuesTxt =
+                      r.margenDespues != null ? pctFmt(r.margenDespues) : "—";
+                    const empeoro =
+                      r.margenAntes != null &&
+                      r.margenDespues != null &&
+                      r.margenDespues < r.margenAntes;
+                    return (
+                      <div
+                        key={r.id}
+                        className="insumo-item"
+                        style={{ padding: "8px 0" }}
+                      >
+                        <div className="insumo-info" style={{ flex: 1 }}>
+                          <div className="insumo-nombre">
+                            {r.emoji} {r.nombre}
+                          </div>
+                          <div className="insumo-detalle">
+                            Margen:{" "}
+                            <strong>{margenAntesTxt}</strong> →{" "}
+                            <strong
+                              style={{
+                                color: empeoro ? "var(--danger)" : "var(--green)"
+                              }}
+                            >
+                              {margenDespuesTxt}
+                            </strong>{" "}
+                            {empeoro ? "↓" : "↑"}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            <p style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 12 }}>
+              Revisá si necesitás ajustar precios de venta.
+            </p>
+            {compraResultado.recetasAfectadas &&
+              compraResultado.recetasAfectadas.length > 0 && onVerRecetasAfectadas && (
+                <button
+                  className="btn-primary"
+                  onClick={() => {
+                    const ids = compraResultado.recetasAfectadas.map((r) => r.id);
+                    onVerRecetasAfectadas(ids);
+                    setCompraResultado(null);
+                  }}
+                  style={{ marginBottom: 8 }}
+                >
+                  Ver recetas afectadas
+                </button>
+              )}
+            <button
+              className="btn-secondary"
+              onClick={() => setCompraResultado(null)}
+            >
+              Listo
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 // ── RECETAS ──────────────────────────────────────────────────────────────────
-function Recetas({ recetas, insumos, recetaIngredientes, showToast, onRefresh, confirm }) {
+function Recetas({ recetas, insumos, recetaIngredientes, showToast, onRefresh, confirm, filterRecetasIds, onClearFilter }) {
   const [modal, setModal] = useState(false);
   const [editando, setEditando] = useState(null);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ nombre: "", emoji: "🍞", rinde: "", unidad_rinde: "u", precio_venta: "" });
   const [ingredientes, setIngredientes] = useState([]);
 
-  const recetasOrdenadas = [...recetas].slice().sort((a, b) =>
+  const aplicaFiltro = Array.isArray(filterRecetasIds) && filterRecetasIds.length > 0;
+  const recetasFuente = aplicaFiltro
+    ? recetas.filter((r) => filterRecetasIds.includes(r.id))
+    : recetas;
+
+  const recetasOrdenadas = [...recetasFuente].slice().sort((a, b) =>
     (a.nombre || "").localeCompare(b.nombre || "", "es", { sensitivity: "base" })
   );
   const insumosOrdenados = [...insumos].slice().sort((a, b) =>
@@ -1300,7 +2851,20 @@ function Recetas({ recetas, insumos, recetaIngredientes, showToast, onRefresh, c
   return (
     <div className="content">
       <p className="page-title">Recetas</p>
-      <p className="page-subtitle">{recetas.length} recetas cargadas</p>
+      <p className="page-subtitle">
+        {recetasFuente.length} recetas cargadas
+        {aplicaFiltro && " · filtradas por últimas actualizaciones"}
+      </p>
+      {aplicaFiltro && onClearFilter && (
+        <button
+          type="button"
+          className="btn-secondary"
+          onClick={onClearFilter}
+          style={{ marginBottom: 12 }}
+        >
+          Ver todas las recetas
+        </button>
+      )}
 
       {recetas.length === 0 ? (
         <div className="empty"><div className="empty-icon">📋</div><p>No hay recetas todavía.<br />Tocá + para agregar.</p></div>
@@ -1474,13 +3038,10 @@ function Recetas({ recetas, insumos, recetaIngredientes, showToast, onRefresh, c
 }
 
 // ── STOCK ─────────────────────────────────────────────────────────────────────
-function Stock({ recetas, stock, actualizarStock, consumirInsumosPorStock, insumoStock, insumos, recetaIngredientes, insumoComposicion, registrarMovimientoInsumo, onRefresh, showToast }) {
-  const [manualRecetaSel, setManualRecetaSel] = useState(null);
-  const [manualCantidad, setManualCantidad] = useState(1);
+function Stock({ recetas, stock, actualizarStock, consumirInsumosPorStock, insumoStock, insumos, recetaIngredientes, insumoComposicion, registrarMovimientoInsumo, onRefresh, showToast, ventas, pedidos }) {
   const [manualSaving, setManualSaving] = useState(false);
   const [voiceModal, setVoiceModal] = useState(false);
   const [manualScreenOpen, setManualScreenOpen] = useState(false);
-  const [newStockModalOpen, setNewStockModalOpen] = useState(false);
   const [listening, setListening] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [parsedStock, setParsedStock] = useState([]);
@@ -1488,6 +3049,36 @@ function Stock({ recetas, stock, actualizarStock, consumirInsumosPorStock, insum
   const [insumosEnCeroModal, setInsumosEnCeroModal] = useState(null);
   const recRef = useRef(null);
   const transcriptRef = useRef("");
+  const [stockCart, setStockCart] = useState([]);
+
+  const metricasStock = calcularMetricasVentasYStock(recetas, ventas || [], stock, METRICAS_VENTANA_DIAS);
+
+  const pedidosPendientesSemana = {};
+  if (pedidos && pedidos.length > 0) {
+    const hoy = new Date();
+    const diaSemana = hoy.getDay(); // 0 domingo, 1 lunes...
+    const diffLunes = (diaSemana + 6) % 7;
+    const lunes = new Date(hoy);
+    lunes.setHours(0, 0, 0, 0);
+    lunes.setDate(hoy.getDate() - diffLunes);
+    const domingo = new Date(lunes);
+    domingo.setDate(lunes.getDate() + 6);
+    domingo.setHours(23, 59, 59, 999);
+    for (const p of pedidos) {
+      if (!p || !p.fecha_entrega || p.estado === "entregado") continue;
+      let fecha;
+      try {
+        fecha = new Date(p.fecha_entrega);
+      } catch {
+        continue;
+      }
+      if (Number.isNaN(fecha.getTime())) continue;
+      if (fecha < lunes || fecha > domingo) continue;
+      const rid = p.receta_id;
+      if (rid == null) continue;
+      pedidosPendientesSemana[rid] = (pedidosPendientesSemana[rid] || 0) + (p.cantidad || 0);
+    }
+  }
 
   const recetasOrdenadasPorStock = [...recetas].slice().sort((a, b) => {
     const sa = (stock || {})[a.id] ?? 0;
@@ -1495,6 +3086,79 @@ function Stock({ recetas, stock, actualizarStock, consumirInsumosPorStock, insum
     if (sa !== sb) return sa - sb;
     return (a.nombre || "").localeCompare(b.nombre || "", "es", { sensitivity: "base" });
   });
+
+  const sinStockCount = recetas.filter(
+    (r) => ((stock || {})[r.id] ?? 0) <= 0
+  ).length;
+  const bajo2Count = recetas.filter((r) => {
+    const m = metricasStock[r.id];
+    return m && m.diasRestantes != null && m.diasRestantes < DIAS_ALERTA_ROJA;
+  }).length;
+  const pedidosSemanaTotal = Object.values(pedidosPendientesSemana).reduce(
+    (s, v) => s + (v || 0),
+    0
+  );
+
+  const prioridadesProduccion = [...recetas]
+    .map((r) => {
+      const cant = (stock || {})[r.id] ?? 0;
+      const m = metricasStock[r.id];
+      const dias = m?.diasRestantes ?? Number.POSITIVE_INFINITY;
+      const pedidosSemana = pedidosPendientesSemana[r.id] || 0;
+      const faltaPedidos = Math.max(0, pedidosSemana - cant);
+      const prioridadScore =
+        (cant <= 0 ? 2 : 0) +
+        (faltaPedidos > 0 ? 1.5 : 0) +
+        (Number.isFinite(dias) ? 1 / (dias + 0.1) : 0);
+      return {
+        receta: r,
+        stockActual: cant,
+        metrica: m,
+        diasRestantes: dias,
+        pedidosSemana,
+        faltaPedidos,
+        prioridadScore,
+      };
+    })
+    .filter(
+      (p) =>
+        p.stockActual <= 0 ||
+        p.faltaPedidos > 0 ||
+        (Number.isFinite(p.diasRestantes) && p.diasRestantes < DIAS_ALERTA_AMARILLA)
+    )
+    .sort((a, b) => b.prioridadScore - a.prioridadScore)
+    .slice(0, 6);
+
+  const addToStockCart = (receta, delta = 1) => {
+    if (!receta) return;
+    setStockCart((prev) => {
+      const idx = prev.findIndex((it) => it.receta.id === receta.id);
+      if (idx >= 0) {
+        const copy = [...prev];
+        const nuevaCant = Math.max(0, (copy[idx].cantidad || 0) + delta);
+        if (nuevaCant === 0) {
+          copy.splice(idx, 1);
+          return copy;
+        }
+        copy[idx] = { ...copy[idx], cantidad: nuevaCant };
+        return copy;
+      }
+      if (delta <= 0) return prev;
+      return [...prev, { receta, cantidad: delta }];
+    });
+  };
+
+  const totalCartUnidades = stockCart.reduce((s, it) => s + (it.cantidad || 0), 0);
+  const iniciarVozStock = () => {
+    if (!SpeechRecognitionAPI) {
+      showToast("⚠️ Tu navegador no soporta reconocimiento de voz");
+      return;
+    }
+    setTranscript("");
+    setParsedStock([]);
+    transcriptRef.current = "";
+    setVoiceModal(true);
+  };
 
   const cargar = async (receta_id, cantidad) => {
     if (!cantidad || cantidad <= 0) return;
@@ -1514,8 +3178,6 @@ function Stock({ recetas, stock, actualizarStock, consumirInsumosPorStock, insum
     if (consumirInsumosPorStock) await consumirInsumosPorStock(receta_id, cantidad);
     const r = recetas.find(x => x.id === receta_id);
     showToast(`✅ +${cantidad} ${r?.nombre || "producto"}`);
-    setManualRecetaSel(null);
-    setManualCantidad(1);
     onRefresh?.();
   };
 
@@ -1600,6 +3262,45 @@ function Stock({ recetas, stock, actualizarStock, consumirInsumosPorStock, insum
     }
   };
 
+  const cargarStockCarrito = async () => {
+    if (!stockCart.length) {
+      showToast("Agregá productos al carrito para cargar stock.");
+      return;
+    }
+    const items = stockCart.map((it) => ({
+      receta: it.receta,
+      cantidad: it.cantidad || 0
+    })).filter((it) => it.receta && it.cantidad > 0);
+    if (!items.length) {
+      showToast("No hay cantidades válidas en el carrito.");
+      return;
+    }
+    const insumosEnCero = getInsumosEnCeroParaRecetas(
+      items,
+      recetaIngredientes,
+      insumos,
+      insumoComposicion,
+      insumoStock
+    );
+    if (insumosEnCero.length > 0 && registrarMovimientoInsumo) {
+      setInsumosEnCeroModal({
+        insumos: insumosEnCero,
+        cantidades: {},
+        pendingOp: { type: "voice", items: items }
+      });
+      return;
+    }
+    setManualSaving(true);
+    try {
+      await ejecutarCargaVoz(items);
+      setStockCart([]);
+    } catch {
+      showToast("⚠️ Error al cargar stock. Probá de nuevo.");
+    } finally {
+      setManualSaving(false);
+    }
+  };
+
   const confirmarInsumosEnCero = async () => {
     const { insumos: lista, cantidades, pendingOp } = insumosEnCeroModal || {};
     if (!lista?.length || !pendingOp) return;
@@ -1657,19 +3358,210 @@ function Stock({ recetas, stock, actualizarStock, consumirInsumosPorStock, insum
       <p className="page-title">Stock</p>
       <p className="page-subtitle">Stock actual por producto · se descarga con cada venta</p>
 
+      <div className="analytics-kpi-grid" style={{ marginBottom: 12 }}>
+        <div className="analytics-kpi-card">
+          <div className="analytics-kpi-label">Sin stock</div>
+          <div className="analytics-kpi-value accent">{sinStockCount}</div>
+          <div className="analytics-kpi-sub">productos en 0</div>
+        </div>
+        <div className="analytics-kpi-card">
+          <div className="analytics-kpi-label">Críticos (&lt; {DIAS_ALERTA_ROJA} días)</div>
+          <div className="analytics-kpi-value" style={{ color: "var(--danger)" }}>
+            {bajo2Count}
+          </div>
+          <div className="analytics-kpi-sub">según ritmo de ventas</div>
+        </div>
+        <div className="analytics-kpi-card">
+          <div className="analytics-kpi-label">Pedidos semana</div>
+          <div className="analytics-kpi-value">{pedidosSemanaTotal}</div>
+          <div className="analytics-kpi-sub">unidades pedidas</div>
+        </div>
+      </div>
+
+      {prioridadesProduccion.length > 0 && (
+        <div className="card" style={{ marginBottom: 12 }}>
+          <div className="card-header">
+            <span className="card-title">Prioridades de producción</span>
+          </div>
+          <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 6 }}>
+            Ordenado por urgencia (sin stock, pedidos y ventas).
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {prioridadesProduccion.map((p) => {
+              const { receta: r, stockActual, metrica, diasRestantes, pedidosSemana, faltaPedidos } = p;
+              const diasTexto =
+                diasRestantes != null && Number.isFinite(diasRestantes)
+                  ? formatearDiasStock(diasRestantes)
+                  : null;
+              const enCarrito = stockCart.find((it) => it.receta.id === r.id);
+              return (
+                <div
+                  key={r.id}
+                  className="insumo-item"
+                  style={{ alignItems: "center", padding: "6px 0" }}
+                >
+                  <span style={{ fontSize: 22, marginRight: 8 }}>{r.emoji}</span>
+                  <div className="insumo-info" style={{ flex: 1 }}>
+                    <div className="insumo-nombre">{r.nombre}</div>
+                    <div className="insumo-detalle" style={{ fontSize: 12 }}>
+                      {stockActual <= 0 ? "Sin stock" : `Stock: ${stockActual}`}{" "}
+                      {metrica && metrica.promedioDiario > 0 && (
+                        <>
+                          · prom. {metrica.promedioDiario.toFixed(1)} u/día ·{" "}
+                          {diasTexto ? `≈ ${diasTexto} días` : "sin estimación"}
+                        </>
+                      )}
+                      {pedidosSemana > 0 && (
+                        <> · pedidos semana: {pedidosSemana} u</>
+                      )}
+                      {faltaPedidos > 0 && (
+                        <> · faltan {faltaPedidos} u para cubrir pedidos</>
+                      )}
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    {enCarrito && (
+                      <span
+                        style={{
+                          fontSize: 11,
+                          color: "var(--text-muted)",
+                          minWidth: 40,
+                          textAlign: "right",
+                        }}
+                      >
+                        +{enCarrito.cantidad} u
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => addToStockCart(r, 1)}
+                      style={{
+                        padding: "6px 10px",
+                        borderRadius: 999,
+                        border: "1px solid var(--border)",
+                        background: "var(--cream)",
+                        fontSize: 12,
+                        cursor: "pointer",
+                      }}
+                    >
+                      + Carrito
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       <div className="card">
-        <div className="card-header"><span className="card-title">Productos</span></div>
-        {recetasOrdenadasPorStock.map(r => {
+        <div className="card-header">
+          <span className="card-title">Todos los productos</span>
+        </div>
+        {recetasOrdenadasPorStock.map((r) => {
           const cant = stock[r.id] ?? 0;
           const bajo = cant <= 0;
+          const metrica = metricasStock[r.id];
+          const diasRestantes = metrica?.diasRestantes;
+          const diasTexto =
+            diasRestantes != null && Number.isFinite(diasRestantes)
+              ? formatearDiasStock(diasRestantes)
+              : null;
+          const sugeridoProducir =
+            metrica && metrica.promedioDiario > 0
+              ? Math.max(
+                  0,
+                  Math.ceil(metrica.promedioDiario * DIAS_OBJETIVO_PRODUCCION - cant)
+                )
+              : null;
+          const pedidosSemana = pedidosPendientesSemana[r.id] || 0;
+          const enCarrito = stockCart.find((it) => it.receta.id === r.id);
           return (
             <div key={r.id} className="insumo-item">
               <span style={{ fontSize: 22 }}>{r.emoji}</span>
               <div className="insumo-info" style={{ flex: 1 }}>
                 <div className="insumo-nombre">{r.nombre}</div>
-                <div className="insumo-detalle" style={{ color: bajo ? "var(--danger)" : "var(--text-muted)" }}>
+                <div
+                  className="insumo-detalle"
+                  style={{ color: bajo ? "var(--danger)" : "var(--text-muted)" }}
+                >
                   {bajo ? "Sin stock" : `Stock: ${cant}`}
+                  {enCarrito && (
+                    <> · en carrito: +{enCarrito.cantidad} u</>
+                  )}
                 </div>
+                {metrica && metrica.promedioDiario > 0 && (
+                  <div
+                    style={{
+                      fontSize: 11,
+                      color: "var(--text-muted)",
+                      marginTop: 2,
+                    }}
+                  >
+                    Prom. últimos {METRICAS_VENTANA_DIAS} días:{" "}
+                    {metrica.promedioDiario.toFixed(1)} u/día · stock ≈{" "}
+                    {diasTexto || "—"} día{diasTexto === "1" ? "" : "s"}
+                    {sugeridoProducir > 0 && (
+                      <> · sugerido producir: {sugeridoProducir}</>
+                    )}
+                  </div>
+                )}
+                {!metrica?.promedioDiario && (
+                  <div
+                    style={{
+                      fontSize: 11,
+                      color: "var(--text-muted)",
+                      marginTop: 2,
+                    }}
+                  >
+                    Sin ventas en los últimos {METRICAS_VENTANA_DIAS} días
+                  </div>
+                )}
+                {pedidosSemana > 0 && (
+                  <div
+                    style={{
+                      fontSize: 11,
+                      color: "var(--text-muted)",
+                      marginTop: 2,
+                    }}
+                  >
+                    Pedidos semana: {pedidosSemana} u
+                  </div>
+                )}
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <button
+                  type="button"
+                  onClick={() => addToStockCart(r, -1)}
+                  style={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: "50%",
+                    border: "1px solid var(--border)",
+                    background: "var(--cream)",
+                    cursor: "pointer",
+                    fontSize: 16,
+                  }}
+                  disabled={manualSaving || !enCarrito}
+                >
+                  −
+                </button>
+                <button
+                  type="button"
+                  onClick={() => addToStockCart(r, 1)}
+                  style={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: "50%",
+                    border: "1px solid var(--border)",
+                    background: "var(--cream)",
+                    cursor: "pointer",
+                    fontSize: 16,
+                  }}
+                  disabled={manualSaving}
+                >
+                  +
+                </button>
               </div>
             </div>
           );
@@ -1732,7 +3624,33 @@ function Stock({ recetas, stock, actualizarStock, consumirInsumosPorStock, insum
         <div className="screen-overlay">
           <div className="screen-header">
             <button className="screen-back" onClick={() => setManualScreenOpen(false)}>← Volver</button>
-            <span className="screen-title">Cargar stock manualmente</span>
+            <div style={{ flex: 1, marginLeft: 8 }}>
+              <div className="screen-title">Cargar stock</div>
+              <div style={{ fontSize: 13, color: "var(--text-muted)" }}>Carrito de producción</div>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
+              <div style={{ fontSize: 11, color: "var(--text-muted)" }}>Total</div>
+              <div style={{ fontFamily: "'Outfit', sans-serif", fontSize: 20, color: "var(--purple-dark)" }}>
+                +{totalCartUnidades} u
+              </div>
+              <div style={{ display: "flex", gap: 6 }}>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={iniciarVozStock}
+                >
+                  🎙️ Voz
+                </button>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={cargarStockCarrito}
+                  disabled={stockCart.length === 0 || manualSaving}
+                >
+                  {manualSaving ? "Cargando…" : "✓ Cargar"}
+                </button>
+              </div>
+            </div>
           </div>
           <div className="screen-content">
             <div className="card">
@@ -1740,134 +3658,100 @@ function Stock({ recetas, stock, actualizarStock, consumirInsumosPorStock, insum
               {recetasOrdenadasPorStock.map(r => {
                 const cant = stock[r.id] ?? 0;
                 const bajo = cant <= 0;
+                const itemCart = stockCart.find((it) => it.receta.id === r.id);
                 return (
                   <div
                     key={r.id}
                     className="insumo-item"
-                    onClick={() => { setManualRecetaSel(r); setManualCantidad(1); }}
                     style={{ cursor: "pointer" }}
                   >
                     <span style={{ fontSize: 22 }}>{r.emoji}</span>
                     <div className="insumo-info" style={{ flex: 1 }}>
                       <div className="insumo-nombre">{r.nombre}</div>
                       <div className="insumo-detalle" style={{ color: bajo ? "var(--danger)" : "var(--text-muted)" }}>
-                        {bajo ? "Sin stock" : `Stock: ${cant}`} · <span style={{ textDecoration: "underline" }}>Tocar para cargar</span>
+                        {bajo ? "Sin stock" : `Stock: ${cant}`}{" "}
+                        {itemCart && (
+                          <>· En carrito: <strong>+{itemCart.cantidad}</strong></>
+                        )}
                       </div>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <button
+                        type="button"
+                        onClick={() => addToStockCart(r, -1)}
+                        style={{ width: 28, height: 28, borderRadius: "50%", border: "1px solid var(--border)", background: "var(--cream)", cursor: "pointer", fontSize: 16 }}
+                        disabled={manualSaving || !itemCart}
+                      >
+                        −
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => addToStockCart(r, 1)}
+                        style={{ width: 28, height: 28, borderRadius: "50%", border: "1px solid var(--border)", background: "var(--cream)", cursor: "pointer", fontSize: 16 }}
+                        disabled={manualSaving}
+                      >
+                        +
+                      </button>
                     </div>
                   </div>
                 );
               })}
             </div>
-          </div>
-        </div>
-      )}
 
-      {newStockModalOpen && (
-        <div className="modal-overlay" onClick={() => setNewStockModalOpen(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
-            <h2 className="modal-title">Cargar stock</h2>
-            <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 16 }}>
-              Elegí cómo querés cargar el stock.
-            </p>
-            <button
-              className="btn-primary"
-              style={{ marginBottom: 8 }}
-              onClick={() => {
-                setNewStockModalOpen(false);
-                if (!SpeechRecognitionAPI) {
-                  showToast("⚠️ Tu navegador no soporta reconocimiento de voz");
-                  return;
-                }
-                setTranscript("");
-                setParsedStock([]);
-                transcriptRef.current = "";
-                setVoiceModal(true);
-              }}
-            >
-              🎤 Cargar por voz
-            </button>
-            <button
-              className="btn-secondary"
-              onClick={() => {
-                setNewStockModalOpen(false);
-                setManualScreenOpen(true);
-              }}
-            >
-              📝 Cargar manualmente
-            </button>
+            <div className="card" style={{ marginTop: 16 }}>
+              <div className="card-header">
+                <span className="card-title">Carrito de stock</span>
+              </div>
+              {stockCart.length === 0 ? (
+                <p style={{ fontSize: 13, color: "var(--text-muted)", padding: "8px 0 4px" }}>
+                  Tocá + en los productos para agregarlos al carrito.
+                </p>
+              ) : (
+                <>
+                  {stockCart.map((item) => (
+                    <div key={item.receta.id} className="insumo-item" style={{ padding: "6px 0" }}>
+                      <span style={{ fontSize: 20, marginRight: 8 }}>{item.receta.emoji}</span>
+                      <div style={{ flex: 1 }}>
+                        <div className="insumo-nombre">{item.receta.nombre}</div>
+                        <div className="insumo-detalle" style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                          +{item.cantidad} unidades
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8 }}>
+                    <span style={{ fontSize: 13, color: "var(--text-muted)" }}>
+                      Total a cargar: <strong>{totalCartUnidades}</strong> u
+                    </span>
+                    <button
+                      type="button"
+                      className="card-link"
+                      onClick={() => setStockCart([])}
+                      disabled={manualSaving}
+                    >
+                      Vaciar carrito
+                    </button>
+                  </div>
+                  <button
+                    className="btn-primary"
+                    style={{ marginTop: 12 }}
+                    onClick={cargarStockCarrito}
+                    disabled={manualSaving || stockCart.length === 0}
+                  >
+                    {manualSaving ? "Cargando…" : `Cargar carrito (+${totalCartUnidades})`}
+                  </button>
+                </>
+              )}
+            </div>
           </div>
         </div>
       )}
 
       {!manualScreenOpen && !voiceModal && (
-        <button className="fab fab-receta" onClick={() => setNewStockModalOpen(true)} title="Cargar stock">
+        <button className="fab fab-receta" onClick={() => setManualScreenOpen(true)} title="Cargar stock">
           <span>+</span>
           <span>Cargar stock</span>
         </button>
-      )}
-
-      {manualRecetaSel && (
-        <div className="screen-overlay">
-          <div className="screen-header">
-            <button
-              className="screen-back"
-              onClick={() => setManualRecetaSel(null)}
-              disabled={manualSaving}
-            >
-              ← Volver
-            </button>
-            <span className="screen-title">Cargar stock · {manualRecetaSel.emoji} {manualRecetaSel.nombre}</span>
-          </div>
-          <div className="screen-content">
-            <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 12 }}>
-              Stock actual: {(stock || {})[manualRecetaSel.id] ?? 0}
-            </div>
-            <div style={{ textAlign: "center", padding: "20px 0" }}>
-              <div style={{ fontSize: 13, color: "#8B7355", marginBottom: 16 }}>¿Cuántas unidades querés sumar?</div>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 20 }}>
-                <button
-                  onClick={() => setManualCantidad(Math.max(1, manualCantidad - 1))}
-                  style={{ width: 44, height: 44, borderRadius: "50%", border: "1px solid #EDE8E0", background: "#FAF7F2", fontSize: 22, cursor: "pointer" }}
-                  disabled={manualSaving}
-                >
-                  −
-                </button>
-                <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: 42, color: "var(--purple-dark)", minWidth: 60, textAlign: "center" }}>
-                  {manualCantidad}
-                </span>
-                <button
-                  onClick={() => setManualCantidad(manualCantidad + 1)}
-                  style={{ width: 44, height: 44, borderRadius: "50%", border: "1px solid #EDE8E0", background: "#FAF7F2", fontSize: 22, cursor: "pointer" }}
-                  disabled={manualSaving}
-                >
-                  +
-                </button>
-              </div>
-            </div>
-            <button
-              className="btn-primary"
-              onClick={async () => {
-                if (!manualRecetaSel || manualCantidad <= 0) return;
-                setManualSaving(true);
-                try {
-                  await cargar(manualRecetaSel.id, manualCantidad);
-                } finally {
-                  setManualSaving(false);
-                }
-              }}
-              disabled={manualSaving || manualCantidad <= 0}
-            >
-              {manualSaving ? "Cargando…" : `Cargar +${manualCantidad}`}
-            </button>
-            <button
-              className="btn-secondary"
-              onClick={() => setManualRecetaSel(null)}
-              disabled={manualSaving}
-            >
-              Cancelar
-            </button>
-          </div>
-        </div>
       )}
 
       {insumosEnCeroModal && (
@@ -1925,8 +3809,764 @@ function Stock({ recetas, stock, actualizarStock, consumirInsumosPorStock, insum
   );
 }
 
+// ── PLAN SEMANAL ──────────────────────────────────────────────────────────────
+function PlanSemanal({ recetas, recetaIngredientes, insumos, insumoComposicion, insumoStock, actualizarStock, consumirInsumosPorStock, showToast, onRefresh, onPlanChanged }) {
+  const [weekStart, setWeekStart] = useState(() => getSemanaInicioISO());
+  const [planRows, setPlanRows] = useState([]);
+  const [cartPlanItems, setCartPlanItems] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const loadingErrorShownRef = useRef(false);
+  const weekStartRef = useRef(weekStart);
+
+  useEffect(() => {
+    weekStartRef.current = weekStart;
+  }, [weekStart]);
+
+  const cargarPlan = useCallback(async (semanaInicio) => {
+    setLoading(true);
+    const requested = semanaInicio;
+    try {
+      const { data, error } = await supabase
+        .from("plan_semanal")
+        .select("id, semana_inicio, receta_id, cantidad_planificada, cantidad_realizada")
+        .eq("semana_inicio", semanaInicio);
+      if (error) {
+        if (!loadingErrorShownRef.current) {
+          showToast("⚠️ Error al cargar el plan semanal");
+          loadingErrorShownRef.current = true;
+        }
+        if (weekStartRef.current === requested) {
+          setPlanRows([]);
+          setCartPlanItems([]);
+        }
+        return;
+      }
+      if (weekStartRef.current !== requested) return;
+      setPlanRows(data || []);
+      const items = (data || [])
+        .filter((row) => (row.cantidad_planificada || 0) > 0)
+        .map((row) => {
+          const receta = recetas.find((r) => r.id === row.receta_id);
+          return receta ? { receta, cantidad: Number(row.cantidad_planificada) || 0 } : null;
+        })
+        .filter(Boolean);
+      setCartPlanItems(items);
+    } catch {
+      if (!loadingErrorShownRef.current) {
+        showToast("⚠️ Error al cargar el plan semanal");
+        loadingErrorShownRef.current = true;
+      }
+      if (weekStartRef.current === requested) {
+        setPlanRows([]);
+        setCartPlanItems([]);
+      }
+    } finally {
+      if (weekStartRef.current === requested) setLoading(false);
+    }
+  }, [showToast, recetas]);
+
+  useEffect(() => {
+    cargarPlan(weekStart);
+  }, [weekStart, cargarPlan]);
+
+  const addToPlanCart = (receta, cantidad = 1) => {
+    if (!receta) return;
+    setCartPlanItems((prev) => {
+      const idx = prev.findIndex((it) => it.receta.id === receta.id);
+      if (idx >= 0) {
+        const copy = [...prev];
+        copy[idx] = { ...copy[idx], cantidad: copy[idx].cantidad + cantidad };
+        return copy;
+      }
+      return [...prev, { receta, cantidad }];
+    });
+  };
+
+  const updatePlanCartQuantity = (recetaId, delta) => {
+    setCartPlanItems((prev) =>
+      prev
+        .map((item) =>
+          item.receta.id === recetaId
+            ? { ...item, cantidad: Math.max(0, item.cantidad + delta) }
+            : item
+        )
+        .filter((item) => item.cantidad > 0)
+    );
+  };
+
+  const removeFromPlanCart = (recetaId) => {
+    setCartPlanItems((prev) => prev.filter((item) => item.receta.id !== recetaId));
+  };
+
+  const guardarPlan = async () => {
+    setSaving(true);
+    try {
+      const existingByReceta = {};
+      for (const pr of planRows || []) {
+        if (pr.receta_id && pr.semana_inicio === weekStart) existingByReceta[pr.receta_id] = pr;
+      }
+      for (const { receta, cantidad } of cartPlanItems) {
+        const existente = existingByReceta[receta.id];
+        if (existente) {
+          if (cantidad <= 0) {
+            await supabase.from("plan_semanal").delete().eq("id", existente.id);
+          } else {
+            await supabase.from("plan_semanal").update({ cantidad_planificada: cantidad }).eq("id", existente.id);
+          }
+        } else if (cantidad > 0) {
+          await supabase.from("plan_semanal").insert({
+            semana_inicio: weekStart,
+            receta_id: receta.id,
+            cantidad_planificada: cantidad,
+            cantidad_realizada: 0
+          });
+        }
+      }
+      const cartRecetaIds = new Set(cartPlanItems.map((it) => it.receta.id));
+      for (const pr of planRows || []) {
+        if (pr.semana_inicio === weekStart && !cartRecetaIds.has(pr.receta_id)) {
+          await supabase.from("plan_semanal").delete().eq("id", pr.id);
+        }
+      }
+      showToast("✅ Plan semanal guardado");
+      const { data } = await supabase.from("plan_semanal").select("id, semana_inicio, receta_id, cantidad_planificada, cantidad_realizada").eq("semana_inicio", weekStart);
+      if (weekStartRef.current === weekStart && data) {
+        setPlanRows(data);
+        const items = data
+          .filter((row) => (row.cantidad_planificada || 0) > 0)
+          .map((row) => {
+            const receta = recetas.find((r) => r.id === row.receta_id) || { id: row.receta_id, nombre: "Receta", emoji: "🍞", unidad_rinde: "u" };
+            return { receta, cantidad: Number(row.cantidad_planificada) || 0 };
+          });
+        setCartPlanItems(items);
+      }
+      onPlanChanged?.();
+    } catch {
+      showToast("⚠️ Error al guardar el plan semanal");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const itemsPendientes = cartPlanItems
+    .map(({ receta, cantidad: plan }) => {
+      const existente = (planRows || []).find((pr) => pr.receta_id === receta.id && pr.semana_inicio === weekStart);
+      const realizado = Number(existente?.cantidad_realizada || 0);
+      const pendiente = Math.max(plan - realizado, 0);
+      return pendiente > 0 ? { receta, cantidad: pendiente } : null;
+    })
+    .filter(Boolean);
+
+  const requerimientos = calcularRequerimientoInsumosParaItems(
+    itemsPendientes,
+    recetaIngredientes,
+    insumos,
+    insumoComposicion
+  );
+
+  const insumosCompra = (requerimientos || []).map(req => {
+    const insumo = req.insumo;
+    const stockActual = (insumoStock || {})[req.insumo_id] ?? 0;
+    const faltante = Math.max(0, (req.cantidad || 0) - stockActual);
+    let costo = 0;
+    if (faltante > 0 && insumo && insumo.cantidad_presentacion > 0 && insumo.precio != null) {
+      const precioUnitario = insumo.precio / insumo.cantidad_presentacion;
+      costo = precioUnitario * faltante;
+    }
+    return { insumo_id: req.insumo_id, insumo, faltante, costo };
+  }).filter(x => x.faltante > 0);
+
+  const totalCompra = insumosCompra.reduce((s, x) => s + (x.costo || 0), 0);
+  const totalPlanificadas = cartPlanItems.reduce((s, it) => s + (it.cantidad || 0), 0);
+
+  const semanaTitulo = () => {
+    const inicio = new Date(weekStart);
+    const fin = new Date(weekStart);
+    fin.setDate(fin.getDate() + 6);
+    return `${inicio.toLocaleDateString("es-AR")} al ${fin.toLocaleDateString("es-AR")}`;
+  };
+
+  const cambiarSemana = (delta) => {
+    const d = new Date(weekStart);
+    d.setDate(d.getDate() + delta * 7);
+    setWeekStart(d.toISOString().split("T")[0]);
+  };
+
+  const buildWhatsAppText = () => {
+    const inicio = new Date(weekStart);
+    const fin = new Date(weekStart);
+    fin.setDate(fin.getDate() + 6);
+    let text = `Plan de producción semanal\n${inicio.toLocaleDateString("es-AR")} al ${fin.toLocaleDateString("es-AR")}`;
+    if (totalPlanificadas > 0) {
+      text += `\n\nEsta semana producís ${totalPlanificadas} unidades.`;
+    }
+    if (totalCompra > 0) {
+      text += `\nNecesitás comprar aproximadamente ${fmt(totalCompra)} en insumos.`;
+    }
+    if (insumosCompra.length > 0) {
+      const porProveedor = {};
+      for (const item of insumosCompra) {
+        const proveedor = (item.insumo?.proveedor || "Sin proveedor");
+        if (!porProveedor[proveedor]) porProveedor[proveedor] = [];
+        porProveedor[proveedor].push(item);
+      }
+      text += `\n\nLista de compras:`;
+      Object.entries(porProveedor).forEach(([prov, items]) => {
+        text += `\n\nProveedor: ${prov}`;
+        items.forEach(({ insumo, faltante, costo }) => {
+          const unidad = insumo?.unidad || "u";
+          const costoTxt = costo > 0 ? ` (~${fmt(costo)})` : "";
+          text += `\n- ${insumo?.nombre || "Insumo"}: ${faltante.toFixed(2)} ${unidad}${costoTxt}`;
+        });
+      });
+    }
+    return text;
+  };
+
+  const handleProducir = async (item) => {
+    const { receta, cantidad: plan } = item;
+    const existente = (planRows || []).find((pr) => pr.receta_id === receta.id && pr.semana_inicio === weekStart);
+    const realizado = Number(existente?.cantidad_realizada || 0);
+    if (!plan || plan <= 0) {
+      showToast("Agregá cantidad al plan primero.");
+      return;
+    }
+    if (realizado >= plan) {
+      showToast("Ya alcanzaste o superaste el plan para esta receta.");
+      return;
+    }
+    const cantidad = plan - realizado;
+    try {
+      await actualizarStock(receta.id, cantidad);
+      if (consumirInsumosPorStock) await consumirInsumosPorStock(receta.id, cantidad);
+      const nuevaRealizada = realizado + cantidad;
+      await supabase.from("plan_semanal").upsert(
+        { semana_inicio: weekStart, receta_id: receta.id, cantidad_planificada: plan, cantidad_realizada: nuevaRealizada },
+        { onConflict: "semana_inicio,receta_id" }
+      );
+      showToast(`✅ Producción registrada: +${cantidad} ${receta.nombre}`);
+      const { data } = await supabase.from("plan_semanal").select("id, semana_inicio, receta_id, cantidad_planificada, cantidad_realizada").eq("semana_inicio", weekStart);
+      if (weekStartRef.current === weekStart && data) setPlanRows(data);
+      onRefresh?.();
+      onPlanChanged?.();
+    } catch {
+      showToast("⚠️ Error al registrar la producción");
+    }
+  };
+
+  const waText = buildWhatsAppText();
+  const waUrl = `https://wa.me/?text=${encodeURIComponent(waText)}`;
+
+  return (
+    <div className="content">
+      <p className="page-title">Plan semanal</p>
+      <p className="page-subtitle">Definí qué vas a producir y generá la lista de compras.</p>
+
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div className="card-header">
+          <span className="card-title">Semana</span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <button type="button" className="btn-secondary" style={{ width: "auto", padding: "6px 10px" }} onClick={() => cambiarSemana(-1)}>
+            ← Anterior
+          </button>
+          <div style={{ flex: 1, textAlign: "center", fontSize: 13, fontWeight: 500 }}>{semanaTitulo()}</div>
+          <button type="button" className="btn-secondary" style={{ width: "auto", padding: "6px 10px" }} onClick={() => cambiarSemana(1)}>
+            Siguiente →
+          </button>
+        </div>
+      </div>
+
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div className="card-header">
+          <span className="card-title">Resumen</span>
+        </div>
+        <p style={{ fontSize: 13, marginBottom: 4 }}>
+          Esta semana producís <strong>{totalPlanificadas}</strong> unidades.
+        </p>
+        <p style={{ fontSize: 13 }}>
+          Necesitás comprar aproximadamente <strong>{fmt(totalCompra || 0)}</strong> en insumos.
+        </p>
+      </div>
+
+      {loading ? (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <div className="loading"><div className="spinner" /><span>Cargando plan...</span></div>
+        </div>
+      ) : (
+        <>
+          <div className="card" style={{ marginBottom: 16 }}>
+            <div className="card-header">
+              <span className="card-title">Agregar al plan</span>
+            </div>
+            {recetas.length === 0 ? (
+              <div className="empty">
+                <div className="empty-icon">📋</div>
+                <p>No hay recetas todavía.</p>
+              </div>
+            ) : (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 10 }}>
+                {recetas.map((r) => (
+                  <button
+                    key={r.id}
+                    type="button"
+                    onClick={() => addToPlanCart(r, 1)}
+                    className="producto-card"
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "flex-start",
+                      padding: 10,
+                      borderRadius: 12,
+                      border: "1px solid var(--border)",
+                      background: "var(--surface)",
+                      cursor: "pointer",
+                      transition: "transform 0.08s ease, box-shadow 0.08s ease"
+                    }}
+                    onMouseDown={(e) => { e.currentTarget.style.transform = "scale(0.97)"; }}
+                    onMouseUp={(e) => { e.currentTarget.style.transform = "scale(1)"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.transform = "scale(1)"; }}
+                  >
+                    <span style={{ fontSize: 26, marginBottom: 4 }}>{r.emoji}</span>
+                    <span style={{ fontSize: 14, fontWeight: 500, textAlign: "left" }}>{r.nombre}</span>
+                    <span style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>Tocá para sumar</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="card" style={{ marginBottom: 16 }}>
+            <div className="card-header">
+              <span className="card-title">Tu plan esta semana</span>
+            </div>
+            {cartPlanItems.length === 0 ? (
+              <p style={{ padding: "12px 4px", fontSize: 14, color: "var(--text-muted)" }}>Agregá productos arriba. Después guardá el plan.</p>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {cartPlanItems.map((item) => {
+                  const existente = (planRows || []).find((pr) => pr.receta_id === item.receta.id && pr.semana_inicio === weekStart);
+                  const realizado = Number(existente?.cantidad_realizada || 0);
+                  const pendiente = Math.max((item.cantidad || 0) - realizado, 0);
+                  const unidad = item.receta.unidad_rinde || "u";
+                  return (
+                    <div key={item.receta.id} className="insumo-item" style={{ alignItems: "center", flexWrap: "wrap" }}>
+                      <span style={{ fontSize: 22 }}>{item.receta.emoji}</span>
+                      <div className="insumo-info" style={{ flex: 1, minWidth: 0 }}>
+                        <div className="insumo-nombre">{item.receta.nombre}</div>
+                        <div className="insumo-detalle" style={{ fontSize: 12 }}>
+                          Plan: {item.cantidad} {unidad}
+                          {realizado > 0 && (
+                            <span style={{ marginLeft: 8, color: "var(--green)" }}>
+                              · Realizado: {realizado} {unidad}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <button
+                          type="button"
+                          onClick={() => updatePlanCartQuantity(item.receta.id, -1)}
+                          style={{ width: 32, height: 32, borderRadius: 8, border: "1px solid var(--border)", background: "var(--cream)", fontSize: 16, cursor: "pointer", lineHeight: 1 }}
+                        >
+                          −
+                        </button>
+                        <span style={{ minWidth: 28, textAlign: "center", fontWeight: 500 }}>{item.cantidad}</span>
+                        <button
+                          type="button"
+                          onClick={() => updatePlanCartQuantity(item.receta.id, 1)}
+                          style={{ width: 32, height: 32, borderRadius: 8, border: "1px solid var(--border)", background: "var(--cream)", fontSize: 16, cursor: "pointer", lineHeight: 1 }}
+                        >
+                          +
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => removeFromPlanCart(item.receta.id)}
+                          style={{ background: "none", border: "none", color: "var(--danger)", cursor: "pointer", padding: 4, fontSize: 18 }}
+                          title="Quitar"
+                        >
+                          ✕
+                        </button>
+                        {pendiente > 0 && (
+                          <button
+                            type="button"
+                            className="btn-primary"
+                            style={{ width: "auto", padding: "6px 10px", fontSize: 12 }}
+                            onClick={() => handleProducir(item)}
+                            disabled={saving}
+                          >
+                            Producir ahora
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            <button
+              className="btn-primary"
+              onClick={guardarPlan}
+              disabled={saving || loading || cartPlanItems.length === 0}
+              style={{ marginTop: 12 }}
+            >
+              {saving ? "Guardando..." : "Guardar plan semanal"}
+            </button>
+          </div>
+        </>
+      )}
+
+      <div className="card">
+        <div className="card-header">
+          <span className="card-title">Lista de compras</span>
+        </div>
+        {insumosCompra.length === 0 ? (
+          <p style={{ fontSize: 13, color: "var(--text-muted)" }}>
+            No hay faltantes para esta semana con el plan actual.
+          </p>
+        ) : (
+          <>
+            {Object.entries(insumosCompra.reduce((acc, item) => {
+              const proveedor = (item.insumo?.proveedor || "Sin proveedor");
+              if (!acc[proveedor]) acc[proveedor] = [];
+              acc[proveedor].push(item);
+              return acc;
+            }, {})).map(([proveedor, items]) => (
+              <div key={proveedor} style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>
+                  Proveedor: {proveedor}
+                </div>
+                {items.map(({ insumo_id, insumo, faltante, costo }) => (
+                  <div key={insumo_id} className="insumo-item" style={{ padding: "6px 0" }}>
+                    <div className="insumo-info" style={{ flex: 1 }}>
+                      <div className="insumo-nombre">{insumo?.nombre || "Insumo"}</div>
+                      <div className="insumo-detalle">
+                        Faltan {faltante.toFixed(2)} {insumo?.unidad || "u"}
+                      </div>
+                    </div>
+                    {costo > 0 && (
+                      <div className="insumo-precio">
+                        <div className="insumo-precio-value">{fmt(costo)}</div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ))}
+            <a
+              href={waUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-primary"
+              style={{ display: "inline-block", marginTop: 8, textAlign: "center" }}
+            >
+              Compartir por WhatsApp
+            </a>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── GASTOS FIJOS ──────────────────────────────────────────────────────────────
+function GastosFijos({ gastos, onRefresh, showToast }) {
+  const [modal, setModal] = useState(false);
+  const [editando, setEditando] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({
+    nombre: "",
+    monto: "",
+    frecuencia: "mensual",
+    activo: true,
+  });
+
+  const openNew = () => {
+    setEditando(null);
+    setForm({ nombre: "", monto: "", frecuencia: "mensual", activo: true });
+    setModal(true);
+  };
+
+  const openEdit = (g) => {
+    setEditando(g);
+    setForm({
+      nombre: g.nombre,
+      monto: String(g.monto ?? ""),
+      frecuencia: g.frecuencia || "mensual",
+      activo: g.activo !== false,
+    });
+    setModal(true);
+  };
+
+  const save = async () => {
+    if (!form.nombre.trim()) {
+      showToast("⚠️ Nombre requerido");
+      return;
+    }
+    const monto = parseFloat(String(form.monto).replace(",", "."));
+    if (!monto || monto <= 0) {
+      showToast("⚠️ Monto inválido");
+      return;
+    }
+    setSaving(true);
+    const payload = {
+      nombre: form.nombre.trim(),
+      monto,
+      frecuencia: form.frecuencia,
+      activo: form.activo,
+    };
+    try {
+      if (editando) {
+        const { error } = await supabase
+          .from("gastos_fijos")
+          .update(payload)
+          .eq("id", editando.id);
+        if (error) throw error;
+        showToast("✅ Gasto fijo actualizado");
+      } else {
+        const { error } = await supabase.from("gastos_fijos").insert(payload);
+        if (error) throw error;
+        showToast("✅ Gasto fijo agregado");
+      }
+      setModal(false);
+      await onRefresh();
+    } catch (err) {
+      reportError(err, { action: "saveGastoFijo" });
+      showToast("⚠️ Error al guardar gasto fijo");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const toggleActivo = async (g) => {
+    try {
+      const { error } = await supabase
+        .from("gastos_fijos")
+        .update({ activo: !g.activo })
+        .eq("id", g.id);
+      if (error) throw error;
+      await onRefresh();
+    } catch (err) {
+      reportError(err, { action: "toggleGastoFijo", id: g.id });
+      showToast("⚠️ Error al actualizar");
+    }
+  };
+
+  const eliminar = async (g) => {
+    if (!window.confirm(`¿Eliminar el gasto fijo "${g.nombre}"?`)) return;
+    try {
+      const { error } = await supabase
+        .from("gastos_fijos")
+        .delete()
+        .eq("id", g.id);
+      if (error) throw error;
+      showToast("🗑️ Gasto fijo eliminado");
+      await onRefresh();
+    } catch (err) {
+      reportError(err, { action: "deleteGastoFijo", id: g.id });
+      showToast("⚠️ Error al eliminar gasto fijo");
+    }
+  };
+
+  const { dia, semana } = calcularGastosFijosNormalizados(gastos);
+
+  const gastosOrdenados = [...(gastos || [])].sort((a, b) =>
+    (a.nombre || "").localeCompare(b.nombre || "", "es", {
+      sensitivity: "base",
+    })
+  );
+
+  return (
+    <div className="content">
+      <p className="page-title">Gastos fijos</p>
+      <p className="page-subtitle">
+        Alquiler, servicios, sueldos · se prorratean para ver la ganancia neta
+      </p>
+
+      <div className="stats-row" style={{ marginBottom: 16 }}>
+        <div className="stat-card">
+          <div className="stat-label">Gasto fijo diario</div>
+          <div className="stat-value rojo">{fmt(dia || 0)}</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">Gasto fijo semanal</div>
+          <div className="stat-value rojo">{fmt(semana || 0)}</div>
+        </div>
+      </div>
+
+      <div className="card">
+        <div className="card-header">
+          <span className="card-title">Lista de gastos fijos</span>
+          <button
+            type="button"
+            className="edit-btn"
+            onClick={openNew}
+          >
+            + Agregar
+          </button>
+        </div>
+        {gastosOrdenados.length === 0 ? (
+          <div className="empty">
+            <div className="empty-icon">💸</div>
+            <p>No configuraste gastos fijos todavía.</p>
+          </div>
+        ) : (
+          gastosOrdenados.map((g) => {
+            const freqLabel =
+              g.frecuencia === "diario"
+                ? "Diario"
+                : g.frecuencia === "semanal"
+                ? "Semanal"
+                : "Mensual";
+            return (
+              <div
+                key={g.id}
+                className="insumo-item"
+                style={{ padding: "10px 0" }}
+              >
+                <div className="insumo-info" style={{ flex: 1 }}>
+                  <div className="insumo-nombre">{g.nombre}</div>
+                  <div className="insumo-detalle">
+                    {fmt(g.monto)} · {freqLabel} ·{" "}
+                    {g.activo ? "Activo" : "Inactivo"}
+                  </div>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  <button
+                    type="button"
+                    className="edit-btn"
+                    onClick={() => openEdit(g)}
+                  >
+                    Editar
+                  </button>
+                  <button
+                    type="button"
+                    className="edit-btn"
+                    onClick={() => toggleActivo(g)}
+                    style={{
+                      borderColor: g.activo
+                        ? "var(--danger)"
+                        : "var(--green)",
+                      color: g.activo ? "var(--danger)" : "var(--green)",
+                    }}
+                  >
+                    {g.activo ? "Desactivar" : "Activar"}
+                  </button>
+                  <button
+                    type="button"
+                    className="edit-btn"
+                    onClick={() => eliminar(g)}
+                    style={{ color: "var(--danger)" }}
+                  >
+                    Eliminar
+                  </button>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      <button className="fab" onClick={openNew}>
+        +
+      </button>
+
+      {modal && (
+        <div className="screen-overlay">
+          <div className="screen-header">
+            <button
+              className="screen-back"
+              onClick={() => setModal(false)}
+              disabled={saving}
+            >
+              ← Volver
+            </button>
+            <span className="screen-title">
+              {editando ? "Editar gasto fijo" : "Nuevo gasto fijo"}
+            </span>
+          </div>
+          <div className="screen-content">
+            <div className="form-group">
+              <label className="form-label">Nombre</label>
+              <input
+                className="form-input"
+                value={form.nombre}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, nombre: e.target.value }))
+                }
+                placeholder="Ej: Alquiler, Luz, Sueldos"
+              />
+            </div>
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label">Monto</label>
+                <input
+                  className="form-input"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={form.monto}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, monto: e.target.value }))
+                  }
+                  placeholder="Ej: 300000"
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Frecuencia</label>
+                <select
+                  className="form-select"
+                  value={form.frecuencia}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, frecuencia: e.target.value }))
+                  }
+                >
+                  <option value="diario">Diario</option>
+                  <option value="semanal">Semanal</option>
+                  <option value="mensual">Mensual</option>
+                </select>
+              </div>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Estado</label>
+              <select
+                className="form-select"
+                value={form.activo ? "activo" : "inactivo"}
+                onChange={(e) =>
+                  setForm((f) => ({
+                    ...f,
+                    activo: e.target.value === "activo",
+                  }))
+                }
+              >
+                <option value="activo">Activo</option>
+                <option value="inactivo">Inactivo</option>
+              </select>
+            </div>
+            <button
+              className="btn-primary"
+              onClick={save}
+              disabled={saving}
+            >
+              {saving ? "Guardando…" : "Guardar"}
+            </button>
+            <button
+              className="btn-secondary"
+              onClick={() => setModal(false)}
+              disabled={saving}
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── CLIENTES ──────────────────────────────────────────────────────────────────
-function Clientes({ ventas, clientes, recetas, onRefresh, showToast }) {
+function Clientes({ ventas, clientes, recetas, pedidos, onRefresh, showToast, actualizarStock, confirm }) {
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState({ nombre: "", telefono: "" });
   const [saving, setSaving] = useState(false);
@@ -1935,6 +4575,15 @@ function Clientes({ ventas, clientes, recetas, onRefresh, showToast }) {
   const [search, setSearch] = useState("");
   const [detalleCliente, setDetalleCliente] = useState(null);
   const [cleaningDupes, setCleaningDupes] = useState(false);
+  const [nuevoPedidoAbierto, setNuevoPedidoAbierto] = useState(false);
+  const [pedidoFechaEntrega, setPedidoFechaEntrega] = useState("");
+  const [pedidoRecetaSel, setPedidoRecetaSel] = useState("");
+  const [pedidoCantidad, setPedidoCantidad] = useState(1);
+  const [pedidoPrecio, setPedidoPrecio] = useState("");
+  const [pedidoItems, setPedidoItems] = useState([]);
+  const [pedidoSenia, setPedidoSenia] = useState("");
+  const [pedidoEstado, setPedidoEstado] = useState("pendiente");
+  const [savingPedido, setSavingPedido] = useState(false);
 
   const getAvatarColor = (name) => {
     if (!name) return "#ccc";
@@ -2133,6 +4782,165 @@ function Clientes({ ventas, clientes, recetas, onRefresh, showToast }) {
     }
   };
 
+  const resetFormularioPedido = () => {
+    setPedidoFechaEntrega("");
+    setPedidoRecetaSel("");
+    setPedidoCantidad(1);
+    setPedidoPrecio("");
+    setPedidoItems([]);
+    setPedidoSenia("");
+    setPedidoEstado("pendiente");
+  };
+
+  const addPedidoItem = () => {
+    if (!pedidoRecetaSel) return;
+    const receta = recetas.find((r) => String(r.id) === String(pedidoRecetaSel));
+    if (!receta) return;
+    const cantidadNum = Number(pedidoCantidad) || 0;
+    if (cantidadNum <= 0) return;
+    const precioNum =
+      pedidoPrecio !== ""
+        ? Number(String(pedidoPrecio).replace(",", "."))
+        : Number(receta.precio_venta || 0);
+    if (Number.isNaN(precioNum) || precioNum < 0) return;
+    setPedidoItems((prev) => {
+      const idx = prev.findIndex((it) => it.receta.id === receta.id);
+      if (idx >= 0) {
+        const copy = [...prev];
+        copy[idx] = {
+          ...copy[idx],
+          cantidad: copy[idx].cantidad + cantidadNum,
+          precio_unitario: precioNum,
+        };
+        return copy;
+      }
+      return [...prev, { receta, cantidad: cantidadNum, precio_unitario: precioNum }];
+    });
+    setPedidoRecetaSel("");
+    setPedidoCantidad(1);
+    setPedidoPrecio("");
+  };
+
+  const quitarPedidoItem = (recetaId) => {
+    setPedidoItems((prev) => prev.filter((it) => it.receta.id !== recetaId));
+  };
+
+  const guardarPedido = async () => {
+    if (!detalleCliente) {
+      showToast("Primero elegí un cliente");
+      return;
+    }
+    if (!pedidoFechaEntrega) {
+      showToast("Elegí una fecha de entrega");
+      return;
+    }
+    if (pedidoItems.length === 0) {
+      showToast("Agregá al menos un producto");
+      return;
+    }
+    setSavingPedido(true);
+    try {
+      const pedidoId = crypto.randomUUID?.() || `p-${Date.now()}`;
+      const seniaNum = parseFloat(String(pedidoSenia || "").replace(",", ".")) || 0;
+      const rows = pedidoItems.map((item) => {
+        const precio = parseFloat(String(item.precio_unitario).replace(",", ".")) || 0;
+        const cantidad = Number(item.cantidad) || 0;
+        return {
+          pedido_id: pedidoId,
+          cliente_id: detalleCliente.id,
+          receta_id: item.receta.id,
+          cantidad,
+          precio_unitario: precio,
+          senia: seniaNum,
+          estado: pedidoEstado,
+          fecha_entrega: pedidoFechaEntrega,
+        };
+      });
+      const { error } = await supabase.from("pedidos").insert(rows);
+      if (error) {
+        reportError(error, { action: "guardarPedidoCliente", cliente_id: detalleCliente.id });
+        showToast("⚠️ Error al guardar pedido");
+        return;
+      }
+      showToast("✅ Pedido guardado");
+      resetFormularioPedido();
+      setNuevoPedidoAbierto(false);
+      await onRefresh();
+    } catch (err) {
+      reportError(err, { action: "guardarPedidoCliente", cliente_id: detalleCliente?.id });
+      showToast("⚠️ Error al guardar pedido");
+    } finally {
+      setSavingPedido(false);
+    }
+  };
+
+  const actualizarEstadoPedido = async (grupo, nuevoEstado) => {
+    if (!grupo || !nuevoEstado || grupo.estado === nuevoEstado) return;
+    try {
+      const { error } = await supabase
+        .from("pedidos")
+        .update({ estado: nuevoEstado })
+        .eq("pedido_id", grupo.key);
+      if (error) throw error;
+      await onRefresh();
+    } catch (err) {
+      reportError(err, { action: "actualizarEstadoPedido", pedido_id: grupo?.key });
+      showToast("⚠️ Error al actualizar estado del pedido");
+    }
+  };
+
+  const marcarPedidoEntregado = async (grupo) => {
+    if (!grupo || !grupo.rawItems?.length) return;
+    const ok = await confirm("¿Marcar este pedido como entregado? Se registrará la venta y se descontará el stock.", { destructive: false });
+    if (!ok) return;
+    setSavingPedido(true);
+    try {
+      const hoy = hoyLocalISO();
+      const transaccionId = crypto.randomUUID?.() || `p-${grupo.key}`;
+      const rows = grupo.rawItems.map((p) => {
+        const precio = p.precio_unitario || 0;
+        const cantidad = p.cantidad || 0;
+        const subtotal = precio * cantidad;
+        const descuento = 0;
+        const total_final = subtotal - descuento;
+        return {
+          receta_id: p.receta_id,
+          cantidad,
+          precio_unitario: precio,
+          subtotal,
+          descuento,
+          total_final,
+          fecha: hoy,
+          transaccion_id: transaccionId,
+          cliente_id: p.cliente_id || null,
+          medio_pago: "efectivo",
+          estado_pago: "pagado",
+        };
+      });
+      const { error: ventaError } = await supabase.from("ventas").insert(rows);
+      if (ventaError) throw ventaError;
+      if (actualizarStock) {
+        for (const p of grupo.rawItems) {
+          const cant = p.cantidad || 0;
+          if (!p.receta_id || cant <= 0) continue;
+          await actualizarStock(p.receta_id, -cant);
+        }
+      }
+      const { error: pedError } = await supabase
+        .from("pedidos")
+        .update({ estado: "entregado" })
+        .eq("pedido_id", grupo.key);
+      if (pedError) throw pedError;
+      showToast("✅ Pedido entregado registrado como venta");
+      await onRefresh();
+    } catch (err) {
+      reportError(err, { action: "marcarPedidoEntregado", pedido_id: grupo?.key });
+      showToast("⚠️ No se pudo marcar el pedido como entregado");
+    } finally {
+      setSavingPedido(false);
+    }
+  };
+
   return (
     <div className="content">
       <p className="page-title">Clientes</p>
@@ -2259,7 +5067,11 @@ function Clientes({ ventas, clientes, recetas, onRefresh, showToast }) {
           <div className="screen-header">
             <button
               className="screen-back"
-              onClick={() => setDetalleCliente(null)}
+              onClick={() => {
+                setDetalleCliente(null);
+                setNuevoPedidoAbierto(false);
+                resetFormularioPedido();
+              }}
             >
               ← Volver
             </button>
@@ -2282,13 +5094,13 @@ function Clientes({ ventas, clientes, recetas, onRefresh, showToast }) {
               </p>
               {(() => {
                 const vs = getVentasDeCliente(detalleCliente.id);
-            const total = vs.reduce((s, v) => {
-              const linea =
-                v.total_final != null
-                  ? v.total_final
-                  : (v.precio_unitario || 0) * (v.cantidad || 0);
-              return s + linea;
-            }, 0);
+                const total = vs.reduce((s, v) => {
+                  const linea =
+                    v.total_final != null
+                      ? v.total_final
+                      : (v.precio_unitario || 0) * (v.cantidad || 0);
+                  return s + linea;
+                }, 0);
                 return (
                   <>
                     <p
@@ -2308,6 +5120,246 @@ function Clientes({ ventas, clientes, recetas, onRefresh, showToast }) {
                     >
                       <strong>Total gastado:</strong> {fmt(total)}
                     </p>
+                  </>
+                );
+              })()}
+            </div>
+
+            <div className="card" style={{ marginBottom: 16 }}>
+              <div className="card-header">
+                <span className="card-title">Pedidos futuros</span>
+                <button
+                  type="button"
+                  className="card-link"
+                  onClick={() => setNuevoPedidoAbierto((prev) => !prev)}
+                >
+                  {nuevoPedidoAbierto ? "Cerrar" : "+ Nuevo pedido"}
+                </button>
+              </div>
+              {(() => {
+                const pedidosCliente = agruparPedidos(
+                  (pedidos || []).filter((p) => p.cliente_id === detalleCliente.id)
+                );
+                const hoyStr = hoyLocalISO();
+                const pendientes = pedidosCliente.filter((g) => {
+                  if (!g.fecha_entrega) return g.estado !== "entregado";
+                  return g.fecha_entrega >= hoyStr && g.estado !== "entregado";
+                });
+                const formatFecha = (value) => {
+                  if (!value) return "Sin fecha";
+                  try {
+                    return new Date(value).toLocaleDateString("es-AR");
+                  } catch {
+                    return value;
+                  }
+                };
+                const estadoLabel = (estado) => {
+                  if (estado === "en_preparacion") return "En preparación";
+                  if (estado === "listo") return "Listo";
+                  if (estado === "entregado") return "Entregado";
+                  return "Pendiente";
+                };
+                if (!nuevoPedidoAbierto && pendientes.length === 0) {
+                  return (
+                    <p
+                      style={{
+                        fontSize: 13,
+                        color: "var(--text-muted)",
+                        padding: "12px 16px",
+                      }}
+                    >
+                      No hay pedidos futuros para este cliente.
+                    </p>
+                  );
+                }
+                return (
+                  <>
+                    {nuevoPedidoAbierto && (
+                      <div style={{ padding: "12px 16px", borderTop: pendientes.length > 0 ? "1px solid var(--border)" : "none" }}>
+                        <div className="form-group">
+                          <label className="form-label">Fecha de entrega</label>
+                          <input
+                            className="form-input"
+                            type="date"
+                            value={pedidoFechaEntrega}
+                            min={hoyLocalISO()}
+                            onChange={(e) => setPedidoFechaEntrega(e.target.value)}
+                          />
+                        </div>
+                        <div className="form-row">
+                          <div className="form-group" style={{ flex: 2 }}>
+                            <label className="form-label">Producto</label>
+                            <select
+                              className="form-select"
+                              value={pedidoRecetaSel}
+                              onChange={(e) => setPedidoRecetaSel(e.target.value)}
+                            >
+                              <option value="">Elegí un producto</option>
+                              {recetas.map((r) => (
+                                <option key={r.id} value={r.id}>
+                                  {r.nombre}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="form-group" style={{ flex: 1 }}>
+                            <label className="form-label">Cantidad</label>
+                            <input
+                              className="form-input"
+                              type="number"
+                              min="1"
+                              value={pedidoCantidad}
+                              onChange={(e) => setPedidoCantidad(Number(e.target.value) || 1)}
+                            />
+                          </div>
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label">Precio acordado por unidad ($)</label>
+                          <input
+                            className="form-input"
+                            type="number"
+                            value={pedidoPrecio}
+                            onChange={(e) => setPedidoPrecio(e.target.value)}
+                            placeholder="Dejar vacío para usar precio de lista"
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          className="btn-secondary"
+                          onClick={addPedidoItem}
+                          style={{ marginBottom: 8 }}
+                        >
+                          Agregar ítem
+                        </button>
+                        {pedidoItems.length > 0 && (
+                          <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 8 }}>
+                            {pedidoItems.map((it) => (
+                              <div
+                                key={it.receta.id}
+                                style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "space-between",
+                                  gap: 8,
+                                  padding: "4px 0",
+                                }}
+                              >
+                                <span>
+                                  {it.cantidad}x {it.receta.nombre}
+                                </span>
+                                <span>{fmt((it.precio_unitario || 0) * (it.cantidad || 0))}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => quitarPedidoItem(it.receta.id)}
+                                  style={{
+                                    border: "none",
+                                    background: "none",
+                                    color: "#999",
+                                    cursor: "pointer",
+                                    fontSize: 14,
+                                  }}
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        <div className="form-row">
+                          <div className="form-group" style={{ flex: 1 }}>
+                            <label className="form-label">Seña / adelanto ($)</label>
+                            <input
+                              className="form-input"
+                              type="number"
+                              value={pedidoSenia}
+                              onChange={(e) => setPedidoSenia(e.target.value)}
+                              placeholder="0"
+                            />
+                          </div>
+                          <div className="form-group" style={{ flex: 1 }}>
+                            <label className="form-label">Estado inicial</label>
+                            <select
+                              className="form-select"
+                              value={pedidoEstado}
+                              onChange={(e) => setPedidoEstado(e.target.value)}
+                            >
+                              <option value="pendiente">Pendiente</option>
+                              <option value="en_preparacion">En preparación</option>
+                              <option value="listo">Listo</option>
+                            </select>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          className="btn-primary"
+                          onClick={guardarPedido}
+                          disabled={savingPedido || pedidoItems.length === 0 || !pedidoFechaEntrega}
+                        >
+                          {savingPedido ? "Guardando…" : "Guardar pedido"}
+                        </button>
+                      </div>
+                    )}
+                    {pendientes.length > 0 && (
+                      <div>
+                        {pendientes.map((g) => {
+                          const unidades = (g.items || []).reduce(
+                            (s, it) => s + (it.cantidad || 0),
+                            0
+                          );
+                          return (
+                            <div
+                              key={g.key}
+                              className="venta-item venta-item-simple"
+                              style={{ padding: "10px 16px" }}
+                            >
+                              <div className="insumo-info" style={{ flex: 1 }}>
+                                <div className="insumo-nombre">
+                                  {formatFecha(g.fecha_entrega)} · {estadoLabel(g.estado)}
+                                </div>
+                                <div className="insumo-detalle" style={{ fontSize: 12 }}>
+                                  {unidades} u ·{" "}
+                                  {(g.items || [])
+                                    .map((it) => {
+                                      const receta = recetas.find((r) => r.id === it.receta_id);
+                                      return `${it.cantidad || 0}x ${receta?.nombre || "Producto"}`;
+                                    })
+                                    .join(" · ")}
+                                </div>
+                              </div>
+                              <div className="insumo-precio" style={{ minWidth: 120 }}>
+                                <div className="insumo-precio-value">
+                                  {fmt(g.total)}
+                                </div>
+                                {g.senia > 0 && (
+                                  <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
+                                    Seña {fmt(g.senia)}
+                                  </div>
+                                )}
+                                <select
+                                  className="form-input"
+                                  value={g.estado || "pendiente"}
+                                  onChange={(e) => actualizarEstadoPedido(g, e.target.value)}
+                                  style={{ marginTop: 6, fontSize: 11, padding: "4px 6px" }}
+                                >
+                                  <option value="pendiente">Pendiente</option>
+                                  <option value="en_preparacion">En preparación</option>
+                                  <option value="listo">Listo</option>
+                                </select>
+                                <button
+                                  type="button"
+                                  className="btn-secondary"
+                                  style={{ marginTop: 6, fontSize: 11, padding: "4px 8px" }}
+                                  onClick={() => marcarPedidoEntregado(g)}
+                                  disabled={savingPedido}
+                                >
+                                  Marcar entregado
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </>
                 );
               })()}
@@ -2465,6 +5517,710 @@ function Clientes({ ventas, clientes, recetas, onRefresh, showToast }) {
   );
 }
 
+// ── ANALYTICS ─────────────────────────────────────────────────────────────────
+function Analytics({ ventas, recetas, clientes, recetaIngredientes, insumos, gastosFijos }) {
+  const hoy = new Date();
+
+  const parseISODate = (d) => {
+    if (!d) return null;
+    const parts = String(d).split("-");
+    if (parts.length === 3) {
+      const [y, m, day] = parts.map((x) => parseInt(x, 10));
+      if (!Number.isNaN(y) && !Number.isNaN(m) && !Number.isNaN(day)) {
+        return new Date(y, m - 1, day);
+      }
+    }
+    const dt = new Date(d);
+    return Number.isNaN(dt.getTime()) ? null : dt;
+  };
+
+  const startOfWeek = (date) => {
+    const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const day = d.getDay();
+    const diff = (day === 0 ? -6 : 1) - day; // lunes como inicio
+    d.setDate(d.getDate() + diff);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  };
+
+  const endOfWeek = (start) => {
+    const d = new Date(start);
+    d.setDate(d.getDate() + 6);
+    d.setHours(23, 59, 59, 999);
+    return d;
+  };
+
+  const thisWeekStart = startOfWeek(hoy);
+  const thisWeekEnd = endOfWeek(thisWeekStart);
+  const prevWeekEnd = new Date(thisWeekStart.getTime() - 1);
+  const prevWeekStart = startOfWeek(prevWeekEnd);
+
+  const isBetween = (date, from, to) =>
+    date && date.getTime() >= from.getTime() && date.getTime() <= to.getTime();
+
+  const montoVenta = (v) =>
+    v.total_final != null
+      ? v.total_final
+      : (v.precio_unitario || 0) * (v.cantidad || 0);
+
+  const costoUnitarioPorReceta = (() => {
+    const map = {};
+    for (const r of recetas || []) {
+      const rindeNum = parseFloat(r.rinde) || 1;
+      const costoLoteCalc = costoReceta(r.id, recetaIngredientes, insumos);
+      const costoUnitarioCalc =
+        rindeNum > 0 ? costoLoteCalc / rindeNum : null;
+      const costoUnitario =
+        typeof r.costo_unitario === "number" && r.costo_unitario >= 0
+          ? r.costo_unitario
+          : costoUnitarioCalc;
+      if (costoUnitario != null && !Number.isNaN(costoUnitario)) {
+        map[r.id] = costoUnitario;
+      }
+    }
+    return map;
+  })();
+
+  const getCostoLinea = (v) => {
+    const cu = costoUnitarioPorReceta[v.receta_id];
+    if (cu == null) return 0;
+    const cant = Number(v.cantidad) || 0;
+    return cu * cant;
+  };
+
+  const ventasConFecha = (ventas || []).map((v) => {
+    const fecha = parseISODate(v.fecha || v.created_at);
+    const created = v.created_at ? new Date(v.created_at) : fecha;
+    return { ...v, _fecha: fecha, _created: created };
+  });
+
+  const ventasSemanaActual = ventasConFecha.filter((v) =>
+    isBetween(v._fecha, thisWeekStart, thisWeekEnd)
+  );
+  const ventasSemanaAnterior = ventasConFecha.filter((v) =>
+    isBetween(v._fecha, prevWeekStart, prevWeekEnd)
+  );
+
+  const sumMetric = (arr, fn) =>
+    arr.reduce((s, v) => s + (fn ? fn(v) : montoVenta(v)), 0);
+
+  const ingresoSemanaActual = sumMetric(ventasSemanaActual);
+  const ingresoSemanaAnterior = sumMetric(ventasSemanaAnterior);
+  const costoSemanaActual = sumMetric(ventasSemanaActual, getCostoLinea);
+  const costoSemanaAnterior = sumMetric(ventasSemanaAnterior, getCostoLinea);
+  const gananciaSemanaBrutaActual = ingresoSemanaActual - costoSemanaActual;
+  const gananciaSemanaBrutaAnterior = ingresoSemanaAnterior - costoSemanaAnterior;
+
+  const { semana: gastosFijosSemana } = calcularGastosFijosNormalizados(gastosFijos);
+  const gananciaSemanaNetaActual = gananciaSemanaBrutaActual - (gastosFijosSemana || 0);
+  const gananciaSemanaNetaAnterior = gananciaSemanaBrutaAnterior - (gastosFijosSemana || 0);
+  const gananciaSemanaActual = gananciaSemanaNetaActual;
+  const gananciaSemanaAnterior = gananciaSemanaNetaAnterior;
+  const margenSemanaActual =
+    ingresoSemanaActual > 0
+      ? gananciaSemanaBrutaActual / ingresoSemanaActual
+      : null;
+  const margenSemanaAnterior =
+    ingresoSemanaAnterior > 0
+      ? gananciaSemanaBrutaAnterior / ingresoSemanaAnterior
+      : null;
+
+  const trendInfo = (actual, anterior, isPercent = false) => {
+    if (anterior === 0 && actual === 0) {
+      return { dir: "flat", label: "—" };
+    }
+    if (anterior === 0) {
+      return { dir: "up", label: "nuevo" };
+    }
+    if (anterior == null || Number.isNaN(anterior)) {
+      return { dir: "flat", label: "—" };
+    }
+    const diff = actual - anterior;
+    const pct = anterior !== 0 ? diff / anterior : 0;
+    const dir = diff > 0 ? "up" : diff < 0 ? "down" : "flat";
+    if (isPercent) {
+      return { dir, label: pctFmt(pct) };
+    }
+    return { dir, label: pctFmt(pct) };
+  };
+
+  const trendIngreso = trendInfo(
+    ingresoSemanaActual,
+    ingresoSemanaAnterior
+  );
+  const trendCosto = trendInfo(costoSemanaActual, costoSemanaAnterior);
+  const trendGanancia = trendInfo(
+    gananciaSemanaNetaActual,
+    gananciaSemanaNetaAnterior
+  );
+  const trendMargen = trendInfo(
+    margenSemanaActual ?? 0,
+    margenSemanaAnterior ?? 0,
+    true
+  );
+
+  const topBy = (ventasLista) => {
+    const porReceta = new Map();
+    for (const v of ventasLista) {
+      if (v.receta_id == null) continue;
+      const prev = porReceta.get(v.receta_id) || {
+        receta_id: v.receta_id,
+        unidades: 0,
+        ingreso: 0,
+        costo: 0,
+      };
+      prev.unidades += Number(v.cantidad) || 0;
+      const ingreso = montoVenta(v);
+      prev.ingreso += ingreso;
+      prev.costo += getCostoLinea(v);
+      porReceta.set(v.receta_id, prev);
+    }
+    return Array.from(porReceta.values());
+  };
+
+  const semActPorReceta = topBy(ventasSemanaActual);
+  const semAntPorReceta = topBy(ventasSemanaAnterior);
+  const mapSemAnt = new Map(
+    semAntPorReceta.map((r) => [r.receta_id, r])
+  );
+
+  const topMasVendidos = semActPorReceta
+    .slice()
+    .sort((a, b) => b.unidades - a.unidades)
+    .slice(0, 5)
+    .map((row) => {
+      const rec = recetas.find((r) => r.id === row.receta_id) || {};
+      const prev = mapSemAnt.get(row.receta_id) || {
+        unidades: 0,
+        ingreso: 0,
+      };
+      const t = trendInfo(row.unidades, prev.unidades);
+      return { ...row, receta: rec, trend: t };
+    });
+
+  const ahora = new Date();
+  const hace30dias = new Date(
+    ahora.getFullYear(),
+    ahora.getMonth(),
+    ahora.getDate() - 30
+  );
+  const ventas30dias = ventasConFecha.filter(
+    (v) => v._fecha && v._fecha.getTime() >= hace30dias.getTime()
+  );
+
+  const porReceta30 = topBy(ventas30dias);
+  const topMasRentables = porReceta30
+    .map((row) => ({
+      ...row,
+      ganancia: row.ingreso - row.costo,
+    }))
+    .filter((row) => row.ganancia > 0)
+    .sort((a, b) => b.ganancia - a.ganancia)
+    .slice(0, 5)
+    .map((row) => {
+      const rec = recetas.find((r) => r.id === row.receta_id) || {};
+      return { ...row, receta: rec };
+    });
+
+  const hace7dias = new Date(
+    ahora.getFullYear(),
+    ahora.getMonth(),
+    ahora.getDate() - 6
+  );
+  hace7dias.setHours(0, 0, 0, 0);
+  const ventas7dias = ventasConFecha.filter(
+    (v) => v._fecha && v._fecha.getTime() >= hace7dias.getTime()
+  );
+
+  const recetasConVenta7 = new Set(
+    ventas7dias
+      .map((v) => v.receta_id)
+      .filter((id) => id != null)
+  );
+  const recetasSinVenta7 = (recetas || []).filter(
+    (r) => !recetasConVenta7.has(r.id)
+  );
+
+  const ventas30diasForPeak = ventasConFecha.filter(
+    (v) => v._fecha && v._fecha.getTime() >= hace30dias.getTime()
+  );
+
+  const diasSemana = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
+  const diasSemanaCorto = ["D", "L", "M", "X", "J", "V", "S"];
+
+  const ingresoPorDia = Array(7).fill(0);
+  const ingresoPorHora = Array(24).fill(0);
+  for (const v of ventas30diasForPeak) {
+    const f = v._fecha;
+    if (!f) continue;
+    const monto = montoVenta(v);
+    const dow = f.getDay();
+    ingresoPorDia[dow] += monto;
+    const h = v._created ? v._created.getHours() : 0;
+    ingresoPorHora[h] += monto;
+  }
+
+  const diaPicoIdx = ingresoPorDia.reduce(
+    (bestIdx, val, idx, arr) => (val > arr[bestIdx] ? idx : bestIdx),
+    0
+  );
+  const horaPicoIdx = ingresoPorHora.reduce(
+    (bestIdx, val, idx, arr) => (val > arr[bestIdx] ? idx : bestIdx),
+    0
+  );
+
+  const diaPicoLabel =
+    ingresoPorDia[diaPicoIdx] > 0 ? diasSemana[diaPicoIdx] : "—";
+  const horaPicoLabel =
+    ingresoPorHora[horaPicoIdx] > 0
+      ? `${horaPicoIdx.toString().padStart(2, "0")}:00`
+      : "—";
+
+  const year = hoy.getFullYear();
+  const month = hoy.getMonth();
+  const startOfMonth = new Date(year, month, 1, 0, 0, 0, 0);
+  const endOfMonth = new Date(year, month + 1, 0, 23, 59, 59, 999);
+  const ventasMes = ventasConFecha.filter(
+    (v) => v._fecha && isBetween(v._fecha, startOfMonth, endOfMonth)
+  );
+
+  const ingresoMes = sumMetric(ventasMes);
+  const costoMes = sumMetric(ventasMes, getCostoLinea);
+  const gananciaMesBruta = ingresoMes - costoMes;
+
+  const totalDiasMes = endOfMonth.getDate();
+  const { dia: gastosFijosDia } = calcularGastosFijosNormalizados(gastosFijos);
+  const gastosFijosMes = (gastosFijosDia || 0) * totalDiasMes;
+  const gananciaMesNeta = gananciaMesBruta - gastosFijosMes;
+
+  const diasTranscurridos = hoy.getDate();
+  const factorProy = diasTranscurridos > 0 ? totalDiasMes / diasTranscurridos : 0;
+  const proyIngresoMes = ingresoMes * factorProy;
+  const proyGananciaMesNeta = gananciaMesNeta * factorProy;
+
+  const gastoPorClienteMes = new Map();
+  for (const v of ventasMes) {
+    if (v.cliente_id == null) continue;
+    const prev = gastoPorClienteMes.get(v.cliente_id) || 0;
+    gastoPorClienteMes.set(v.cliente_id, prev + montoVenta(v));
+  }
+  let mejorCliente = null;
+  let mejorClienteTotal = 0;
+  for (const [id, total] of gastoPorClienteMes.entries()) {
+    if (total > mejorClienteTotal) {
+      mejorClienteTotal = total;
+      mejorCliente = clientes.find((c) => c.id === id) || null;
+    }
+  }
+
+  const ultimo7diasFechas = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(
+      ahora.getFullYear(),
+      ahora.getMonth(),
+      ahora.getDate() - i
+    );
+    d.setHours(0, 0, 0, 0);
+    ultimo7diasFechas.push(d);
+  }
+
+  const ingresoPorDia7 = ultimo7diasFechas.map((dia) => {
+    const next = new Date(dia);
+    next.setDate(next.getDate() + 1);
+    const total = ventasConFecha
+      .filter(
+        (v) =>
+          v._fecha &&
+          v._fecha.getTime() >= dia.getTime() &&
+          v._fecha.getTime() < next.getTime()
+      )
+      .reduce((s, v) => s + montoVenta(v), 0);
+    return total;
+  });
+  const maxIngreso7 = ingresoPorDia7.reduce(
+    (m, v) => (v > m ? v : m),
+    0
+  );
+
+  const ventas7PorReceta = topBy(ventas7dias);
+  const totalIngresos7 = ventas7PorReceta.reduce(
+    (s, r) => s + r.ingreso,
+    0
+  );
+  const slices = ventas7PorReceta
+    .slice()
+    .sort((a, b) => b.ingreso - a.ingreso);
+  const maxSlices = 5;
+  const topSlices = slices.slice(0, maxSlices);
+  const otherSlices = slices.slice(maxSlices);
+  const otrosIngreso = otherSlices.reduce((s, r) => s + r.ingreso, 0);
+  const pieData = [];
+  for (const s of topSlices) {
+    const rec = recetas.find((r) => r.id === s.receta_id) || {};
+    const pct =
+      totalIngresos7 > 0 ? s.ingreso / totalIngresos7 : 0;
+    pieData.push({ ...s, receta: rec, pct });
+  }
+  if (otrosIngreso > 0 && totalIngresos7 > 0) {
+    pieData.push({
+      receta: { nombre: "Otros" },
+      ingreso: otrosIngreso,
+      pct: otrosIngreso / totalIngresos7,
+      receta_id: "otros",
+    });
+  }
+
+  let acum = 0;
+  const pieGradient = pieData
+    .map((s, idx) => {
+      const color =
+        CATEGORIAS.includes(s.receta?.categoria) && CAT_COLORS[s.receta.categoria]
+          ? CAT_COLORS[s.receta.categoria]
+          : ["#A98ED2", "#4A7C59", "#D64545", "#D4A843", "#8B6040"][idx % 5];
+      const start = acum * 360;
+      const end = (acum + s.pct) * 360;
+      acum += s.pct;
+      return `${color} ${start}deg ${end}deg`;
+    })
+    .join(", ");
+
+  const arrow = (dir) =>
+    dir === "up" ? "↑" : dir === "down" ? "↓" : "→";
+
+  return (
+    <div className="content">
+      <p className="page-title">Analytics</p>
+      <p className="page-subtitle">
+        Semana vs semana anterior · picos de venta y rentabilidad
+      </p>
+
+      <div className="analytics-section">
+        <div className="card">
+          <div className="card-header">
+            <span className="card-title">Comparativo semanal</span>
+          </div>
+          <div className="analytics-kpi-grid">
+            <div className="analytics-kpi-card">
+              <div className="analytics-kpi-label">Ingreso</div>
+              <div className="analytics-kpi-value">
+                {fmt(ingresoSemanaActual)}
+                <span
+                  className={`analytics-trend analytics-trend-${trendIngreso.dir}`}
+                >
+                  {arrow(trendIngreso.dir)} {trendIngreso.label}
+                </span>
+              </div>
+              <div className="analytics-kpi-sub">
+                Sem. anterior: {fmt(ingresoSemanaAnterior)}
+              </div>
+            </div>
+            <div className="analytics-kpi-card">
+              <div className="analytics-kpi-label">Costo</div>
+              <div className="analytics-kpi-value">
+                {fmt(costoSemanaActual)}
+                <span
+                  className={`analytics-trend analytics-trend-${trendCosto.dir}`}
+                >
+                  {arrow(trendCosto.dir)} {trendCosto.label}
+                </span>
+              </div>
+              <div className="analytics-kpi-sub">
+                Sem. anterior: {fmt(costoSemanaAnterior)}
+              </div>
+            </div>
+            <div className="analytics-kpi-card">
+              <div className="analytics-kpi-label">Ganancia</div>
+              <div className="analytics-kpi-value">
+                {fmt(gananciaSemanaActual)}
+                <span
+                  className={`analytics-trend analytics-trend-${trendGanancia.dir}`}
+                >
+                  {arrow(trendGanancia.dir)} {trendGanancia.label}
+                </span>
+              </div>
+              <div className="analytics-kpi-sub">
+                Sem. anterior: {fmt(gananciaSemanaAnterior)}
+              </div>
+            </div>
+            <div className="analytics-kpi-card">
+              <div className="analytics-kpi-label">Margen</div>
+              <div className="analytics-kpi-value">
+                {margenSemanaActual != null
+                  ? pctFmt(margenSemanaActual)
+                  : "—"}
+                <span
+                  className={`analytics-trend analytics-trend-${trendMargen.dir}`}
+                >
+                  {arrow(trendMargen.dir)} {trendMargen.label}
+                </span>
+              </div>
+              <div className="analytics-kpi-sub">
+                Sobre ingreso semanal
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="card-header">
+            <span className="card-title">
+              TOP 5 productos más vendidos (semana)
+            </span>
+          </div>
+          {topMasVendidos.length === 0 ? (
+            <div className="empty">
+              <div className="empty-icon">🥐</div>
+              <p>No hay ventas esta semana.</p>
+            </div>
+          ) : (
+            <div className="analytics-list">
+              {topMasVendidos.map((row) => (
+                <div key={row.receta_id} className="analytics-item">
+                  <span className="venta-emoji">
+                    {row.receta.emoji || "🍞"}
+                  </span>
+                  <div className="analytics-item-main">
+                    <div className="analytics-item-title">
+                      {row.receta.nombre || "Sin nombre"}
+                    </div>
+                    <div className="analytics-item-sub">
+                      {row.unidades} u · {fmt(row.ingreso)}
+                    </div>
+                  </div>
+                  <span
+                    className={`analytics-item-badge analytics-trend-${row.trend.dir}`}
+                  >
+                    {arrow(row.trend.dir)} {row.trend.label}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="card">
+          <div className="card-header">
+            <span className="card-title">
+              TOP 5 productos más rentables (30 días)
+            </span>
+          </div>
+          {topMasRentables.length === 0 ? (
+            <div className="empty">
+              <div className="empty-icon">💸</div>
+              <p>Todavía no hay datos de ganancia.</p>
+            </div>
+          ) : (
+            <div className="analytics-list">
+              {topMasRentables.map((row) => (
+                <div key={row.receta_id} className="analytics-item">
+                  <span className="venta-emoji">
+                    {row.receta.emoji || "🍞"}
+                  </span>
+                  <div className="analytics-item-main">
+                    <div className="analytics-item-title">
+                      {row.receta.nombre || "Sin nombre"}
+                    </div>
+                    <div className="analytics-item-sub">
+                      Ganancia: {fmt(row.ganancia)} · Ingreso:{" "}
+                      {fmt(row.ingreso)}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="card">
+          <div className="card-header">
+            <span className="card-title">
+              Ventas por día (últimos 7 días)
+            </span>
+          </div>
+          {maxIngreso7 === 0 ? (
+            <div className="empty">
+              <div className="empty-icon">📊</div>
+              <p>No hay ventas en los últimos 7 días.</p>
+            </div>
+          ) : (
+            <div className="bar-chart">
+              {ultimo7diasFechas.map((d, idx) => {
+                const total = ingresoPorDia7[idx];
+                const pct =
+                  maxIngreso7 > 0 ? (total / maxIngreso7) * 100 : 0;
+                const label =
+                  diasSemanaCorto[d.getDay()] || "";
+                return (
+                  <div key={idx} className="bar-chart-col">
+                    <div className="bar-chart-value">
+                      {total > 0 ? Math.round(total / 1000) + "k" : ""}
+                    </div>
+                    <div
+                      className="bar-chart-bar"
+                      style={{ height: `${Math.max(pct, 8)}%` }}
+                    />
+                    <div className="bar-chart-label">{label}</div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <div className="card">
+          <div className="card-header">
+            <span className="card-title">
+              Distribución de productos (últimos 7 días)
+            </span>
+          </div>
+          {totalIngresos7 === 0 ? (
+            <div className="empty">
+              <div className="empty-icon">🥧</div>
+              <p>No hay ventas en los últimos 7 días.</p>
+            </div>
+          ) : (
+            <div className="pie-chart">
+              <div
+                className="pie-chart-figure"
+                style={{
+                  background:
+                    pieGradient || "conic-gradient(#A98ED2 0deg 360deg)",
+                }}
+              />
+              <div className="pie-chart-legend">
+                {pieData.map((s) => {
+                  const rec = s.receta || {};
+                  const color =
+                    CATEGORIAS.includes(rec.categoria) &&
+                    CAT_COLORS[rec.categoria]
+                      ? CAT_COLORS[rec.categoria]
+                      : "#A98ED2";
+                  return (
+                    <div
+                      key={s.receta_id}
+                      className="pie-chart-legend-item"
+                    >
+                      <span
+                        className="pie-chart-dot"
+                        style={{ backgroundColor: color }}
+                      />
+                      <span className="pie-chart-label">
+                        {rec.nombre}
+                      </span>
+                      <span className="pie-chart-pct">
+                        {pctFmt(s.pct)}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="card">
+          <div className="card-header">
+            <span className="card-title">
+              Pico de ventas y cliente del mes
+            </span>
+          </div>
+          <div className="analytics-kpi-grid">
+            <div className="analytics-kpi-card">
+              <div className="analytics-kpi-label">Día y hora con más ventas</div>
+              <div className="analytics-kpi-value">
+                {diaPicoLabel}
+              </div>
+              <div className="analytics-kpi-sub">
+                Horario pico: {horaPicoLabel}
+              </div>
+            </div>
+            <div className="analytics-kpi-card">
+              <div className="analytics-kpi-label">
+                Cliente que más compró este mes
+              </div>
+              <div className="analytics-kpi-value">
+                {mejorCliente ? mejorCliente.nombre : "—"}
+              </div>
+              <div className="analytics-kpi-sub">
+                {mejorCliente
+                  ? `Total: ${fmt(mejorClienteTotal)}`
+                  : "Todavía no hay compras este mes"}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="card-header">
+            <span className="card-title">Proyección del mes</span>
+          </div>
+          <div className="analytics-kpi-grid">
+            <div className="analytics-kpi-card">
+              <div className="analytics-kpi-label">Ingreso proyectado</div>
+              <div className="analytics-kpi-value">
+                {fmt(proyIngresoMes || 0)}
+              </div>
+              <div className="analytics-kpi-sub">
+                Acumulado: {fmt(ingresoMes)} en {diasTranscurridos} día(s)
+              </div>
+            </div>
+            <div className="analytics-kpi-card">
+              <div className="analytics-kpi-label">Ganancia neta proyectada</div>
+              <div className="analytics-kpi-value">
+                {fmt(proyGananciaMesNeta || 0)}
+              </div>
+              <div className="analytics-kpi-sub">
+                Acumulado neto: {fmt(gananciaMesNeta)}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="card-header">
+            <span className="card-title">
+              Productos sin ventas en los últimos 7 días
+            </span>
+          </div>
+          {recetasSinVenta7.length === 0 ? (
+            <div className="empty">
+              <div className="empty-icon">✅</div>
+              <p>Todos los productos tuvieron al menos una venta.</p>
+            </div>
+          ) : (
+            <>
+              <p
+                style={{
+                  fontSize: 12,
+                  color: "var(--text-muted)",
+                  marginBottom: 8,
+                }}
+              >
+                Revisá si siguen teniendo sentido en la carta.
+              </p>
+              <div className="analytics-chips">
+                {recetasSinVenta7.slice(0, 10).map((r) => (
+                  <span key={r.id} className="analytics-chip">
+                    {r.emoji || "🍞"} {r.nombre}
+                  </span>
+                ))}
+                {recetasSinVenta7.length > 10 && (
+                  <span
+                    className="analytics-chip"
+                    style={{ color: "var(--text-muted)" }}
+                  >
+                    +{recetasSinVenta7.length - 10} más
+                  </span>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── VENTAS ──────────────────────────────────────────────────────────────────
 const SpeechRecognitionAPI = typeof window !== "undefined" && (window.SpeechRecognition || window.webkitSpeechRecognition);
 
@@ -2495,7 +6251,8 @@ function Ventas({ recetas, ventas, clientes, stock, actualizarStock, onRefresh, 
   const transcriptRef = useRef("");
   const appendModeRef = useRef(false);
 
-  const hoy = new Date().toISOString().split("T")[0];
+  const hoy = hoyLocalISO();
+  const hoyDate = new Date(hoy);
   const ventasHoy = ventas.filter(v => v.fecha === hoy);
   const ingresoHoy = ventasHoy.reduce(
     (s, v) =>
@@ -2509,6 +6266,45 @@ function Ventas({ recetas, ventas, clientes, stock, actualizarStock, onRefresh, 
     (s, item) => s + (item.precio_unitario || 0) * (item.cantidad || 0),
     0
   );
+
+  const ventasConDeuda = (ventas || []).filter((v) => v.estado_pago === "debe");
+  const deudaPorCliente = new Map();
+  for (const v of ventasConDeuda) {
+    const clienteId = v.cliente_id || "__sin_cliente__";
+    const prev =
+      deudaPorCliente.get(clienteId) || {
+        cliente_id: v.cliente_id,
+        total: 0,
+        ultimaFecha: null,
+      };
+    const monto =
+      v.total_final != null
+        ? v.total_final
+        : (v.precio_unitario || 0) * (v.cantidad || 0);
+    prev.total += monto;
+    const refFecha = v.fecha || v.created_at;
+    if (refFecha) {
+      const d = new Date(refFecha);
+      if (!Number.isNaN(d.getTime())) {
+        if (!prev.ultimaFecha || d > prev.ultimaFecha) prev.ultimaFecha = d;
+      }
+    }
+    deudaPorCliente.set(clienteId, prev);
+  }
+  const clientesDeuda = Array.from(deudaPorCliente.values())
+    .filter((c) => c.total > 0.01)
+    .sort((a, b) => b.total - a.total);
+  const totalDeuda = clientesDeuda.reduce((s, c) => s + c.total, 0);
+
+  const formatRelDia = (d) => {
+    if (!d || Number.isNaN(d.getTime())) return "";
+    const diffMs = hoyDate.getTime() - d.getTime();
+    const dias = Math.round(diffMs / (24 * 60 * 60 * 1000));
+    if (dias <= 0) return "hoy";
+    if (dias === 1) return "ayer";
+    if (dias <= 7) return `hace ${dias} días`;
+    return d.toLocaleDateString("es-AR", { day: "numeric", month: "short" });
+  };
 
   const addToCart = (receta, cantidad = 1) => {
     if (!receta) return;
@@ -2558,6 +6354,27 @@ function Ventas({ recetas, ventas, clientes, stock, actualizarStock, onRefresh, 
         item.receta.id === recetaId ? { ...item, precio_unitario: num } : item
       )
     );
+  };
+
+  const registrarVentaEnSupabase = async (rows) => {
+    let { error } = await supabase.from("ventas").insert(rows);
+    const sinTransaccion =
+      error &&
+      (error.message?.includes("transaccion_id") || error.code === "42703");
+    if (sinTransaccion) {
+      const res = await supabase
+        .from("ventas")
+        .insert(rows.map(({ transaccion_id, ...r }) => r));
+      error = res.error;
+    }
+    if (error) throw error;
+    if (actualizarStock) {
+      for (const v of rows) {
+        const cant = v.cantidad || 0;
+        if (!v.receta_id || cant <= 0) continue;
+        await actualizarStock(v.receta_id, -cant);
+      }
+    }
   };
 
   const resetNuevaVenta = () => {
@@ -2630,7 +6447,7 @@ function Ventas({ recetas, ventas, clientes, stock, actualizarStock, onRefresh, 
   const guardarEdicion = async () => {
     if (!editGrupo) return;
     setEditSaving(true);
-    const hoy = new Date().toISOString().split("T")[0];
+    const hoy = hoyLocalISO();
     let transaccionId = editGrupo.rawItems[0]?.transaccion_id;
     try {
       for (const v of editGrupo.rawItems) {
@@ -2915,7 +6732,7 @@ function Ventas({ recetas, ventas, clientes, stock, actualizarStock, onRefresh, 
 
     setSaving(true);
     try {
-      const hoy = new Date().toISOString().split("T")[0];
+      const hoy = hoyLocalISO();
       const totalCarrito = cartItems.reduce(
         (s, it) => s + (it.precio_unitario || 0) * (it.cantidad || 0),
         0
@@ -2977,27 +6794,16 @@ function Ventas({ recetas, ventas, clientes, stock, actualizarStock, onRefresh, 
           rows[i].total_final = nuevoSubtotal;
         }
       }
-
-      let { error } = await supabase.from("ventas").insert(rows);
-      const sinTransaccion =
-        error &&
-        (error.message?.includes("transaccion_id") || error.code === "42703");
-      if (sinTransaccion) {
-        const res = await supabase
-          .from("ventas")
-          .insert(rows.map(({ transaccion_id, ...r }) => r));
-        error = res.error;
-      }
-      if (error) throw error;
-
-      if (actualizarStock) {
-        for (const { receta, cantidad } of cartItems) {
-          await actualizarStock(receta.id, -cantidad);
-        }
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        await saveVentaPendiente(rows);
+        const totalFinalOffline = usarOverride ? override : totalCarrito;
+        showToast(`✅ Venta guardada offline: ${fmt(totalFinalOffline)}. Se sincronizará cuando vuelva la conexión.`);
+      } else {
+        await registrarVentaEnSupabase(rows);
+        const totalFinal = usarOverride ? override : totalCarrito;
+        showToast(`✅ Venta registrada: ${fmt(totalFinal)}`);
       }
 
-      const totalFinal = usarOverride ? override : totalCarrito;
-      showToast(`✅ Venta registrada: ${fmt(totalFinal)}`);
       resetNuevaVenta();
       onRefresh();
     } catch (err) {
@@ -3013,29 +6819,195 @@ function Ventas({ recetas, ventas, clientes, stock, actualizarStock, onRefresh, 
       <p className="page-title">Ventas</p>
       <p className="page-subtitle">Hoy: {fmt(ingresoHoy)}</p>
 
+      {clientesDeuda.length > 0 && (
+        <div className="card dashboard-alert" style={{ marginBottom: 12 }}>
+          <div className="card-header">
+            <span className="card-title">⚠️ Clientes con deuda</span>
+          </div>
+          <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 8 }}>
+            {clientesDeuda.length} cliente{clientesDeuda.length > 1 ? "s" : ""} ·{" "}
+            <strong style={{ color: "var(--accent)" }}>{fmt(totalDeuda)}</strong> por cobrar
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {clientesDeuda.slice(0, 3).map((cd) => {
+              const cli =
+                (clientes || []).find((c) => c.id === cd.cliente_id) || null;
+              const nombre = cli?.nombre || "Cliente sin nombre";
+              const rel = formatRelDia(cd.ultimaFecha);
+              return (
+                <div
+                  key={cd.cliente_id || "__sin_cliente__"}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    fontSize: 13,
+                  }}
+                >
+                  <div>
+                    <div style={{ fontWeight: 500 }}>{nombre}</div>
+                    <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
+                      Última venta {rel || ""}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <div
+                      style={{
+                        fontWeight: 600,
+                        color: "var(--accent)",
+                        fontFamily: "'Outfit', sans-serif",
+                      }}
+                    >
+                      {fmt(cd.total)}
+                    </div>
+                    <span
+                      style={{
+                        display: "inline-block",
+                        marginTop: 2,
+                        padding: "2px 8px",
+                        borderRadius: 999,
+                        fontSize: 10,
+                        background: "rgba(214,69,69,0.08)",
+                        color: "var(--danger)",
+                        fontWeight: 600,
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      DEBE
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+            {clientesDeuda.length > 3 && (
+              <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>
+                +{clientesDeuda.length - 3} cliente
+                {clientesDeuda.length - 3 > 1 ? "s" : ""} más con deuda
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {ventasHoy.length > 0 && (
         <>
-          <div className="card-header" style={{ marginBottom: 8 }}><span className="card-title">Hoy</span></div>
+          <div className="card-header" style={{ marginBottom: 8 }}>
+            <span className="card-title">Hoy</span>
+          </div>
           {agruparVentas(ventasHoy).map((grupo) => {
-            const cliente = (clientes || []).find(c => c.id === grupo.cliente_id);
+            const cliente = (clientes || []).find(
+              (c) => c.id === grupo.cliente_id
+            );
+            const ejemplo = (grupo.rawItems && grupo.rawItems[0]) || grupo.items[0];
+            let fechaHoraTxt = "";
+            let horaTxt = "";
+            if (ejemplo) {
+              const fechaBase =
+                ejemplo.created_at || (ejemplo.fecha && `${ejemplo.fecha}T00:00:00`);
+              if (fechaBase) {
+                const d = new Date(fechaBase);
+                if (!Number.isNaN(d.getTime())) {
+                  const esHoy = ejemplo.fecha === hoy;
+                  const hora = d.toLocaleTimeString("es-AR", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  });
+                  horaTxt = `${hora} hs`;
+                  const diaTxt = esHoy
+                    ? "Hoy"
+                    : d.toLocaleDateString("es-AR", {
+                        weekday: "short",
+                        day: "numeric",
+                        month: "short",
+                      });
+                  fechaHoraTxt = `${diaTxt} · ${horaTxt}`;
+                }
+              }
+            }
+            const medio = ejemplo?.medio_pago || "efectivo";
+            const estado = ejemplo?.estado_pago || "pagado";
+            const medioTxt =
+              medio === "transferencia"
+                ? "Transferencia"
+                : medio === "debito"
+                ? "Débito"
+                : medio === "credito"
+                ? "Crédito"
+                : "Efectivo";
+
             return (
               <div key={grupo.key} className="card venta-card">
                 <div className="venta-grupo-cliente">
                   Cliente: {cliente?.nombre || "—"}
                 </div>
+                <div
+                  style={{
+                    fontSize: 12,
+                    color: "var(--text-muted)",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: 4,
+                  }}
+                >
+                  <span>{fechaHoraTxt || horaTxt}</span>
+                  <span>
+                    <span style={{ marginRight: 8 }}>{medioTxt}</span>
+                    <span
+                      style={{
+                        display: "inline-block",
+                        padding: "2px 8px",
+                        borderRadius: 999,
+                        fontSize: 10,
+                        background:
+                          estado === "debe"
+                            ? "rgba(214,69,69,0.08)"
+                            : "rgba(74,124,89,0.08)",
+                        color:
+                          estado === "debe"
+                            ? "var(--danger)"
+                            : "var(--green)",
+                        fontWeight: 600,
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      {estado === "debe" ? "DEBE" : "Pagado"}
+                    </span>
+                  </span>
+                </div>
                 {grupo.items.map((v, vi) => {
-                  const r = recetas.find(r => r.id === v.receta_id);
+                  const r = recetas.find((r) => r.id === v.receta_id);
                   return (
-                    <div key={v.id || `${grupo.key}-${v.receta_id}-${vi}`} className="venta-item venta-item-simple">
+                    <div
+                      key={v.id || `${grupo.key}-${v.receta_id}-${vi}`}
+                      className="venta-item venta-item-simple"
+                    >
                       <span className="venta-emoji">{r?.emoji || "🍞"}</span>
-                      <span className="venta-nombre-simple">{(r?.nombre || "—").toLowerCase()} x{v.cantidad}</span>
+                      <span className="venta-nombre-simple">
+                        {(r?.nombre || "—").toLowerCase()} x{v.cantidad}
+                      </span>
                     </div>
                   );
                 })}
                 <div className="venta-grupo-total">Total: {fmt(grupo.total)}</div>
                 <div className="venta-grupo-actions">
-                  <button className="btn-venta-action" onClick={() => abrirEditar(grupo)}>Editar</button>
-                  <button className="btn-venta-action btn-venta-delete" onClick={() => eliminarVenta(grupo)} disabled={deletingId === (grupo.key || grupo.rawItems?.[0]?.id)}>{deletingId === (grupo.key || grupo.rawItems?.[0]?.id) ? "…" : "Eliminar"}</button>
+                  <button
+                    className="btn-venta-action"
+                    onClick={() => abrirEditar(grupo)}
+                  >
+                    Editar
+                  </button>
+                  <button
+                    className="btn-venta-action btn-venta-delete"
+                    onClick={() => eliminarVenta(grupo)}
+                    disabled={
+                      deletingId === (grupo.key || grupo.rawItems?.[0]?.id)
+                    }
+                  >
+                    {deletingId === (grupo.key || grupo.rawItems?.[0]?.id)
+                      ? "…"
+                      : "Eliminar"}
+                  </button>
                 </div>
               </div>
             );
@@ -3447,11 +7419,20 @@ export default function App() {
 
   const [recetaIngredientes, setRecetaIngredientes] = useState([]);
   const [clientes, setClientes] = useState([]);
+  const [pedidos, setPedidos] = useState([]);
   const [stock, setStock] = useState({});
   const [insumoStock, setInsumoStock] = useState({});
   const [insumoMovimientos, setInsumoMovimientos] = useState([]);
   const [insumoComposicion, setInsumoComposicion] = useState([]);
+  const [precioHistorial, setPrecioHistorial] = useState([]);
   const [errorLogOpen, setErrorLogOpen] = useState(false);
+  const [recetasFilterIds, setRecetasFilterIds] = useState([]);
+  const [resumenPlanSemanal, setResumenPlanSemanal] = useState(null);
+  const [planSemanalVersion, setPlanSemanalVersion] = useState(0);
+  const [gastosFijos, setGastosFijos] = useState([]);
+  const [isOnline, setIsOnline] = useState(
+    typeof navigator !== "undefined" ? navigator.onLine : true
+  );
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session: s } }) => {
@@ -3462,6 +7443,29 @@ export default function App() {
       setSession(s);
     });
     return () => subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof Notification === "undefined") return;
+    if (Notification.permission === "default") {
+      Notification.requestPermission().catch(() => {});
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handleOnline = () => {
+      setIsOnline(true);
+    };
+    const handleOffline = () => {
+      setIsOnline(false);
+    };
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
   }, []);
 
   const loadData = useCallback(async () => {
@@ -3478,32 +7482,80 @@ export default function App() {
     const insCompPromise = supabase.from("insumo_composicion").select("insumo_id, insumo_id_componente, factor")
       .then(r => ({ ok: !r.error, data: r.data || [] }))
       .catch(() => ({ ok: false, data: [] }));
-    const [insRes, recRes, venRes, riRes, cliRes, stRes, insStRes, insMovRes, insCompRes] = await Promise.all([
+    const precioHistPromise = supabase
+      .from("precio_historial")
+      .select("id, insumo_id, precio_anterior, precio_nuevo, fecha, motivo")
+      .order("fecha", { ascending: true })
+      .limit(5000)
+      .then((r) => ({ ok: !r.error, data: r.data || [] }))
+      .catch(() => ({ ok: false, data: [] }));
+    const pedidosPromise = supabase
+      .from("pedidos")
+      .select("*")
+      .order("fecha_entrega", { ascending: true })
+      .limit(1000);
+    const gastosPromise = supabase.from("gastos_fijos").select("*").order("nombre");
+    const [insRes, recRes, venRes, riRes, cliRes, pedRes, stRes, insStRes, insMovRes, insCompRes, gastosRes, precioHistRes] = await Promise.all([
       supabase.from("insumos").select("*").order("categoria").order("nombre"),
       supabase.from("recetas").select("*").order("nombre"),
-      supabase.from("ventas").select("*").order("created_at", { ascending: false }).limit(200),
+      supabase.from("ventas").select("*").order("created_at", { ascending: false }).limit(1000),
       supabase.from("receta_ingredientes").select("*"),
       supabase.from("clientes").select("*").order("nombre"),
+      pedidosPromise,
       stPromise,
       insStPromise,
       insMovPromise,
-      insCompPromise
+      insCompPromise,
+      gastosPromise,
+      precioHistPromise
     ]);
     const authErr = (e) => e && (e.status === 401 || e.status === 403);
-    if ([insRes.error, recRes.error, venRes.error, riRes.error, cliRes.error].some(authErr)) {
+    if ([insRes.error, recRes.error, venRes.error, riRes.error, cliRes.error, pedRes?.error, gastosRes?.error].some(authErr)) {
       showToast("🔒 Sesión expirada o sin permisos. Volvé a iniciar sesión.");
       await supabase.auth.signOut();
       setLoading(false);
       return;
     }
-    if (insRes.error) showToast("⚠️ Error al cargar insumos");
-    if (recRes.error) showToast("⚠️ Error al cargar recetas");
-    if (venRes.error) showToast("⚠️ Error al cargar ventas");
+    if (insRes.error) {
+      reportError(insRes.error, { action: "loadData", source: "insumos", code: insRes.error?.code });
+      showToast("⚠️ Error al cargar insumos");
+    }
+    if (recRes.error) {
+      reportError(recRes.error, { action: "loadData", source: "recetas", code: recRes.error?.code });
+      showToast("⚠️ Error al cargar recetas");
+    }
+    if (venRes.error) {
+      reportError(venRes.error, { action: "loadData", source: "ventas", code: venRes.error?.code });
+      showToast("⚠️ Error al cargar ventas");
+    }
+    if (pedRes && pedRes.error) {
+      reportError(pedRes.error, {
+        action: "loadData",
+        source: "pedidos",
+        code: pedRes.error.code,
+        message: pedRes.error.message,
+        details: pedRes.error.details
+      });
+      if (pedRes.error.code === "42P01") {
+        showToast("ℹ️ Configurá la tabla 'pedidos' en Supabase para usar pedidos futuros");
+      } else {
+        showToast("⚠️ Error al cargar pedidos");
+      }
+    }
+    if (gastosRes && gastosRes.error) {
+      reportError(gastosRes.error, { action: "loadData", source: "gastos_fijos", code: gastosRes.error?.code });
+      showToast("⚠️ Error al cargar gastos fijos");
+    }
     setInsumos(insRes.data || []);
     setRecetas(recRes.data || []);
     setVentas(venRes.data || []);
     setRecetaIngredientes(riRes.data || []);
     setClientes(cliRes.data || []);
+    if (pedRes && pedRes.data) {
+      setPedidos(pedRes.data || []);
+    } else {
+      setPedidos([]);
+    }
     if (stRes.ok) {
       setStock(Object.fromEntries((stRes.data || []).map(s => [s.receta_id, Number(s.cantidad) || 0])));
     }
@@ -3516,6 +7568,10 @@ export default function App() {
     if (insCompRes.ok) {
       setInsumoComposicion(insCompRes.data || []);
     }
+    if (precioHistRes.ok) {
+      setPrecioHistorial(precioHistRes.data || []);
+    }
+    setGastosFijos(gastosRes?.data || []);
     setLoading(false);
 
     // Seed insumos if empty
@@ -3540,19 +7596,97 @@ export default function App() {
     else setLoading(false);
   }, [session, loadData]);
 
+  useEffect(() => {
+    let cancelled = false;
+    const cargarResumen = async () => {
+      if (!recetas.length) {
+        if (!cancelled) setResumenPlanSemanal(null);
+        return;
+      }
+      const semanaInicio = getSemanaInicioISO();
+      try {
+        const { data, error } = await supabase
+          .from("plan_semanal")
+          .select("receta_id, cantidad_planificada, cantidad_realizada")
+          .eq("semana_inicio", semanaInicio);
+        if (error) {
+          if (!cancelled) setResumenPlanSemanal(null);
+          return;
+        }
+        let totalPlanificadas = 0;
+        const itemsPendientes = [];
+        for (const row of data || []) {
+          const receta = recetas.find((r) => r.id === row.receta_id);
+          if (!receta) continue;
+          const plan = Number(row.cantidad_planificada || 0);
+          const realizado = Number(row.cantidad_realizada || 0);
+          if (plan > 0) totalPlanificadas += plan;
+          const pendiente = Math.max(plan - realizado, 0);
+          if (pendiente > 0) {
+            itemsPendientes.push({ receta, cantidad: pendiente });
+          }
+        }
+        if (!itemsPendientes.length) {
+          if (!cancelled) setResumenPlanSemanal({ totalUnidades: totalPlanificadas, totalCompra: 0 });
+          return;
+        }
+        const requerimientos = calcularRequerimientoInsumosParaItems(
+          itemsPendientes,
+          recetaIngredientes,
+          insumos,
+          insumoComposicion
+        );
+        let totalCompra = 0;
+        for (const req of requerimientos) {
+          const stockActual = (insumoStock || {})[req.insumo_id] ?? 0;
+          const faltante = Math.max(0, (req.cantidad || 0) - stockActual);
+          const insumo = req.insumo;
+          if (faltante > 0 && insumo && insumo.cantidad_presentacion > 0 && insumo.precio != null) {
+            const precioUnitario = insumo.precio / insumo.cantidad_presentacion;
+            totalCompra += precioUnitario * faltante;
+          }
+        }
+        if (!cancelled) setResumenPlanSemanal({ totalUnidades: totalPlanificadas, totalCompra });
+      } catch {
+        if (!cancelled) setResumenPlanSemanal(null);
+      }
+    };
+    cargarResumen();
+    return () => {
+      cancelled = true;
+    };
+  }, [recetas, recetaIngredientes, insumos, insumoComposicion, insumoStock, planSemanalVersion]);
+
   const actualizarStock = useCallback(async (receta_id, delta) => {
     let nuevo;
+    let anterior;
     setStock(prev => {
       const actual = prev[receta_id] ?? 0;
+      anterior = actual;
       nuevo = actual + delta;
       return { ...prev, [receta_id]: nuevo };
     });
-    const { error } = await supabase.from("stock").upsert({ receta_id, cantidad: nuevo, updated_at: new Date().toISOString() }, { onConflict: "receta_id" });
+    const { error } = await supabase.from("stock").upsert(
+      { receta_id, cantidad: nuevo, updated_at: new Date().toISOString() },
+      { onConflict: "receta_id" }
+    );
     if (error) {
       setStock(prev => ({ ...prev, [receta_id]: (prev[receta_id] ?? 0) - delta }));
       throw error;
     }
-  }, []);
+    if (anterior > 0 && nuevo <= 0) {
+      const receta = recetas.find(r => r.id === receta_id);
+      const nombre = receta?.nombre || "producto";
+      showToast(`⚠️ ${nombre}: sin stock`);
+      if (typeof window !== "undefined" && typeof Notification !== "undefined" && Notification.permission === "granted") {
+        try {
+          new Notification("Stock agotado", { body: `${nombre} se quedó sin stock.` });
+        } catch {
+          // ignorar errores de notificación
+        }
+      }
+    }
+  }, [recetas]);
 
   const registrarMovimientoInsumo = useCallback(async (insumo_id, tipo, cantidad, valor) => {
     const delta = tipo === "ingreso" ? cantidad : -cantidad;
@@ -3578,6 +7712,62 @@ export default function App() {
     }
     if (mov) setInsumoMovimientos(prev => [mov, ...prev]);
   }, []);
+
+  const syncVentasPendientes = useCallback(async () => {
+    if (!supabase || !isOnline) return;
+    try {
+      const pendientes = await getVentasPendientes();
+      if (!pendientes || pendientes.length === 0) return;
+      let totalLineasSincronizadas = 0;
+      for (const item of pendientes) {
+        const rows = Array.isArray(item.rows) ? item.rows : [];
+        if (rows.length === 0) {
+          await deleteVentaPendiente(item.id);
+          continue;
+        }
+        try {
+          let { error } = await supabase.from("ventas").insert(rows);
+          const sinTransaccion =
+            error &&
+            (error.message?.includes("transaccion_id") ||
+              error.code === "42703");
+          if (sinTransaccion) {
+            const res = await supabase
+              .from("ventas")
+              .insert(rows.map(({ transaccion_id, ...r }) => r));
+            error = res.error;
+          }
+          if (error) throw error;
+          if (actualizarStock) {
+            for (const v of rows) {
+              const cant = v.cantidad || 0;
+              if (!v.receta_id || cant <= 0) continue;
+              await actualizarStock(v.receta_id, -cant);
+            }
+          }
+          await deleteVentaPendiente(item.id);
+          totalLineasSincronizadas += rows.length;
+        } catch (err) {
+          reportError(err, {
+            action: "syncVentasPendientes.item",
+            id: item.id,
+          });
+        }
+      }
+      if (totalLineasSincronizadas > 0) {
+        showToast(`✅ Se sincronizaron ${totalLineasSincronizadas} ventas`);
+        await loadData();
+      }
+    } catch (err) {
+      reportError(err, { action: "syncVentasPendientes" });
+    }
+  }, [isOnline, actualizarStock, loadData]);
+
+  useEffect(() => {
+    if (session && isOnline) {
+      syncVentasPendientes();
+    }
+  }, [session, isOnline, syncVentasPendientes]);
 
   /** Consume insumos al cargar stock: si cargás +10 alfajores, descuenta los ingredientes (premezcla, etc.).
    * Si un insumo tiene composición (ej. premezcla = harina+almidón+mandioca), descuenta los componentes. */
@@ -3614,14 +7804,23 @@ export default function App() {
     }
   }, [recetas, recetaIngredientes, insumos, insumoComposicion, registrarMovimientoInsumo]);
 
-  const TABS = [
+  const NAV_TABS = [
     { id: "dashboard", icon: "📊", label: "Inicio" },
     { id: "ventas", icon: "💰", label: "Ventas" },
     { id: "stock", icon: "📥", label: "Stock" },
-    { id: "clientes", icon: "👥", label: "Clientes" },
-    { id: "insumos", icon: "📦", label: "Insumos" },
-    { id: "recetas", icon: "📋", label: "Recetas" },
+    { id: "more", icon: "☰", label: "Más" },
   ];
+
+  const MORE_MENU_ITEMS = [
+    { id: "analytics", icon: "📈", label: "Analytics", sub: "Gráficos y proyecciones" },
+    { id: "plan", icon: "📆", label: "Plan semanal", sub: "Producción y pedidos" },
+    { id: "clientes", icon: "👥", label: "Clientes", sub: "Contactos y ventas" },
+    { id: "insumos", icon: "📦", label: "Insumos", sub: "Materias primas y stock" },
+    { id: "recetas", icon: "📋", label: "Recetas", sub: "Productos y costos" },
+  ];
+
+  const isMoreSection = ["analytics", "plan", "clientes", "insumos", "recetas"].includes(tab);
+  const sinStockCount = recetas.filter(r => (stock[r.id] ?? 0) <= 0).length;
 
   if (!SUPABASE_CONFIG_OK) {
     return (
@@ -3658,7 +7857,7 @@ export default function App() {
       <div className="app">
         <div className="header">
           <div className="header-top">
-            <h1>🌾 Panadería SG</h1>
+            <h1>🌾 Gluten Free</h1>
             <span className="header-badge">Gluten Free*</span>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               {getErrorLog().length > 0 && (
@@ -3669,7 +7868,6 @@ export default function App() {
               <button type="button" className="auth-logout" onClick={() => supabase.auth.signOut()} title="Cerrar sesión">Salir</button>
             </div>
           </div>
-          <a href="/privacidad.html" target="_blank" rel="noopener noreferrer" style={{ fontSize: 10, color: "rgba(255,255,255,0.7)", marginTop: 6, display: "block" }}>Privacidad</a>
         </div>
 
         {errorLogOpen && (
@@ -3700,22 +7898,148 @@ export default function App() {
           <div className="loading"><div className="spinner" /><span>Cargando...</span></div>
         ) : (
           <>
-            {tab === "dashboard" && <Dashboard insumos={insumos} recetas={recetas} ventas={ventas} clientes={clientes} stock={stock} onNavigate={setTab} />}
-            {tab === "insumos" && <Insumos insumos={insumos} insumoStock={insumoStock} insumoMovimientos={insumoMovimientos} insumoComposicion={insumoComposicion} registrarMovimientoInsumo={registrarMovimientoInsumo} onRefresh={loadData} showToast={showToast} confirm={confirm} />}
-            {tab === "recetas" && <Recetas recetas={recetas} insumos={insumos} recetaIngredientes={recetaIngredientes} showToast={showToast} onRefresh={loadData} confirm={confirm} />}
-            {tab === "ventas" && <Ventas recetas={recetas} ventas={ventas} clientes={clientes} stock={stock} actualizarStock={actualizarStock} onRefresh={loadData} showToast={showToast} confirm={confirm} />}
-            {tab === "stock" && <Stock recetas={recetas} stock={stock} actualizarStock={actualizarStock} consumirInsumosPorStock={consumirInsumosPorStock} insumoStock={insumoStock} insumos={insumos} recetaIngredientes={recetaIngredientes} insumoComposicion={insumoComposicion} registrarMovimientoInsumo={registrarMovimientoInsumo} onRefresh={loadData} showToast={showToast} />}
-            {tab === "clientes" && <Clientes ventas={ventas} clientes={clientes} recetas={recetas} onRefresh={loadData} showToast={showToast} />}
+            {tab === "dashboard" && (
+              <Dashboard
+                insumos={insumos}
+                recetas={recetas}
+                recetaIngredientes={recetaIngredientes}
+                ventas={ventas}
+                clientes={clientes}
+                stock={stock}
+                pedidos={pedidos}
+                gastosFijos={gastosFijos}
+                resumenPlanSemanal={resumenPlanSemanal}
+                onNavigate={setTab}
+              />
+            )}
+            {tab === "more" && (
+              <MoreMenuScreen items={MORE_MENU_ITEMS} onNavigate={setTab} />
+            )}
+            {tab === "analytics" && (
+              <Analytics
+                ventas={ventas}
+                recetas={recetas}
+                clientes={clientes}
+                recetaIngredientes={recetaIngredientes}
+                insumos={insumos}
+                gastosFijos={gastosFijos}
+              />
+            )}
+            {tab === "insumos" && (
+              <Insumos
+                insumos={insumos}
+                insumoStock={insumoStock}
+                insumoMovimientos={insumoMovimientos}
+                insumoComposicion={insumoComposicion}
+                registrarMovimientoInsumo={registrarMovimientoInsumo}
+                recetas={recetas}
+                recetaIngredientes={recetaIngredientes}
+                precioHistorial={precioHistorial}
+                onRefresh={loadData}
+                showToast={showToast}
+                confirm={confirm}
+                onVerRecetasAfectadas={(ids) => {
+                  setRecetasFilterIds(ids || []);
+                  setTab("recetas");
+                }}
+              />
+            )}
+            {tab === "recetas" && (
+              <Recetas
+                recetas={recetas}
+                insumos={insumos}
+                recetaIngredientes={recetaIngredientes}
+                showToast={showToast}
+                onRefresh={loadData}
+                confirm={confirm}
+                filterRecetasIds={recetasFilterIds}
+                onClearFilter={() => setRecetasFilterIds([])}
+              />
+            )}
+            {tab === "ventas" && (
+              <Ventas
+                recetas={recetas}
+                ventas={ventas}
+                clientes={clientes}
+                stock={stock}
+                actualizarStock={actualizarStock}
+                onRefresh={loadData}
+                showToast={showToast}
+                confirm={confirm}
+              />
+            )}
+            {tab === "stock" && (
+              <Stock
+                recetas={recetas}
+                stock={stock}
+                actualizarStock={actualizarStock}
+                consumirInsumosPorStock={consumirInsumosPorStock}
+                insumoStock={insumoStock}
+                insumos={insumos}
+                recetaIngredientes={recetaIngredientes}
+                insumoComposicion={insumoComposicion}
+                registrarMovimientoInsumo={registrarMovimientoInsumo}
+                onRefresh={loadData}
+                showToast={showToast}
+                ventas={ventas}
+                pedidos={pedidos}
+              />
+            )}
+            {tab === "plan" && (
+              <PlanSemanal
+                recetas={recetas}
+                recetaIngredientes={recetaIngredientes}
+                insumos={insumos}
+                insumoComposicion={insumoComposicion}
+                insumoStock={insumoStock}
+                actualizarStock={actualizarStock}
+                consumirInsumosPorStock={consumirInsumosPorStock}
+                showToast={showToast}
+                onRefresh={loadData}
+                onPlanChanged={() => setPlanSemanalVersion(v => v + 1)}
+              />
+            )}
+            {tab === "clientes" && (
+              <Clientes
+                ventas={ventas}
+                clientes={clientes}
+                recetas={recetas}
+                pedidos={pedidos}
+                onRefresh={loadData}
+                showToast={showToast}
+                actualizarStock={actualizarStock}
+                confirm={confirm}
+              />
+            )}
+            {tab === "gastos" && (
+              <GastosFijos
+                gastos={gastosFijos}
+                onRefresh={loadData}
+                showToast={showToast}
+              />
+            )}
           </>
         )}
 
         <nav className="nav">
-          {TABS.map(t => (
-            <button key={t.id} className={`nav-btn ${tab === t.id ? "active" : ""}`} onClick={() => setTab(t.id)}>
-              <span className="nav-icon">{t.icon}</span>
-              <span className="nav-label">{t.label}</span>
-            </button>
-          ))}
+          {NAV_TABS.map(t => {
+            const isActive = t.id === "more" ? isMoreSection : tab === t.id;
+            return (
+              <button
+                key={t.id}
+                className={`nav-btn ${isActive ? "active" : ""}`}
+                onClick={() => setTab(t.id)}
+              >
+                <span className="nav-icon">{t.icon}</span>
+                <span className="nav-label">
+                  {t.label}
+                  {t.id === "stock" && sinStockCount > 0 && (
+                    <span className="nav-badge-stock">{sinStockCount}</span>
+                  )}
+                </span>
+              </button>
+            );
+          })}
         </nav>
 
         {toast && <Toast msg={toast} onDone={() => setToast(null)} />}
