@@ -2541,7 +2541,17 @@ function Ventas({ recetas, ventas, clientes, stock, actualizarStock, onRefresh, 
   };
 
   const updateCartPrice = (recetaId, value) => {
-    const num = parseFloat(String(value).replace(",", "."));
+    const text = String(value).trim();
+    // Permitir campo vacío en el input: se interpreta como 0 para cálculos
+    if (text === "") {
+      setCartItems((prev) =>
+        prev.map((item) =>
+          item.receta.id === recetaId ? { ...item, precio_unitario: "" } : item
+        )
+      );
+      return;
+    }
+    const num = parseFloat(text.replace(",", "."));
     if (Number.isNaN(num) || num < 0) return;
     setCartItems((prev) =>
       prev.map((item) =>
@@ -3242,9 +3252,10 @@ function Ventas({ recetas, ventas, clientes, stock, actualizarStock, onRefresh, 
                             <div style={{ display: "flex", alignItems: "center", gap: 4, flex: 1 }}>
                               <span style={{ fontSize: 12, color: "var(--text-muted)" }}>$</span>
                               <input
-                                type="number"
+                                type="text"
+                                inputMode="decimal"
                                 className="form-input"
-                                value={item.precio_unitario}
+                                value={item.precio_unitario === "" ? "" : item.precio_unitario}
                                 onChange={(e) => updateCartPrice(item.receta.id, e.target.value)}
                                 style={{ maxWidth: 90, padding: "6px 8px", fontSize: 14 }}
                               />

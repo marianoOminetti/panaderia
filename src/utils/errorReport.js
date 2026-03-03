@@ -38,16 +38,39 @@ export function reportError(error, context = {}) {
     ...context
   };
 
+  // 1) Log local (console del navegador / dev tools)
   console.error("[Panadería Error]", entry);
 
+  // 2) Buffer local para debugging rápido
   const buf = getBuffer();
   buf.push(entry);
   saveBuffer(buf);
 
+  // 3) Enviar a Sentry si está configurado
   if (Sentry?.captureException) {
     Sentry.captureException(error instanceof Error ? error : new Error(msg), {
       extra: context
     });
+  }
+
+  // 4) Enviar a endpoint de Vercel para que quede en logs del servidor
+  try {
+    if (typeof window !== "undefined" && typeof fetch === "function") {
+      const vercelPayload = {
+        ...entry,
+        url: window.location?.href || null,
+        userAgent: window.navigator?.userAgent || null
+      };
+      fetch("/api/log-error", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(vercelPayload)
+      }).catch(() => {
+        // Silencioso: no romper la UX si el log falla
+      });
+    }
+  } catch {
+    // No hacer nada si por alguna razón fallan los logs remotos
   }
 }
 
