@@ -141,6 +141,7 @@ const styles = `
   .stat-value.accent { color: var(--accent); }
   .stat-value.green { color: var(--green); }
   .stat-value.rojo { color: var(--danger); }
+  .stat-value.yellow { color: #D9A400; }
 
   /* Search */
   .search-bar { position: relative; margin-bottom: 16px; }
@@ -491,12 +492,29 @@ function agruparVentas(ventas) {
       key: tid,
       items: agregados.length > 0 ? agregados : items,
       rawItems: items,
-      total: items.reduce((s, i) => s + (i.precio_unitario || 0) * (i.cantidad || 0), 0),
+      total: items.reduce(
+        (s, i) =>
+          s +
+          (i.total_final != null
+            ? i.total_final
+            : (i.precio_unitario || 0) * (i.cantidad || 0)),
+        0
+      ),
       cliente_id: items[0]?.cliente_id
     };
   });
   for (const v of sueltas) {
-    grupos.push({ key: v.id, items: [v], rawItems: [v], total: v.precio_unitario * v.cantidad, cliente_id: v.cliente_id });
+    const totalLinea =
+      v.total_final != null
+        ? v.total_final
+        : (v.precio_unitario || 0) * (v.cantidad || 0);
+    grupos.push({
+      key: v.id,
+      items: [v],
+      rawItems: [v],
+      total: totalLinea,
+      cliente_id: v.cliente_id,
+    });
   }
   return grupos.sort((a, b) => {
     const aTime = a.items[0]?.created_at || "";
@@ -668,10 +686,26 @@ function AuthScreen() {
 function Dashboard({ insumos, recetas, ventas, clientes, stock, onNavigate }) {
   const hoy = new Date().toISOString().split("T")[0];
   const ventasHoy = ventas.filter(v => v.fecha === hoy);
-  const ingresoHoy = ventasHoy.reduce((s, v) => s + v.precio_unitario * v.cantidad, 0);
+  const ingresoHoy = ventasHoy.reduce(
+    (s, v) =>
+      s +
+      (v.total_final != null
+        ? v.total_final
+        : (v.precio_unitario || 0) * (v.cantidad || 0)),
+    0
+  );
   const unidadesHoy = ventasHoy.reduce((s, v) => s + v.cantidad, 0);
   const stockBajo = recetas.filter(r => (stock || {})[r.id] <= 0);
-  const debeTotal = ventas.filter(v => v.estado_pago === "debe").reduce((s, v) => s + v.precio_unitario * v.cantidad, 0);
+  const debeTotal = ventas
+    .filter((v) => v.estado_pago === "debe")
+    .reduce(
+      (s, v) =>
+        s +
+        (v.total_final != null
+          ? v.total_final
+          : (v.precio_unitario || 0) * (v.cantidad || 0)),
+      0
+    );
 
   const QuickAction = ({ icon, label, sub, tab, alert }) => (
     <button className="dashboard-quick" onClick={() => onNavigate?.(tab)}>
@@ -1200,12 +1234,17 @@ function Recetas({ recetas, insumos, recetaIngredientes, showToast, onRefresh, c
 
   const save = async () => {
     setSaving(true);
+    const rindeNum = (() => { const v = parseFloat(form.rinde); return (isNaN(v) || v <= 0) ? 1 : v; })();
+    const costoLote = costoDesdeIngredientes(ingredientes, insumos);
+    const costoUnitario = rindeNum > 0 ? costoLote / rindeNum : 0;
     const payload = {
       nombre: form.nombre,
       emoji: form.emoji,
-      rinde: (() => { const v = parseFloat(form.rinde); return (isNaN(v) || v <= 0) ? 1 : v; })(),
+      rinde: rindeNum,
       unidad_rinde: form.unidad_rinde,
-      precio_venta: parseFloat(form.precio_venta) || 0
+      precio_venta: parseFloat(form.precio_venta) || 0,
+      costo_lote: costoLote,
+      costo_unitario: costoUnitario
     };
     let recId = editando?.id;
 
@@ -1266,11 +1305,14 @@ function Recetas({ recetas, insumos, recetaIngredientes, showToast, onRefresh, c
       {recetas.length === 0 ? (
         <div className="empty"><div className="empty-icon">📋</div><p>No hay recetas todavía.<br />Tocá + para agregar.</p></div>
       ) : recetasOrdenadas.map(r => {
-        const costo = costoReceta(r.id, recetaIngredientes, insumos);
         const rindeNum = parseFloat(r.rinde) || 1;
-        const costoPorUnidad = rindeNum > 0 ? costo / rindeNum : null;
-        const margenVal = rindeNum > 0 && r.precio_venta > 0 && costo >= 0 && costoPorUnidad != null
-          ? (r.precio_venta - costoPorUnidad) / r.precio_venta
+        const costoLoteCalc = costoReceta(r.id, recetaIngredientes, insumos);
+        const costoUnitarioCalc = rindeNum > 0 ? costoLoteCalc / rindeNum : null;
+        const costoUnitario = (typeof r.costo_unitario === "number" && r.costo_unitario >= 0)
+          ? r.costo_unitario
+          : costoUnitarioCalc;
+        const margenVal = rindeNum > 0 && r.precio_venta > 0 && costoUnitario != null
+          ? (r.precio_venta - costoUnitario) / r.precio_venta
           : null;
         const margen = margenVal != null ? pctFmt(margenVal) : "—";
         const margenNegativo = margenVal != null && margenVal < 0;
@@ -1290,8 +1332,8 @@ function Recetas({ recetas, insumos, recetaIngredientes, showToast, onRefresh, c
                 <div className="receta-stat-value">{fmt(r.precio_venta || 0)}/{(r.unidad_rinde || "u").replace("porción", "porc.")}</div>
               </div>
               <div className="receta-stat">
-                <div className="receta-stat-label">Costo</div>
-                <div className="receta-stat-value">{tieneIngredientes ? fmt(costo) : "—"}</div>
+                <div className="receta-stat-label">Costo/u</div>
+                <div className="receta-stat-value">{tieneIngredientes && costoUnitario != null ? fmt(costoUnitario) : "—"}</div>
               </div>
               <div className="receta-stat">
                 <div className="receta-stat-label">Margen</div>
@@ -1344,40 +1386,6 @@ function Recetas({ recetas, insumos, recetaIngredientes, showToast, onRefresh, c
               </div>
             </div>
 
-            {(() => {
-              const costoTotal = costoDesdeIngredientes(ingredientes, insumos);
-              const rindeNum = parseFloat(form.rinde) || 0;
-              const costoPorUnidad = rindeNum > 0 ? costoTotal / rindeNum : null;
-              const precioVenta = parseFloat(form.precio_venta) || 0;
-              const ventaTotal = rindeNum > 0 && precioVenta > 0 ? rindeNum * precioVenta : 0;
-              const margenVal = rindeNum > 0 && precioVenta > 0 && costoPorUnidad != null && costoPorUnidad >= 0 ? (precioVenta - costoPorUnidad) / precioVenta : null;
-              const unidadRinde = form.unidad_rinde || "u";
-              return (costoTotal > 0 || ingredientes.some(i => i.insumo_id || i.costo_fijo) || precioVenta > 0) ? (
-                <div className="stats-row" style={{ marginBottom: 16 }}>
-                  <div className="stat-card">
-                    <div className="stat-label">Costo total</div>
-                    <div className="stat-value">{fmt(costoTotal)}</div>
-                  </div>
-                  <div className="stat-card">
-                    <div className="stat-label">Costo por {unidadRinde}</div>
-                    <div className="stat-value accent">{rindeNum > 0 ? fmt(costoPorUnidad) : "—"}</div>
-                  </div>
-                  {ventaTotal > 0 && (
-                    <div className="stat-card" style={{ gridColumn: "1 / -1" }}>
-                      <div className="stat-label">Venta total ({rindeNum} × {fmt(precioVenta)}/{unidadRinde})</div>
-                      <div className="stat-value green">{fmt(ventaTotal)}</div>
-                    </div>
-                  )}
-                  {margenVal != null && (
-                    <div className="stat-card" style={{ gridColumn: "1 / -1" }}>
-                      <div className="stat-label">Margen</div>
-                      <div className={`stat-value ${margenVal < 0 ? "rojo" : "verde"}`}>{pctFmt(margenVal)}</div>
-                    </div>
-                  )}
-                </div>
-              ) : null;
-            })()}
-
             <div className="form-group">
               <label className="form-label">Precio de venta por {form.unidad_rinde || "u"} ($)</label>
               <input className="form-input" type="number" value={form.precio_venta} onChange={e => setForm({ ...form, precio_venta: e.target.value })} placeholder="6000" />
@@ -1422,6 +1430,43 @@ function Recetas({ recetas, insumos, recetaIngredientes, showToast, onRefresh, c
             )}
             <button className="btn-secondary" onClick={() => { setModal(false); setEditando(null); }}>Cancelar</button>
           </div>
+          {(() => {
+            const costoTotal = costoDesdeIngredientes(ingredientes, insumos);
+            const rindeNum = parseFloat(form.rinde) || 0;
+            const costoPorUnidad = rindeNum > 0 ? costoTotal / rindeNum : null;
+            const precioVenta = parseFloat(form.precio_venta) || 0;
+            const margenVal = rindeNum > 0 && precioVenta > 0 && costoPorUnidad != null && costoPorUnidad >= 0
+              ? (precioVenta - costoPorUnidad) / precioVenta
+              : null;
+            const unidadRinde = form.unidad_rinde || "u";
+            const showPanel = costoTotal > 0 || ingredientes.some(i => i.insumo_id || i.costo_fijo) || precioVenta > 0;
+            if (!showPanel) return null;
+            let margenClass = "";
+            if (margenVal != null) {
+              if (margenVal < 0.4) margenClass = "rojo";
+              else if (margenVal <= 0.6) margenClass = "yellow";
+              else margenClass = "green";
+            }
+            const margenText = margenVal != null ? pctFmt(margenVal) : "—";
+            return (
+              <div className="receta-cost-panel" style={{ borderTop: "1px solid var(--border)", padding: "10px 16px 14px", background: "var(--surface)" }}>
+                <div className="stats-row" style={{ marginBottom: 0 }}>
+                  <div className="stat-card">
+                    <div className="stat-label">Costo total lote</div>
+                    <div className="stat-value">{fmt(costoTotal)}</div>
+                  </div>
+                  <div className="stat-card">
+                    <div className="stat-label">Costo por {unidadRinde}</div>
+                    <div className="stat-value accent">{rindeNum > 0 ? fmt(costoPorUnidad) : "—"}</div>
+                  </div>
+                  <div className="stat-card" style={{ gridColumn: "1 / -1" }}>
+                    <div className="stat-label">Margen</div>
+                    <div className={`stat-value ${margenClass}`}>{margenText}</div>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
         </div>
       )}
     </div>
@@ -1683,7 +1728,7 @@ function Stock({ recetas, stock, actualizarStock, consumirInsumosPorStock, insum
         </div>
       )}
 
-      {manualScreenOpen && (
+      {manualScreenOpen && !voiceModal && (
         <div className="screen-overlay">
           <div className="screen-header">
             <button className="screen-back" onClick={() => setManualScreenOpen(false)}>← Volver</button>
@@ -1887,13 +1932,54 @@ function Clientes({ ventas, clientes, recetas, onRefresh, showToast }) {
   const [saving, setSaving] = useState(false);
   const [importingMultiple, setImportingMultiple] = useState(false);
   const [importProgress, setImportProgress] = useState({ done: 0, total: 0 });
+  const [search, setSearch] = useState("");
+  const [detalleCliente, setDetalleCliente] = useState(null);
+  const [cleaningDupes, setCleaningDupes] = useState(false);
 
-  const clientesConGasto = clientes.map((c) => {
-    const vs = ventas.filter((v) => v.cliente_id === c.id);
-    const total = vs.reduce((s, v) => s + v.precio_unitario * v.cantidad, 0);
-    const unidades = vs.reduce((s, v) => s + v.cantidad, 0);
-    return { ...c, total, unidades, ventas: vs.length };
-  }).sort((a, b) => b.total - a.total);
+  const getAvatarColor = (name) => {
+    if (!name) return "#ccc";
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) {
+      hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const hue = Math.abs(hash) % 360;
+    return `hsl(${hue}, 70%, 60%)`;
+  };
+
+  const normalizedTelefono = (tel) => (tel ? tel.trim() : "");
+
+  const telefonoExiste = (tel) => {
+    const t = normalizedTelefono(tel);
+    if (!t) return false;
+    return (clientes || []).some((c) => normalizedTelefono(c.telefono) === t);
+  };
+
+  const getVentasDeCliente = (clienteId) =>
+    ventas.filter((v) => v.cliente_id === clienteId);
+
+  const clientesConGasto = clientes
+    .map((c) => {
+      const vs = getVentasDeCliente(c.id);
+      const total = vs.reduce((s, v) => {
+        const linea =
+          v.total_final != null
+            ? v.total_final
+            : (v.precio_unitario || 0) * (v.cantidad || 0);
+        return s + linea;
+      }, 0);
+      const unidades = vs.reduce((s, v) => s + v.cantidad, 0);
+      return { ...c, total, unidades, ventas: vs.length };
+    })
+    .sort((a, b) => b.total - a.total);
+
+  const searchValue = search.trim().toLowerCase();
+
+  const clientesFiltrados = clientesConGasto.filter((c) => {
+    if (!searchValue) return true;
+    const nombre = (c.nombre || "").toLowerCase();
+    const tel = (c.telefono || "").toLowerCase();
+    return nombre.includes(searchValue) || tel.includes(searchValue);
+  });
 
   const openNew = () => {
     setForm({ nombre: "", telefono: "" });
@@ -1902,11 +1988,20 @@ function Clientes({ ventas, clientes, recetas, onRefresh, showToast }) {
 
   const save = async () => {
     if (!form.nombre.trim()) return;
+    const telNorm = normalizedTelefono(form.telefono);
+    if (telNorm && telefonoExiste(telNorm)) {
+      showToast("Ya existe un cliente con ese teléfono");
+      return;
+    }
     setSaving(true);
-    const { error } = await supabase.from("clientes").insert({ nombre: form.nombre.trim(), telefono: form.telefono.trim() || null });
+    const { error } = await supabase
+      .from("clientes")
+      .insert({ nombre: form.nombre.trim(), telefono: telNorm || null });
     if (error) {
       reportError(error, { action: "saveCliente", form: { ...form } });
-      showToast(`⚠️ Error al guardar: ${(error.message || "").slice(0, 50)}`);
+      showToast(
+        `⚠️ Error al guardar: ${(error.message || "").slice(0, 50)}`
+      );
       setSaving(false);
       return;
     }
@@ -1918,25 +2013,124 @@ function Clientes({ ventas, clientes, recetas, onRefresh, showToast }) {
 
   const importarVariosContactos = async () => {
     const r = await selectContactsFromPhoneMultiple();
-    if (r.error === "no-support") { showToast("No disponible en este dispositivo"); return; }
+    if (r.error === "no-support") {
+      showToast("No disponible en este dispositivo");
+      return;
+    }
     if (r.error === "cancelled" || !r.contacts?.length) return;
     const list = r.contacts.filter((c) => c.name || c.tel);
-    if (list.length === 0) { showToast("No hay contactos con nombre o teléfono"); return; }
+    if (list.length === 0) {
+      showToast("No hay contactos con nombre o teléfono");
+      return;
+    }
     setImportingMultiple(true);
     setImportProgress({ done: 0, total: list.length });
     let ok = 0;
+    const existingPhones = new Set(
+      (clientes || [])
+        .map((c) => normalizedTelefono(c.telefono))
+        .filter(Boolean)
+    );
+    const newPhones = new Set();
     for (let i = 0; i < list.length; i++) {
+      const telNorm = normalizedTelefono(list[i].tel);
+      if (telNorm && (existingPhones.has(telNorm) || newPhones.has(telNorm))) {
+        setImportProgress({ done: i + 1, total: list.length });
+        continue;
+      }
       const { error } = await supabase.from("clientes").insert({
         nombre: list[i].name || "Sin nombre",
-        telefono: list[i].tel || null
+        telefono: telNorm || null,
       });
-      if (!error) ok++;
+      if (!error) {
+        ok++;
+        if (telNorm) newPhones.add(telNorm);
+      }
       setImportProgress({ done: i + 1, total: list.length });
     }
     setImportingMultiple(false);
     setImportProgress({ done: 0, total: 0 });
     showToast(`✅ ${ok} de ${list.length} cliente(s) importado(s)`);
     await onRefresh();
+  };
+
+  const eliminarDuplicados = async () => {
+    if (cleaningDupes) return;
+    setCleaningDupes(true);
+    try {
+      const porTelefono = new Map();
+      (clientes || []).forEach((c) => {
+        const tel = normalizedTelefono(c.telefono);
+        if (!tel) return;
+        const arr = porTelefono.get(tel) || [];
+        arr.push(c);
+        porTelefono.set(tel, arr);
+      });
+
+      let mergedCount = 0;
+
+      for (const [, list] of porTelefono.entries()) {
+        if (list.length <= 1) continue;
+        const withStats = list.map((c) => {
+          const vs = getVentasDeCliente(c.id);
+          const total = vs.reduce((s, v) => {
+            const linea =
+              v.total_final != null
+                ? v.total_final
+                : (v.precio_unitario || 0) * (v.cantidad || 0);
+            return s + linea;
+          }, 0);
+          return { cliente: c, ventasCount: vs.length, total };
+        });
+        withStats.sort(
+          (a, b) =>
+            b.ventasCount - a.ventasCount ||
+            b.total - a.total ||
+            (a.cliente.id || 0) - (b.cliente.id || 0)
+        );
+        const keep = withStats[0].cliente;
+        const losers = withStats.slice(1).map((x) => x.cliente);
+
+        for (const loser of losers) {
+          const { error: updError } = await supabase
+            .from("ventas")
+            .update({ cliente_id: keep.id })
+            .eq("cliente_id", loser.id);
+          if (updError) {
+            reportError(updError, {
+              action: "mergeClienteVentas",
+              from: loser.id,
+              to: keep.id,
+            });
+            continue;
+          }
+          const { error: delError } = await supabase
+            .from("clientes")
+            .delete()
+            .eq("id", loser.id);
+          if (delError) {
+            reportError(delError, {
+              action: "deleteClienteDuplicado",
+              id: loser.id,
+            });
+            continue;
+          }
+          mergedCount++;
+        }
+      }
+
+      if (mergedCount === 0) {
+        showToast("No se encontraron clientes duplicados por teléfono");
+      } else {
+        showToast(`✅ Se unificaron ${mergedCount} cliente(s) duplicado(s)`);
+        await onRefresh();
+      }
+    } catch (err) {
+      reportError(err, { action: "eliminarDuplicadosClientes" });
+      showToast("⚠️ Error al eliminar duplicados");
+    } finally {
+      setCleaningDupes(false);
+    }
   };
 
   return (
@@ -1958,32 +2152,234 @@ function Clientes({ ventas, clientes, recetas, onRefresh, showToast }) {
       <div className="card">
         <div className="card-header">
           <span className="card-title">Todos los clientes</span>
-          <button className="edit-btn" onClick={openNew}>+ Cliente</button>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={eliminarDuplicados}
+              disabled={cleaningDupes}
+            >
+              {cleaningDupes ? "Limpiando..." : "Eliminar duplicados"}
+            </button>
+            <button className="edit-btn" onClick={openNew}>
+              + Cliente
+            </button>
+          </div>
+        </div>
+        <div style={{ margin: "8px 16px 12px" }}>
+          <input
+            className="form-input"
+            placeholder="Buscar por nombre o teléfono"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
         </div>
         {clientesConGasto.length === 0 ? (
           <div className="empty">
             <div className="empty-icon">👥</div>
-            <p>No hay clientes registrados.<br />Agregá uno con el botón + Cliente.</p>
+            <p>
+              No hay clientes registrados.<br />
+              Agregá uno con el botón + Cliente.
+            </p>
           </div>
-        ) : clientesConGasto.map((c) => {
-          const conCompras = clientesConGasto.filter(x => x.total > 0);
-          const rank = conCompras.findIndex(x => x.id === c.id) + 1;
-          return (
-          <div key={c.id} className="venta-item">
-            <span style={{ fontSize: 18, fontWeight: 700, color: "var(--text-muted)", minWidth: 24 }}>{rank > 0 ? `#${rank}` : "—"}</span>
-            <div className="insumo-info" style={{ flex: 1 }}>
-              <div className="insumo-nombre">{c.nombre}</div>
-              <div className="insumo-detalle">{c.telefono || "—"} · {c.ventas} compra(s)</div>
-            </div>
-            <div className="insumo-precio">
-              <div className="insumo-precio-value" style={{ color: c.total > 0 ? "var(--green)" : "var(--text-muted)" }}>{c.total > 0 ? fmt(c.total) : "—"}</div>
-            </div>
+        ) : clientesFiltrados.length === 0 ? (
+          <div className="empty">
+            <div className="empty-icon">🔍</div>
+            <p>No se encontraron clientes para esa búsqueda.</p>
           </div>
-          );
-        })}
+        ) : (
+          clientesFiltrados.map((c) => {
+            const conCompras = clientesConGasto.filter((x) => x.total > 0);
+            const rank = conCompras.findIndex((x) => x.id === c.id) + 1;
+            const initial =
+              ((c.nombre || "").trim()[0] || "?").toUpperCase();
+            return (
+              <div
+                key={c.id}
+                className="venta-item"
+                onClick={() => setDetalleCliente(c)}
+                style={{ cursor: "pointer" }}
+              >
+                <span
+                  style={{
+                    fontSize: 18,
+                    fontWeight: 700,
+                    color: "var(--text-muted)",
+                    minWidth: 24,
+                  }}
+                >
+                  {rank > 0 ? `#${rank}` : "—"}
+                </span>
+                <div
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: "50%",
+                    background: getAvatarColor(c.nombre),
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "#fff",
+                    fontWeight: 600,
+                    marginRight: 12,
+                    flexShrink: 0,
+                  }}
+                >
+                  {initial}
+                </div>
+                <div className="insumo-info" style={{ flex: 1 }}>
+                  <div className="insumo-nombre">{c.nombre}</div>
+                  <div className="insumo-detalle">
+                    {c.telefono || "—"} · {c.ventas} compra(s)
+                  </div>
+                </div>
+                <div className="insumo-precio">
+                  <div
+                    className="insumo-precio-value"
+                    style={{
+                      color:
+                        c.total > 0
+                          ? "var(--green)"
+                          : "var(--text-muted)",
+                    }}
+                  >
+                    {c.total > 0 ? fmt(c.total) : "—"}
+                  </div>
+                </div>
+              </div>
+            );
+          })
+        )}
       </div>
 
       <button className="fab" onClick={openNew}>+</button>
+
+      {detalleCliente && (
+        <div className="screen-overlay">
+          <div className="screen-header">
+            <button
+              className="screen-back"
+              onClick={() => setDetalleCliente(null)}
+            >
+              ← Volver
+            </button>
+            <span className="screen-title">{detalleCliente.nombre}</span>
+          </div>
+          <div className="screen-content">
+            <div className="card" style={{ marginBottom: 16 }}>
+              <div className="card-header">
+                <span className="card-title">Resumen</span>
+              </div>
+              <p
+                style={{
+                  fontSize: 13,
+                  color: "var(--text-muted)",
+                  marginBottom: 6,
+                }}
+              >
+                <strong>Teléfono:</strong>{" "}
+                {detalleCliente.telefono || "—"}
+              </p>
+              {(() => {
+                const vs = getVentasDeCliente(detalleCliente.id);
+            const total = vs.reduce((s, v) => {
+              const linea =
+                v.total_final != null
+                  ? v.total_final
+                  : (v.precio_unitario || 0) * (v.cantidad || 0);
+              return s + linea;
+            }, 0);
+                return (
+                  <>
+                    <p
+                      style={{
+                        fontSize: 13,
+                        color: "var(--text-muted)",
+                        marginBottom: 6,
+                      }}
+                    >
+                      <strong>Compras:</strong> {vs.length}
+                    </p>
+                    <p
+                      style={{
+                        fontSize: 13,
+                        color: "var(--text-muted)",
+                      }}
+                    >
+                      <strong>Total gastado:</strong> {fmt(total)}
+                    </p>
+                  </>
+                );
+              })()}
+            </div>
+
+            <div className="card">
+              <div className="card-header">
+                <span className="card-title">Historial de compras</span>
+              </div>
+              {(() => {
+                const vs = getVentasDeCliente(detalleCliente.id).sort(
+                  (a, b) =>
+                    (a.fecha || "") > (b.fecha || "")
+                      ? -1
+                      : (a.fecha || "") < (b.fecha || "")
+                      ? 1
+                      : 0
+                );
+                if (vs.length === 0) {
+                  return (
+                    <p
+                      style={{
+                        fontSize: 13,
+                        color: "var(--text-muted)",
+                        padding: "12px 16px",
+                      }}
+                    >
+                      No hay compras registradas para este cliente.
+                    </p>
+                  );
+                }
+                return vs.map((v) => {
+                  const receta = recetas.find(
+                    (r) => r.id === v.receta_id
+                  );
+                  const totalLinea =
+                    v.total_final != null
+                      ? v.total_final
+                      : (v.precio_unitario || 0) * (v.cantidad || 0);
+                  let fechaLabel = v.fecha;
+                  try {
+                    if (v.fecha) {
+                      fechaLabel = new Date(
+                        v.fecha
+                      ).toLocaleDateString("es-AR");
+                    }
+                  } catch {
+                    // ignore parse errors
+                  }
+                  return (
+                    <div key={v.id} className="venta-item">
+                      <div className="insumo-info" style={{ flex: 1 }}>
+                        <div className="insumo-nombre">
+                          {receta?.nombre || "Producto"}
+                        </div>
+                        <div className="insumo-detalle">
+                          {fechaLabel} · {v.cantidad} u
+                        </div>
+                      </div>
+                      <div className="insumo-precio">
+                        <div className="insumo-precio-value">
+                          {fmt(totalLinea)}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
 
       {modal && (
         <div className="screen-overlay">
@@ -2074,15 +2470,14 @@ const SpeechRecognitionAPI = typeof window !== "undefined" && (window.SpeechReco
 
 function Ventas({ recetas, ventas, clientes, stock, actualizarStock, onRefresh, showToast, confirm }) {
   const [manualScreenOpen, setManualScreenOpen] = useState(false);
-  const [modal, setModal] = useState(false);
-  const [recetaSel, setRecetaSel] = useState(null);
-  const [cantidad, setCantidad] = useState(1);
+  const [cartItems, setCartItems] = useState([]);
   const [clienteSel, setClienteSel] = useState(null);
   const [medioPago, setMedioPago] = useState("efectivo");
   const [estadoPago, setEstadoPago] = useState("pagado");
   const [saving, setSaving] = useState(false);
   const [voiceModal, setVoiceModal] = useState(false);
-  const [newVentaModalOpen, setNewVentaModalOpen] = useState(false);
+  const [chargeModalOpen, setChargeModalOpen] = useState(false);
+  const [chargeTotalOverride, setChargeTotalOverride] = useState("");
   const [listening, setListening] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [parsedVentas, setParsedVentas] = useState([]);
@@ -2102,39 +2497,71 @@ function Ventas({ recetas, ventas, clientes, stock, actualizarStock, onRefresh, 
 
   const hoy = new Date().toISOString().split("T")[0];
   const ventasHoy = ventas.filter(v => v.fecha === hoy);
-  const ingresoHoy = ventasHoy.reduce((s, v) => s + v.precio_unitario * v.cantidad, 0);
+  const ingresoHoy = ventasHoy.reduce(
+    (s, v) =>
+      s +
+      (v.total_final != null
+        ? v.total_final
+        : (v.precio_unitario || 0) * (v.cantidad || 0)),
+    0
+  );
+  const cartTotal = cartItems.reduce(
+    (s, item) => s + (item.precio_unitario || 0) * (item.cantidad || 0),
+    0
+  );
 
-  const registrar = async () => {
-    if (!recetaSel) return;
-    const st = (stock || {})[recetaSel.id] ?? 0;
-    if (st < cantidad && !(await confirm(`Stock: ${st}. ¿Vender ${cantidad} igual?`))) return;
-    setSaving(true);
-    try {
-      const { error } = await supabase.from("ventas").insert({
-        receta_id: recetaSel.id,
-        cantidad: cantidad,
-        precio_unitario: recetaSel.precio_venta,
-        fecha: hoy,
-        cliente_id: clienteSel || null,
-        medio_pago: medioPago,
-        estado_pago: estadoPago
-      });
-      if (error) throw error;
-      if (actualizarStock) await actualizarStock(recetaSel.id, -cantidad);
-      showToast(`✅ Venta registrada: ${cantidad}x ${recetaSel.nombre}`);
-      setModal(false);
-      onRefresh();
-    } catch (err) {
-      reportError(err, { action: "registrarVenta", receta_id: recetaSel?.id });
-      showToast("⚠️ Error al registrar venta");
-    } finally {
-      setSaving(false);
-    }
+  const addToCart = (receta, cantidad = 1) => {
+    if (!receta) return;
+    setCartItems((prev) => {
+      const idx = prev.findIndex((it) => it.receta.id === receta.id);
+      if (idx >= 0) {
+        const copy = [...prev];
+        copy[idx] = { ...copy[idx], cantidad: copy[idx].cantidad + cantidad };
+        return copy;
+      }
+      return [
+        ...prev,
+        { receta, cantidad, precio_unitario: receta.precio_venta || 0 }
+      ];
+    });
+  };
+
+  const updateCartQuantity = (recetaId, delta) => {
+    setCartItems((prev) =>
+      prev.map((item) =>
+        item.receta.id === recetaId
+          ? { ...item, cantidad: Math.max(1, item.cantidad + delta) }
+          : item
+      )
+    );
+  };
+
+  const removeFromCart = (recetaId) => {
+    setCartItems((prev) => prev.filter((item) => item.receta.id !== recetaId));
+  };
+
+  const updateCartPrice = (recetaId, value) => {
+    const num = parseFloat(String(value).replace(",", "."));
+    if (Number.isNaN(num) || num < 0) return;
+    setCartItems((prev) =>
+      prev.map((item) =>
+        item.receta.id === recetaId ? { ...item, precio_unitario: num } : item
+      )
+    );
+  };
+
+  const resetNuevaVenta = () => {
+    setManualScreenOpen(false);
+    setCartItems([]);
+    setClienteSel(null);
+    setMedioPago("efectivo");
+    setEstadoPago("pagado");
+    setChargeTotalOverride("");
+    setChargeModalOpen(false);
   };
 
   const closeManualScreen = () => {
-    setManualScreenOpen(false);
-    setModal(false);
+    resetNuevaVenta();
   };
 
   const eliminarVenta = async (grupo) => {
@@ -2203,7 +2630,14 @@ function Ventas({ recetas, ventas, clientes, stock, actualizarStock, onRefresh, 
           estado_pago: editForm.estado_pago
         };
         const nuevaCant = editCantidades[v.id] ?? v.cantidad;
-        if (editCantidades[v.id] != null) payload.cantidad = nuevaCant;
+        if (editCantidades[v.id] != null) {
+          payload.cantidad = nuevaCant;
+          const precio = v.precio_unitario || 0;
+          const subtotal = precio * nuevaCant;
+          const descuento = v.descuento != null ? v.descuento : 0;
+          payload.subtotal = subtotal;
+          payload.total_final = subtotal - descuento;
+        }
         if (editItemsToAdd.length > 0 && !transaccionId) {
           transaccionId = crypto.randomUUID?.() || `t-${Date.now()}`;
           payload.transaccion_id = transaccionId;
@@ -2216,16 +2650,25 @@ function Ventas({ recetas, ventas, clientes, stock, actualizarStock, onRefresh, 
 
       if (editItemsToAdd.length > 0) {
         if (!transaccionId) transaccionId = crypto.randomUUID?.() || `t-${Date.now()}`;
-        const rows = editItemsToAdd.map(({ receta_id, cantidad, receta }) => ({
-          receta_id,
-          cantidad,
-          precio_unitario: receta.precio_venta,
-          fecha: hoy,
-          transaccion_id: transaccionId,
-          cliente_id: editForm.cliente_id || null,
-          medio_pago: editForm.medio_pago,
-          estado_pago: editForm.estado_pago
-        }));
+        const rows = editItemsToAdd.map(({ receta_id, cantidad, receta }) => {
+          const precio = receta.precio_venta || 0;
+          const subtotal = precio * cantidad;
+          const descuento = 0;
+          const total_final = subtotal - descuento;
+          return {
+            receta_id,
+            cantidad,
+            precio_unitario: precio,
+            subtotal,
+            descuento,
+            total_final,
+            fecha: hoy,
+            transaccion_id: transaccionId,
+            cliente_id: editForm.cliente_id || null,
+            medio_pago: editForm.medio_pago,
+            estado_pago: editForm.estado_pago
+          };
+        });
         const { error } = await supabase.from("ventas").insert(rows);
         if (error) throw error;
         if (actualizarStock) for (const { receta_id, cantidad: cant } of editItemsToAdd) await actualizarStock(receta_id, -cant);
@@ -2244,30 +2687,63 @@ function Ventas({ recetas, ventas, clientes, stock, actualizarStock, onRefresh, 
     }
   };
 
-  const openManualReceta = (receta) => {
-    setRecetaSel(receta);
-    setCantidad(1);
-    setModal(true);
-  };
-
   const SelectorCliente = ({ value, onChange }) => (
     <div className="form-group">
       <label className="form-label">Cliente</label>
-      <select className="form-input" value={value || ""} onChange={e => onChange(e.target.value ? e.target.value : null)}>
+      <select
+        className="form-input"
+        value={value || ""}
+        onChange={(e) => onChange(e.target.value ? e.target.value : null)}
+      >
         <option value="">— Sin cliente</option>
-        {(clientes || []).map(c => (
-          <option key={c.id} value={c.id}>{c.nombre}{c.telefono ? ` · ${c.telefono}` : ""}</option>
+        {(clientes || []).map((c) => (
+          <option key={c.id} value={c.id}>
+            {c.nombre}
+            {c.telefono ? ` · ${c.telefono}` : ""}
+          </option>
         ))}
       </select>
-      <button type="button" className="btn-secondary" style={{ marginTop: 8 }} title="Agregar desde contactos del celular" onClick={async () => {
-        const r = await selectContactFromPhone();
-        if (r.error === "no-support") { showToast("No disponible en este dispositivo"); return; }
-        if (r.error === "cancelled") return;
-        if (!r.name?.trim()) return;
-        const { data, error } = await supabase.from("clientes").insert({ nombre: r.name.trim(), telefono: r.tel?.trim() || null }).select("id").single();
-        if (error) { showToast("⚠️ Error al agregar cliente"); return; }
-        if (data) { await onRefresh(); onChange(data.id); showToast(`✅ Cliente ${r.name} agregado`); }
-      }}>📇 Elegir contacto</button>
+      <button
+        type="button"
+        className="btn-secondary"
+        style={{ marginTop: 8 }}
+        title="Agregar desde contactos del celular"
+        onClick={async () => {
+          const r = await selectContactFromPhone();
+          if (r.error === "no-support") {
+            showToast("No disponible en este dispositivo");
+            return;
+          }
+          if (r.error === "cancelled") return;
+          if (!r.name?.trim()) return;
+          const telNorm = r.tel?.trim() || "";
+          if (
+            telNorm &&
+            (clientes || []).some(
+              (c) => (c.telefono || "").trim() === telNorm
+            )
+          ) {
+            showToast("Ya existe un cliente con ese teléfono");
+            return;
+          }
+          const { data, error } = await supabase
+            .from("clientes")
+            .insert({ nombre: r.name.trim(), telefono: telNorm || null })
+            .select("id")
+            .single();
+          if (error) {
+            showToast("⚠️ Error al agregar cliente");
+            return;
+          }
+          if (data) {
+            await onRefresh();
+            onChange(data.id);
+            showToast(`✅ Cliente ${r.name} agregado`);
+          }
+        }}
+      >
+        📇 Elegir contacto
+      </button>
     </div>
   );
 
@@ -2276,8 +2752,10 @@ function Ventas({ recetas, ventas, clientes, stock, actualizarStock, onRefresh, 
       <div className="form-group">
         <label className="form-label">Medio</label>
         <select className="form-input" value={medioPago} onChange={e => setMedioPago(e.target.value)}>
-          <option value="efectivo">💵 Efectivo</option>
-          <option value="transferencia">📱 Transferencia</option>
+        <option value="efectivo">💵 Efectivo</option>
+        <option value="transferencia">📱 Transferencia</option>
+        <option value="debito">💳 Débito</option>
+        <option value="credito">💳 Crédito</option>
         </select>
       </div>
       <div className="form-group">
@@ -2361,40 +2839,162 @@ function Ventas({ recetas, ventas, clientes, stock, actualizarStock, onRefresh, 
 
   const registrarVentasVoz = async () => {
     if (parsedVentas.length === 0) {
-      showToast("No se detectaron ventas. Probá de nuevo.");
+      showToast("No se detectaron productos. Probá de nuevo.");
       return;
     }
-    const sinStock = parsedVentas.filter(({ receta, cantidad: cant }) => ((stock || {})[receta.id] ?? 0) < cant);
-    if (sinStock.length > 0 && !(await confirm(`Stock insuficiente en ${sinStock.map(s => s.receta.nombre).join(", ")}. ¿Registrar venta igual?`))) return;
     setSavingVoice(true);
     try {
-      const transaccionId = crypto.randomUUID?.() || `t-${Date.now()}`;
-      const rows = parsedVentas.map(({ receta, cantidad: cant }) => ({
-        receta_id: receta.id,
-        cantidad: cant,
-        precio_unitario: receta.precio_venta,
-        fecha: hoy,
-        transaccion_id: transaccionId,
-        cliente_id: clienteSel || null,
-        medio_pago: medioPago,
-        estado_pago: estadoPago
-      }));
+      setCartItems((prev) => {
+        const merged = [...prev];
+        for (const { receta, cantidad: cant } of parsedVentas) {
+          if (!receta) continue;
+          const idx = merged.findIndex((m) => m.receta.id === receta.id);
+          if (idx >= 0) {
+            merged[idx] = {
+              ...merged[idx],
+              cantidad: merged[idx].cantidad + cant
+            };
+          } else {
+            merged.push({
+              receta,
+              cantidad: cant,
+              precio_unitario: receta.precio_venta || 0
+            });
+          }
+        }
+        return merged;
+      });
+      const total = parsedVentas.reduce(
+        (s, v) => s + (v.receta.precio_venta || 0) * v.cantidad,
+        0
+      );
+      showToast(`✅ Productos agregados al carrito (${fmt(total)})`);
+      setVoiceModal(false);
+      setTranscript("");
+      setParsedVentas([]);
+    } finally {
+      setSavingVoice(false);
+    }
+  };
+
+  const abrirCobro = () => {
+    if (cartItems.length === 0) return;
+    setChargeTotalOverride("");
+    setChargeModalOpen(true);
+  };
+
+  const registrarVentaCarrito = async () => {
+    if (cartItems.length === 0) {
+      showToast("Agregá productos al carrito primero.");
+      return;
+    }
+
+    const sinStock = cartItems.filter(
+      ({ receta, cantidad }) => ((stock || {})[receta.id] ?? 0) < cantidad
+    );
+    if (
+      sinStock.length > 0 &&
+      !(await confirm(
+        `Stock insuficiente en ${sinStock
+          .map((s) => s.receta.nombre)
+          .join(", ")}. ¿Registrar venta igual?`
+      ))
+    ) {
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const hoy = new Date().toISOString().split("T")[0];
+      const totalCarrito = cartItems.reduce(
+        (s, it) => s + (it.precio_unitario || 0) * (it.cantidad || 0),
+        0
+      );
+      const override = parseFloat(
+        String(chargeTotalOverride || "").replace(",", ".")
+      );
+      const usarOverride =
+        !Number.isNaN(override) &&
+        override >= 0 &&
+        override !== totalCarrito &&
+        totalCarrito > 0;
+
+      if (totalCarrito === 0 && !Number.isNaN(override) && override > 0) {
+        showToast(
+          "Para usar un total final distinto, asigná precios mayores a 0 en el carrito."
+        );
+        return;
+      }
+
+      let transaccionId = crypto.randomUUID?.() || `t-${Date.now()}`;
+      const rows = cartItems.map(({ receta, cantidad, precio_unitario }) => {
+        const precio = precio_unitario || 0;
+        const subtotal = precio * (cantidad || 0);
+        const descuento = 0;
+        const total_final = subtotal - descuento;
+        return {
+          receta_id: receta.id,
+          cantidad,
+          precio_unitario: precio,
+          subtotal,
+          descuento,
+          total_final,
+          fecha: hoy,
+          transaccion_id: transaccionId,
+          cliente_id: clienteSel || null,
+          medio_pago: medioPago,
+          estado_pago: estadoPago
+        };
+      });
+
+      if (usarOverride) {
+        const factor = override / totalCarrito;
+        let acumulado = 0;
+        for (let i = 0; i < rows.length; i++) {
+          const baseSubtotal = rows[i].subtotal || 0;
+          let nuevoSubtotal =
+            i === rows.length - 1
+              ? override - acumulado
+              : Math.round(baseSubtotal * factor);
+          const nuevaPU =
+            rows[i].cantidad > 0
+              ? nuevoSubtotal / rows[i].cantidad
+              : rows[i].precio_unitario;
+          acumulado += nuevoSubtotal;
+          rows[i].precio_unitario = nuevaPU;
+          rows[i].subtotal = nuevoSubtotal;
+          rows[i].descuento = 0;
+          rows[i].total_final = nuevoSubtotal;
+        }
+      }
+
       let { error } = await supabase.from("ventas").insert(rows);
-      const sinTransaccion = error && (error.message?.includes("transaccion_id") || error.code === "42703");
+      const sinTransaccion =
+        error &&
+        (error.message?.includes("transaccion_id") || error.code === "42703");
       if (sinTransaccion) {
-        const res = await supabase.from("ventas").insert(rows.map(({ transaccion_id, ...r }) => r));
+        const res = await supabase
+          .from("ventas")
+          .insert(rows.map(({ transaccion_id, ...r }) => r));
         error = res.error;
       }
       if (error) throw error;
-      if (actualizarStock) for (const { receta, cantidad: cant } of parsedVentas) await actualizarStock(receta.id, -cant);
-      const total = parsedVentas.reduce((s, v) => s + v.receta.precio_venta * v.cantidad, 0);
-      showToast(`✅ 1 venta registrada: ${fmt(total)}`);
-      setVoiceModal(false);
+
+      if (actualizarStock) {
+        for (const { receta, cantidad } of cartItems) {
+          await actualizarStock(receta.id, -cantidad);
+        }
+      }
+
+      const totalFinal = usarOverride ? override : totalCarrito;
+      showToast(`✅ Venta registrada: ${fmt(totalFinal)}`);
+      resetNuevaVenta();
       onRefresh();
-    } catch {
-      showToast("⚠️ Error al registrar");
+    } catch (err) {
+      reportError(err, { action: "registrarVentaCarrito" });
+      showToast("⚠️ Error al registrar venta");
     } finally {
-      setSavingVoice(false);
+      setSaving(false);
     }
   };
 
@@ -2447,6 +3047,8 @@ function Ventas({ recetas, ventas, clientes, stock, actualizarStock, onRefresh, 
                 <select className="form-input" value={editForm.medio_pago} onChange={e => setEditForm({ ...editForm, medio_pago: e.target.value })}>
                   <option value="efectivo">💵 Efectivo</option>
                   <option value="transferencia">📱 Transferencia</option>
+                  <option value="debito">💳 Débito</option>
+                  <option value="credito">💳 Crédito</option>
                 </select>
               </div>
               <div className="form-group">
@@ -2519,12 +3121,14 @@ function Ventas({ recetas, ventas, clientes, stock, actualizarStock, onRefresh, 
         <div className="screen-overlay">
           <div className="screen-header">
             <button className="screen-back" onClick={() => { detenerVoz(); setVoiceModal(false); }}>← Volver</button>
-            <span className="screen-title">🎤 Venta por voz</span>
+            <span className="screen-title">🎤 Agregar por voz</span>
           </div>
           <div className="screen-content">
-            <SelectorCliente value={clienteSel} onChange={setClienteSel} />
-            <SelectoresPago />
-            <p className="voice-text" style={{ marginBottom: 12 }}>Decí por ejemplo: &quot;2 panes lactales, 2 brownies&quot;</p>
+            <p className="voice-text" style={{ marginBottom: 12 }}>
+              Decí por ejemplo: &quot;2 brownies y 1 pan lactal&quot;.
+              <br />
+              Vamos a agregar los productos al carrito.
+            </p>
             {listening && (
               <button className="voice-btn listening" onClick={detenerVoz} style={{ marginBottom: 16 }}>
                 Detener
@@ -2564,45 +3168,22 @@ function Ventas({ recetas, ventas, clientes, stock, actualizarStock, onRefresh, 
               </button>
             )}
             <button className="btn-primary" onClick={registrarVentasVoz} disabled={savingVoice || parsedVentas.length === 0}>
-              {savingVoice ? "Registrando…" : `Registrar 1 venta · ${fmt(parsedVentas.reduce((s, v) => s + v.receta.precio_venta * v.cantidad, 0))}`}
+              {savingVoice
+                ? "Agregando…"
+                : `Agregar al carrito · ${fmt(
+                    parsedVentas.reduce(
+                      (s, v) => s + v.receta.precio_venta * v.cantidad,
+                      0
+                    )
+                  )}`}
             </button>
             <button className="btn-secondary" onClick={() => { detenerVoz(); setVoiceModal(false); }}>Cancelar</button>
           </div>
         </div>
       )}
 
-      {newVentaModalOpen && (
-        <div className="modal-overlay" onClick={() => setNewVentaModalOpen(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
-            <h2 className="modal-title">Nueva venta</h2>
-            <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 16 }}>
-              Elegí cómo querés cargar la venta.
-            </p>
-            <button
-              className="btn-primary"
-              style={{ marginBottom: 8 }}
-              onClick={() => {
-                setNewVentaModalOpen(false);
-                iniciarVoz();
-              }}
-            >
-              🎤 Venta por voz
-            </button>
-            <button
-              className="btn-secondary"
-              onClick={() => {
-                setNewVentaModalOpen(false);
-                setManualScreenOpen(true);
-              }}
-            >
-              📝 Cargar manualmente
-            </button>
-          </div>
-        </div>
-      )}
-
       {!manualScreenOpen && !voiceModal && (
-        <button className="fab fab-receta" onClick={() => setNewVentaModalOpen(true)} title="Nueva venta">
+        <button className="fab fab-receta" onClick={() => setManualScreenOpen(true)} title="Nueva venta">
           <span>+</span>
           <span>Nueva venta</span>
         </button>
@@ -2610,63 +3191,214 @@ function Ventas({ recetas, ventas, clientes, stock, actualizarStock, onRefresh, 
 
       {manualScreenOpen && (
         <div className="screen-overlay">
-          <div className="screen-header">
+          <div className="screen-header" style={{ alignItems: "flex-start" }}>
             <button className="screen-back" onClick={closeManualScreen}>← Volver</button>
-            <span className="screen-title">Nueva venta manual</span>
+            <div style={{ flex: 1, marginLeft: 8 }}>
+              <div className="screen-title">Nueva venta</div>
+              <div style={{ fontSize: 13, color: "var(--text-muted)" }}>Calculadora de venta</div>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
+              <div style={{ fontSize: 11, color: "var(--text-muted)" }}>Total</div>
+              <div style={{ fontFamily: "'Outfit', sans-serif", fontSize: 20, color: "var(--purple-dark)" }}>{fmt(cartTotal)}</div>
+              <div style={{ display: "flex", gap: 6 }}>
+                <button type="button" className="btn-secondary" onClick={iniciarVoz}>🎙️ Voz</button>
+                <button type="button" className="btn-primary" onClick={abrirCobro} disabled={cartItems.length === 0}>✓ Cobrar</button>
+              </div>
+            </div>
           </div>
           <div className="screen-content">
             <div className="card" style={{ marginBottom: 16 }}>
-              <SelectorCliente value={clienteSel} onChange={setClienteSel} />
-              <SelectoresPago />
+              <div className="card-header">
+                <span className="card-title">Carrito</span>
+              </div>
+              {cartItems.length === 0 ? (
+                <p style={{ padding: "12px 4px", fontSize: 14, color: "var(--text-muted)" }}>Agregá productos</p>
+              ) : (
+                <>
+                  <div>
+                    {cartItems.map((item) => (
+                      <div key={item.receta.id} className="insumo-item" style={{ alignItems: "center", gap: 8 }}>
+                        <span style={{ fontSize: 22 }}>{item.receta.emoji}</span>
+                        <div className="insumo-info" style={{ flex: 1 }}>
+                          <div className="insumo-nombre">{item.receta.nombre}</div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                              <button
+                                type="button"
+                                onClick={() => updateCartQuantity(item.receta.id, -1)}
+                                style={{ width: 28, height: 28, borderRadius: 999, border: "1px solid var(--border)", background: "var(--cream)", fontSize: 18, cursor: "pointer" }}
+                              >
+                                −
+                              </button>
+                              <span style={{ minWidth: 24, textAlign: "center" }}>{item.cantidad}</span>
+                              <button
+                                type="button"
+                                onClick={() => updateCartQuantity(item.receta.id, 1)}
+                                style={{ width: 28, height: 28, borderRadius: 999, border: "1px solid var(--border)", background: "var(--cream)", fontSize: 18, cursor: "pointer" }}
+                              >
+                                +
+                              </button>
+                            </div>
+                            <div style={{ display: "flex", alignItems: "center", gap: 4, flex: 1 }}>
+                              <span style={{ fontSize: 12, color: "var(--text-muted)" }}>$</span>
+                              <input
+                                type="number"
+                                className="form-input"
+                                value={item.precio_unitario}
+                                onChange={(e) => updateCartPrice(item.receta.id, e.target.value)}
+                                style={{ maxWidth: 90, padding: "6px 8px", fontSize: 14 }}
+                              />
+                            </div>
+                            <div style={{ minWidth: 80, textAlign: "right", fontWeight: 500 }}>
+                              {fmt((item.precio_unitario || 0) * (item.cantidad || 0))}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => removeFromCart(item.receta.id)}
+                              style={{ marginLeft: 4, background: "none", border: "none", color: "var(--danger)", cursor: "pointer", fontSize: 18 }}
+                              title="Quitar"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginTop: 12, paddingTop: 12, borderTop: "1px dashed var(--border)" }}>
+                    <span style={{ fontWeight: 500 }}>Total</span>
+                    <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: 18, color: "#4A7C59" }}>{fmt(cartTotal)}</span>
+                  </div>
+                </>
+              )}
             </div>
             <div className="card">
-              {recetas.map(r => {
-                const st = (stock || {})[r.id] ?? 0;
-                return (
-                  <div key={r.id} className="insumo-item" style={{ cursor: "pointer" }} onClick={() => openManualReceta(r)}>
-                    <span style={{ fontSize: 22 }}>{r.emoji}</span>
-                    <div className="insumo-info">
-                      <div className="insumo-nombre">{r.nombre}</div>
-                      <div className="insumo-detalle">Rinde {r.rinde} {r.unidad_rinde} · Stock: {st}</div>
-                    </div>
-                    <div className="insumo-precio">
-                      <div className="insumo-precio-value">{fmt(r.precio_venta || 0)}/{(r.unidad_rinde || "u").replace("porción", "porc.")}</div>
-                    </div>
-                  </div>
-                );
-              })}
+              <div className="card-header">
+                <span className="card-title">Productos</span>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 12 }}>
+                {recetas.map(r => {
+                  const st = (stock || {})[r.id] ?? 0;
+                  return (
+                    <button
+                      key={r.id}
+                      type="button"
+                      onClick={() => addToCart(r, 1)}
+                      className="producto-card"
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "flex-start",
+                        padding: 10,
+                        borderRadius: 12,
+                        border: "1px solid var(--border)",
+                        background: "var(--surface)",
+                        cursor: "pointer",
+                        transition: "transform 0.08s ease, box-shadow 0.08s ease"
+                      }}
+                      onMouseDown={(e) => {
+                        e.currentTarget.style.transform = "scale(0.97)";
+                        e.currentTarget.style.boxShadow = "0 2px 4px rgba(0,0,0,0.06)";
+                      }}
+                      onMouseUp={(e) => {
+                        e.currentTarget.style.transform = "scale(1)";
+                        e.currentTarget.style.boxShadow = "none";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.transform = "scale(1)";
+                        e.currentTarget.style.boxShadow = "none";
+                      }}
+                    >
+                      <span style={{ fontSize: 26, marginBottom: 4 }}>{r.emoji}</span>
+                      <span style={{ fontSize: 14, fontWeight: 500, marginBottom: 2, textAlign: "left" }}>{r.nombre}</span>
+                      <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                        {fmt(r.precio_venta || 0)}/{(r.unidad_rinde || "u").replace("porción", "porc.")}
+                      </span>
+                      <span style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>Stock: {st}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      {modal && recetaSel && (
+      {chargeModalOpen && (
         <div className="screen-overlay">
           <div className="screen-header">
-            <button className="screen-back" onClick={() => setModal(false)}>← Volver</button>
-            <span className="screen-title">{recetaSel.emoji} {recetaSel.nombre}</span>
+            <button className="screen-back" onClick={() => setChargeModalOpen(false)}>← Volver</button>
+            <span className="screen-title">Cobro</span>
           </div>
           <div className="screen-content">
-            <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 12 }}>Stock: {(stock || {})[recetaSel.id] ?? 0}</div>
-            <SelectorCliente value={clienteSel} onChange={setClienteSel} />
-            <SelectoresPago />
-            <div style={{ textAlign: "center", padding: "20px 0" }}>
-              <div style={{ fontSize: 13, color: "#8B7355", marginBottom: 16 }}>¿Cuántas unidades?</div>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 20 }}>
-                <button onClick={() => setCantidad(Math.max(1, cantidad - 1))}
-                  style={{ width: 44, height: 44, borderRadius: "50%", border: "1px solid #EDE8E0", background: "#FAF7F2", fontSize: 22, cursor: "pointer" }}>−</button>
-                <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: 42, color: "var(--purple-dark)", minWidth: 60, textAlign: "center" }}>{cantidad}</span>
-                <button onClick={() => setCantidad(cantidad + 1)}
-                  style={{ width: 44, height: 44, borderRadius: "50%", border: "1px solid #EDE8E0", background: "#FAF7F2", fontSize: 22, cursor: "pointer" }}>+</button>
+            <div className="card" style={{ marginBottom: 16 }}>
+              <div className="card-header">
+                <span className="card-title">Resumen</span>
               </div>
-              <div style={{ fontFamily: "'Outfit', sans-serif", fontSize: 22, color: "#4A7C59", marginTop: 16 }}>
-                Total: {fmt(recetaSel.precio_venta * cantidad)}
+              {cartItems.length === 0 ? (
+                <p style={{ padding: "12px 4px", fontSize: 14, color: "var(--text-muted)" }}>No hay productos en el carrito.</p>
+              ) : (
+                <>
+                  {cartItems.map((item) => (
+                    <div key={item.receta.id} className="venta-item venta-item-simple">
+                      <span className="venta-emoji">{item.receta.emoji}</span>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 500 }}>{item.receta.nombre}</div>
+                        <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                          x{item.cantidad} · {fmt(item.precio_unitario || 0)} c/u
+                        </div>
+                      </div>
+                      <div style={{ fontWeight: 500 }}>
+                        {fmt((item.precio_unitario || 0) * (item.cantidad || 0))}
+                      </div>
+                    </div>
+                  ))}
+                  <div style={{ display: "flex", justifyContent: "space-between", marginTop: 12, paddingTop: 12, borderTop: "1px dashed var(--border)" }}>
+                    <span style={{ fontWeight: 500 }}>Total carrito</span>
+                    <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: 18 }}>{fmt(cartTotal)}</span>
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="card" style={{ marginBottom: 16 }}>
+              <SelectorCliente value={clienteSel} onChange={setClienteSel} />
+              <SelectoresPago />
+            </div>
+
+            <div className="card" style={{ marginBottom: 16 }}>
+              <div className="form-group">
+                <label className="form-label">Total final (editable)</label>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 18 }}>💰</span>
+                  <input
+                    className="form-input"
+                    type="number"
+                    value={chargeTotalOverride}
+                    onChange={(e) => setChargeTotalOverride(e.target.value)}
+                    placeholder={fmt(cartTotal)}
+                    style={{ flex: 1 }}
+                  />
+                </div>
+                <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4 }}>
+                  Dejalo vacío para usar el total del carrito. Usalo para descuentos o redondeos.
+                </p>
               </div>
             </div>
-            <button className="btn-primary" onClick={registrar} disabled={saving}>
+
+            <button
+              className="btn-primary"
+              onClick={registrarVentaCarrito}
+              disabled={saving || cartItems.length === 0}
+            >
               {saving ? "Registrando..." : "Registrar venta"}
             </button>
-            <button className="btn-secondary" onClick={() => setModal(false)}>Cancelar</button>
+            <button
+              className="btn-secondary"
+              onClick={() => setChargeModalOpen(false)}
+            >
+              Cancelar
+            </button>
           </div>
         </div>
       )}
