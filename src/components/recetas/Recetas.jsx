@@ -1,15 +1,25 @@
 import { useState } from "react";
 import { fmt, pctFmt } from "../../lib/format";
-import { convertirAUnidadInsumo } from "../../lib/units";
+import { convertirAUnidadInsumo, aGramos } from "../../lib/units";
 import { costoReceta } from "../../lib/costos";
 import { useRecetas } from "../../hooks/useRecetas";
+import SearchableSelect from "../ui/SearchableSelect";
 
-/** Calcula el costo total desde ingredientes del formulario (antes de guardar) */
-function costoDesdeIngredientes(ingredientes, insumos) {
+/** Calcula el costo total desde ingredientes del formulario (antes de guardar). Incluye recetas precursoras. */
+function costoDesdeIngredientes(ingredientes, insumos, recetas = []) {
   let total = 0;
   for (const ing of ingredientes || []) {
     if (ing.costo_fijo != null && ing.costo_fijo !== "" && parseFloat(ing.costo_fijo) > 0) {
       total += parseFloat(ing.costo_fijo);
+      continue;
+    }
+    if (ing.receta_id_precursora) {
+      const prec = recetas.find((r) => r.id === ing.receta_id_precursora);
+      const costoUnitPrec = typeof prec?.costo_unitario === "number" && prec.costo_unitario >= 0 ? prec.costo_unitario : 0;
+      const cant = parseFloat(ing.cantidad) || 0;
+      const u = (ing.unidad || "u").toLowerCase();
+      const cantUnidades = u === "u" ? cant : (aGramos(cant, ing.unidad) / (parseFloat(prec?.gramos_por_unidad) || 1));
+      total += cantUnidades * costoUnitPrec;
       continue;
     }
     if (!ing.insumo_id) continue;
@@ -35,7 +45,7 @@ export default function Recetas({ recetas, insumos, recetaIngredientes, showToas
   const [modal, setModal] = useState(false);
   const [editando, setEditando] = useState(null);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ nombre: "", emoji: "🍞", rinde: "", unidad_rinde: "u", precio_venta: "" });
+  const [form, setForm] = useState({ nombre: "", emoji: "🍞", rinde: "", unidad_rinde: "u", precio_venta: "", es_precursora: false, gramos_por_unidad: "" });
   const [ingredientes, setIngredientes] = useState([]);
 
   const aplicaFiltro = Array.isArray(filterRecetasIds) && filterRecetasIds.length > 0;
@@ -52,8 +62,8 @@ export default function Recetas({ recetas, insumos, recetaIngredientes, showToas
 
   const openNew = () => {
     setEditando(null);
-    setForm({ nombre: "", emoji: "🍞", rinde: "", unidad_rinde: "u", precio_venta: "" });
-    setIngredientes([{ insumo_id: "", cantidad: "", unidad: "g", costo_fijo: "" }]);
+    setForm({ nombre: "", emoji: "🍞", rinde: "", unidad_rinde: "u", precio_venta: "", es_precursora: false, gramos_por_unidad: "" });
+    setIngredientes([{ insumo_id: "", receta_id_precursora: "", cantidad: "", unidad: "g", costo_fijo: "" }]);
     setModal(true);
   };
 
@@ -64,37 +74,102 @@ export default function Recetas({ recetas, insumos, recetaIngredientes, showToas
       emoji: r.emoji || "🍞",
       rinde: String(r.rinde || ""),
       unidad_rinde: r.unidad_rinde || "u",
-      precio_venta: String(r.precio_venta || "")
+      precio_venta: String(r.precio_venta || ""),
+      es_precursora: !!r.es_precursora,
+      gramos_por_unidad: r.gramos_por_unidad != null ? String(r.gramos_por_unidad) : ""
     });
     const ings = recetaIngredientes
       .filter((i) => i.receta_id === r.id)
       .map((i) => ({
         insumo_id: i.insumo_id || "",
-        cantidad: i.cantidad ? String(i.cantidad) : "",
+        receta_id_precursora: i.receta_id_precursora || "",
+        cantidad: i.cantidad != null ? String(i.cantidad) : "",
         unidad: i.unidad || "g",
         costo_fijo: i.costo_fijo != null ? String(i.costo_fijo) : ""
       }));
-    setIngredientes(ings.length > 0 ? ings : [{ insumo_id: "", cantidad: "", unidad: "g", costo_fijo: "" }]);
+    setIngredientes(ings.length > 0 ? ings : [{ insumo_id: "", receta_id_precursora: "", cantidad: "", unidad: "g", costo_fijo: "" }]);
     setModal(true);
   };
 
-  const addIng = () => setIngredientes([...ingredientes, { insumo_id: "", cantidad: "", unidad: "g", costo_fijo: "" }]);
+  const addIng = () => setIngredientes([...ingredientes, { insumo_id: "", receta_id_precursora: "", cantidad: "", unidad: "g", costo_fijo: "" }]);
   const removeIng = (i) => setIngredientes(ingredientes.filter((_, idx) => idx !== i));
   const updateIng = (i, field, val) => setIngredientes(ingredientes.map((ing, idx) => idx === i ? { ...ing, [field]: val } : ing));
+
+  const copyReceta = async (r) => {
+    setSaving(true);
+    try {
+      const payload = {
+        nombre: `Copia de ${(r.nombre || "").trim()}`.toUpperCase(),
+        emoji: r.emoji || "🍞",
+        rinde: parseFloat(r.rinde) || 1,
+        unidad_rinde: r.unidad_rinde || "u",
+        precio_venta: parseFloat(r.precio_venta) || 0,
+        costo_lote: 0,
+        costo_unitario: 0,
+        es_precursora: !!r.es_precursora,
+        gramos_por_unidad: r.gramos_por_unidad != null && r.gramos_por_unidad > 0 ? parseFloat(r.gramos_por_unidad) : null
+      };
+      const newReceta = await insertReceta(payload);
+      if (!newReceta?.id) {
+        showToast("⚠️ No se pudo crear la copia");
+        setSaving(false);
+        return;
+      }
+      const ingsOrig = recetaIngredientes.filter((i) => i.receta_id === r.id);
+      if (ingsOrig.length > 0) {
+        const rows = ingsOrig.map((i) => ({
+          receta_id: newReceta.id,
+          insumo_id: i.insumo_id || null,
+          receta_id_precursora: i.receta_id_precursora || null,
+          cantidad: parseFloat(i.cantidad) || 0,
+          unidad: i.unidad || "g",
+          costo_fijo: i.costo_fijo != null && i.costo_fijo > 0 ? parseFloat(i.costo_fijo) : null
+        }));
+        await insertRecetaIngredientes(rows);
+      }
+      onRefresh();
+      setForm({
+        nombre: newReceta.nombre,
+        emoji: newReceta.emoji || "🍞",
+        rinde: String(newReceta.rinde || ""),
+        unidad_rinde: newReceta.unidad_rinde || "u",
+        precio_venta: String(newReceta.precio_venta || ""),
+        es_precursora: !!newReceta.es_precursora,
+        gramos_por_unidad: newReceta.gramos_por_unidad != null ? String(newReceta.gramos_por_unidad) : ""
+      });
+      const ingsForm = ingsOrig.length > 0 ? ingsOrig.map((i) => ({
+        insumo_id: i.insumo_id || "",
+        receta_id_precursora: i.receta_id_precursora || "",
+        cantidad: i.cantidad != null ? String(i.cantidad) : "",
+        unidad: i.unidad || "g",
+        costo_fijo: i.costo_fijo != null ? String(i.costo_fijo) : ""
+      })) : [{ insumo_id: "", receta_id_precursora: "", cantidad: "", unidad: "g", costo_fijo: "" }];
+      setIngredientes(ingsForm);
+      setEditando(newReceta);
+      setModal(true);
+      showToast("✅ Copia creada. Cambiá el nombre y lo que necesites, luego Guardar.");
+    } catch (err) {
+      showToast("⚠️ Error al copiar la receta");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const save = async () => {
     setSaving(true);
     const rindeNum = (() => { const v = parseFloat(form.rinde); return (isNaN(v) || v <= 0) ? 1 : v; })();
-    const costoLote = costoDesdeIngredientes(ingredientes, insumos);
+    const costoLote = costoDesdeIngredientes(ingredientes, insumos, recetas);
     const costoUnitario = rindeNum > 0 ? costoLote / rindeNum : 0;
     const payload = {
-      nombre: form.nombre,
+      nombre: (form.nombre || "").trim().toUpperCase(),
       emoji: form.emoji,
       rinde: rindeNum,
       unidad_rinde: form.unidad_rinde,
       precio_venta: parseFloat(form.precio_venta) || 0,
       costo_lote: costoLote,
-      costo_unitario: costoUnitario
+      costo_unitario: costoUnitario,
+      es_precursora: !!form.es_precursora,
+      gramos_por_unidad: form.gramos_por_unidad && parseFloat(form.gramos_por_unidad) > 0 ? parseFloat(form.gramos_por_unidad) : null
     };
     let recId = editando?.id;
 
@@ -108,19 +183,24 @@ export default function Recetas({ recetas, insumos, recetaIngredientes, showToas
       }
 
       if (recId) {
-        const ings = ingredientes.filter(i => i.insumo_id || i.costo_fijo).map(i => ({
-          receta_id: recId,
-          insumo_id: i.insumo_id || null,
-          cantidad: parseFloat(i.cantidad) || 0,
-          unidad: i.unidad,
-          costo_fijo: i.costo_fijo ? parseFloat(i.costo_fijo) : null
-        }));
+        const ings = ingredientes
+          .filter(i => i.insumo_id || i.receta_id_precursora || (i.costo_fijo != null && i.costo_fijo !== "" && parseFloat(i.costo_fijo) > 0))
+          .map(i => ({
+            receta_id: recId,
+            insumo_id: i.receta_id_precursora ? null : (i.insumo_id || null),
+            receta_id_precursora: i.receta_id_precursora || null,
+            cantidad: parseFloat(i.cantidad) || 0,
+            unidad: i.unidad || "g",
+            costo_fijo: i.costo_fijo && parseFloat(i.costo_fijo) > 0 ? parseFloat(i.costo_fijo) : null
+          }));
         if (ings.length > 0) {
           await insertRecetaIngredientes(ings);
         }
       }
     } catch (err) {
-      showToast("⚠️ Error al guardar");
+      const msg = err?.message || String(err);
+      const esColumna = /column|does not exist|no existe/i.test(msg);
+      showToast(esColumna ? "⚠️ Falta migración en la base de datos. Ejecutá las migraciones (es_precursora, receta_ingredientes)." : `⚠️ Error al guardar: ${msg.slice(0, 60)}${msg.length > 60 ? "…" : ""}`);
       setSaving(false);
       return;
     }
@@ -173,7 +253,7 @@ export default function Recetas({ recetas, insumos, recetaIngredientes, showToas
         <div className="empty"><div className="empty-icon">📋</div><p>No hay recetas todavía.<br />Tocá + para agregar.</p></div>
       ) : recetasOrdenadas.map(r => {
         const rindeNum = parseFloat(r.rinde) || 1;
-        const costoLoteCalc = costoReceta(r.id, recetaIngredientes, insumos);
+        const costoLoteCalc = costoReceta(r.id, recetaIngredientes, insumos, recetas);
         const costoUnitarioCalc = rindeNum > 0 ? costoLoteCalc / rindeNum : null;
         // Si en DB está 0 o no definido, usar el calculado desde ingredientes (evita margen 100% falso)
         const costoUnitario = (typeof r.costo_unitario === "number" && r.costo_unitario > 0)
@@ -189,10 +269,11 @@ export default function Recetas({ recetas, insumos, recetaIngredientes, showToas
           <div key={r.id} className="receta-card" onClick={() => openEdit(r)} role="button" tabIndex={0} onKeyDown={e => e.key === "Enter" && openEdit(r)}>
             <div className="receta-top">
               <span className="receta-emoji">{r.emoji}</span>
-              <div>
+              <div style={{ flex: 1, minWidth: 0 }}>
                 <div className="receta-nombre">{r.nombre}</div>
                 <div className="receta-rinde">Rinde {r.rinde} {r.unidad_rinde}</div>
               </div>
+              <button type="button" className="receta-copy-btn" onClick={(e) => { e.stopPropagation(); copyReceta(r); }} title="Copiar receta" disabled={saving}>📋 Copiar</button>
             </div>
             <div className="receta-stats">
               <div className="receta-stat">
@@ -238,7 +319,7 @@ export default function Recetas({ recetas, insumos, recetaIngredientes, showToas
 
             <div className="form-group">
               <label className="form-label">Nombre</label>
-              <input className="form-input" value={form.nombre} onChange={e => setForm({ ...form, nombre: e.target.value })} placeholder="Ej: Pan de Molde" />
+              <input className="form-input" value={form.nombre} onChange={e => setForm({ ...form, nombre: e.target.value })} placeholder="Ej: Pan de Molde" style={{ textTransform: "uppercase" }} />
             </div>
 
             <div className="form-row">
@@ -260,29 +341,75 @@ export default function Recetas({ recetas, insumos, recetaIngredientes, showToas
             </div>
 
             <div className="form-group">
+              <label htmlFor="receta-es-precursora" style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 14 }}>
+                <input id="receta-es-precursora" type="checkbox" checked={!!form.es_precursora} onChange={() => setForm({ ...form, es_precursora: !form.es_precursora })} style={{ width: 18, height: 18 }} />
+                Es receta precursora (se puede usar como ingrediente de otras recetas)
+              </label>
+            </div>
+            {form.es_precursora && (
+              <div className="form-group">
+                <label className="form-label">Gramos por unidad (opcional)</label>
+                <input className="form-input" type="number" min="0" step="any" placeholder="Ej: 500 si 1 u = 500 g" value={form.gramos_por_unidad} onChange={e => setForm({ ...form, gramos_por_unidad: e.target.value })} />
+                <span style={{ fontSize: 12, color: "var(--text-muted)" }}>Para que otras recetas puedan cargar esta precursora en gramos (ej. 45 g de masa sable).</span>
+              </div>
+            )}
+
+            <div className="form-group">
               <label className="form-label">Ingredientes</label>
-              {ingredientes.map((ing, i) => (
-                <div key={i} style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "center", flexWrap: "wrap" }}>
-                  <select className="form-select" style={{ flex: "2 1 120px" }} value={ing.insumo_id} onChange={e => updateIng(i, "insumo_id", e.target.value)}>
-                    <option value="">Insumo o costo fijo...</option>
-                    {insumosOrdenados.map(ins => <option key={ins.id} value={ins.id}>{ins.nombre}</option>)}
-                  </select>
-                  {ing.insumo_id ? (
-                    <>
-                      <div style={{ display: "flex", alignItems: "center", gap: 4, flex: "1 1 100px" }}>
-                        <input className="form-input" style={{ flex: 1, minWidth: 50 }} type="number" step="any" placeholder="Cant." value={ing.cantidad} onChange={e => updateIng(i, "cantidad", e.target.value)} />
-                        <span style={{ fontSize: 12, color: "var(--text-muted)", whiteSpace: "nowrap" }}>en</span>
-                        <select className="form-select" style={{ flex: "0 0 56px" }} value={ing.unidad} onChange={e => updateIng(i, "unidad", e.target.value)} title="Unidad">
+              {ingredientes.map((ing, i) => {
+                const esPrecursora = !!ing.receta_id_precursora;
+                const recetasPrecursoras = recetasOrdenadas.filter(rec => rec.id !== editando?.id && !!rec.es_precursora);
+                const valorSelect = ing.receta_id_precursora ? `r:${ing.receta_id_precursora}` : (ing.insumo_id ? `i:${ing.insumo_id}` : "");
+                const opcionesCombo = [
+                  { value: "", label: "Insumo, receta precursora o costo fijo..." },
+                  ...insumosOrdenados.map(ins => ({ value: `i:${ins.id}`, label: ins.nombre })),
+                  ...recetasPrecursoras.map(rec => ({ value: `r:${rec.id}`, label: `${rec.emoji || ""} ${rec.nombre}`.trim() })),
+                ];
+                const onSelectIng = (val) => {
+                  if (!val) {
+                    setIngredientes(prev => prev.map((item, idx) => idx !== i ? item : { ...item, insumo_id: "", receta_id_precursora: "" }));
+                    return;
+                  }
+                  if (val.startsWith("r:")) {
+                    setIngredientes(prev => prev.map((item, idx) => idx !== i ? item : { ...item, receta_id_precursora: val.slice(2), insumo_id: "", unidad: "g" }));
+                  } else {
+                    setIngredientes(prev => prev.map((item, idx) => idx !== i ? item : { ...item, insumo_id: val.startsWith("i:") ? val.slice(2) : val, receta_id_precursora: "" }));
+                  }
+                };
+                return (
+                  <div key={i} style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "center", flexWrap: "wrap" }}>
+                    <div style={{ flex: "2 1 200px", minWidth: 0 }}>
+                      <SearchableSelect
+                        options={opcionesCombo}
+                        value={valorSelect}
+                        onChange={onSelectIng}
+                        placeholder="Buscar insumo o receta precursora..."
+                        emptyMessage="Sin resultados"
+                      />
+                    </div>
+                    {esPrecursora ? (
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, flex: "1 1 100px", minWidth: 0 }}>
+                        <input className="form-input" style={{ flex: "1 1 0", minWidth: 50 }} type="number" step="any" min="0.01" placeholder="Cant." value={ing.cantidad} onChange={e => updateIng(i, "cantidad", e.target.value)} />
+                        <span style={{ fontSize: 12, color: "var(--text-muted)", whiteSpace: "nowrap", flexShrink: 0 }}>en</span>
+                        <select className="form-select" style={{ flexShrink: 0, minWidth: 72, width: "auto" }} value={ing.unidad || "g"} onChange={e => updateIng(i, "unidad", e.target.value)} title="Unidad">
                           {["g", "ml", "u", "kg"].map(u => <option key={u} value={u}>{u}</option>)}
                         </select>
                       </div>
-                    </>
-                  ) : (
-                    <input className="form-input" style={{ flex: "1 1 100px" }} type="number" step="any" placeholder="Costo fijo $" value={ing.costo_fijo} onChange={e => updateIng(i, "costo_fijo", e.target.value)} />
-                  )}
-                  <button onClick={() => removeIng(i)} style={{ background: "none", border: "none", fontSize: 16, cursor: "pointer", color: "#999" }}>✕</button>
-                </div>
-              ))}
+                    ) : ing.insumo_id ? (
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, flex: "1 1 100px", minWidth: 0 }}>
+                        <input className="form-input" style={{ flex: "1 1 0", minWidth: 50 }} type="number" step="any" placeholder="Cant." value={ing.cantidad} onChange={e => updateIng(i, "cantidad", e.target.value)} />
+                        <span style={{ fontSize: 12, color: "var(--text-muted)", whiteSpace: "nowrap", flexShrink: 0 }}>en</span>
+                        <select className="form-select" style={{ flexShrink: 0, minWidth: 72, width: "auto" }} value={ing.unidad} onChange={e => updateIng(i, "unidad", e.target.value)} title="Unidad">
+                          {["g", "ml", "u", "kg"].map(u => <option key={u} value={u}>{u}</option>)}
+                        </select>
+                      </div>
+                    ) : (
+                      <input className="form-input" style={{ flex: "1 1 100px" }} type="number" step="any" placeholder="Costo fijo $" value={ing.costo_fijo} onChange={e => updateIng(i, "costo_fijo", e.target.value)} />
+                    )}
+                    <button onClick={() => removeIng(i)} style={{ background: "none", border: "none", fontSize: 16, cursor: "pointer", color: "#999" }}>✕</button>
+                  </div>
+                );
+              })}
               <button onClick={addIng} style={{ background: "none", border: "1px dashed #C8A97E", borderRadius: 10, padding: "8px 14px", fontSize: 13, color: "#6B3F1F", cursor: "pointer", width: "100%", marginTop: 4 }}>
                 + Agregar ingrediente
               </button>
@@ -299,7 +426,7 @@ export default function Recetas({ recetas, insumos, recetaIngredientes, showToas
             <button className="btn-secondary" onClick={() => { setModal(false); setEditando(null); }}>Cancelar</button>
           </div>
           {(() => {
-            const costoTotal = costoDesdeIngredientes(ingredientes, insumos);
+            const costoTotal = costoDesdeIngredientes(ingredientes, insumos, recetas);
             const rindeNum = parseFloat(form.rinde) || 0;
             const costoPorUnidad = rindeNum > 0 ? costoTotal / rindeNum : null;
             const precioVenta = parseFloat(form.precio_venta) || 0;
@@ -307,7 +434,7 @@ export default function Recetas({ recetas, insumos, recetaIngredientes, showToas
               ? (precioVenta - costoPorUnidad) / precioVenta
               : null;
             const unidadRinde = form.unidad_rinde || "u";
-            const showPanel = costoTotal > 0 || ingredientes.some(i => i.insumo_id || i.costo_fijo) || precioVenta > 0;
+            const showPanel = costoTotal > 0 || ingredientes.some(i => i.insumo_id || i.receta_id_precursora || i.costo_fijo) || precioVenta > 0;
             if (!showPanel) return null;
             let margenClass = "";
             if (margenVal != null) {

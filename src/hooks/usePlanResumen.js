@@ -56,6 +56,7 @@ export function usePlanResumen({
           recetaIngredientes,
           insumos,
           insumoComposicion,
+          recetas,
         );
 
         let totalCompra = 0;

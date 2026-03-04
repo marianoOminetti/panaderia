@@ -1,59 +1,59 @@
 import { selectContactFromPhone } from "../../lib/contacts";
+import SearchableCliente from "../ui/SearchableCliente";
+
+const CONTACT_PICKER_AVAILABLE = typeof navigator !== "undefined" && !!navigator.contacts?.select;
 
 export function SelectorCliente({ value, onChange, clientes, insertCliente, showToast }) {
   return (
     <div className="form-group">
       <label className="form-label">Cliente</label>
-      <select
-        className="form-input"
+      <SearchableCliente
         value={value || ""}
-        onChange={(e) => onChange(e.target.value ? e.target.value : null)}
-      >
-        <option value="">— Sin cliente</option>
-        {(clientes || []).map((c) => (
-          <option key={c.id} value={c.id}>
-            {c.nombre}
-            {c.telefono ? ` · ${c.telefono}` : ""}
-          </option>
-        ))}
-      </select>
-      <button
-        type="button"
-        className="btn-secondary"
-        style={{ marginTop: 8 }}
-        title="Agregar desde contactos del celular"
-        onClick={async () => {
-          const r = await selectContactFromPhone();
-          if (r.error === "no-support") {
-            showToast("No disponible en este dispositivo");
-            return;
-          }
-          if (r.error === "cancelled") return;
-          if (!r.name?.trim()) return;
-          const telNorm = r.tel?.trim() || "";
-          if (
-            telNorm &&
-            (clientes || []).some((c) => (c.telefono || "").trim() === telNorm)
-          ) {
-            showToast("Ya existe un cliente con ese teléfono");
-            return;
-          }
-          try {
-            const data = await insertCliente(
-              { nombre: r.name.trim(), telefono: telNorm || null },
-              { skipToast: true },
-            );
-            if (data) {
-              onChange(data.id);
-              showToast(`✅ Cliente ${r.name} agregado`);
+        onChange={(id) => onChange(id || null)}
+        clientes={clientes || []}
+        insertCliente={insertCliente}
+        showToast={showToast}
+        placeholder="Buscar o escribir nombre…"
+      />
+      {CONTACT_PICKER_AVAILABLE && (
+        <button
+          type="button"
+          className="btn-secondary"
+          style={{ marginTop: 8 }}
+          title="Agregar desde contactos del celular"
+          onClick={async () => {
+            const r = await selectContactFromPhone();
+            if (r.error === "no-support") {
+              showToast("No disponible en este dispositivo");
+              return;
             }
-          } catch {
-            showToast("⚠️ Error al agregar cliente");
-          }
-        }}
-      >
-        📇 Elegir contacto
-      </button>
+            if (r.error === "cancelled") return;
+            if (!r.name?.trim()) return;
+            const telNorm = r.tel?.trim() || "";
+            if (
+              telNorm &&
+              (clientes || []).some((c) => (c.telefono || "").trim() === telNorm)
+            ) {
+              showToast("Ya existe un cliente con ese teléfono");
+              return;
+            }
+            try {
+              const data = await insertCliente(
+                { nombre: r.name.trim(), telefono: telNorm || null },
+                { skipToast: true },
+              );
+              if (data) {
+                onChange(data.id);
+                showToast(`✅ Cliente ${r.name} agregado`);
+              }
+            } catch {
+              showToast("⚠️ Error al agregar cliente");
+            }
+          }}
+        >
+          📇 Elegir contacto
+        </button>
+      )}
     </div>
   );
 }

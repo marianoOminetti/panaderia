@@ -84,7 +84,7 @@ export default function VentasList({
             {gruposConDeuda.map((grupo) => {
               const cli =
                 (clientes || []).find((c) => c.id === grupo.cliente_id) || null;
-              const nombre = cli?.nombre || "Cliente sin nombre";
+              const nombre = cli?.nombre || "Consumidor final";
               const refFecha = grupo.rawItems?.[0]?.fecha || grupo.rawItems?.[0]?.created_at;
               const fechaDate = refFecha ? new Date(refFecha) : null;
               const rel = formatRelDia(fechaDate, hoyDate);
@@ -214,7 +214,7 @@ export default function VentasList({
                 }}
               >
                 <div className="venta-grupo-cliente">
-                  Cliente: {cliente?.nombre || "—"}
+                  Cliente: {cliente?.nombre || "Consumidor final"}
                 </div>
                 <div
                   style={{

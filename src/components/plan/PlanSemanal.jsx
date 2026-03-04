@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { fmt } from "../../lib/format";
 import { getSemanaInicioISO } from "../../lib/dates";
-import { calcularRequerimientoInsumosParaItems } from "../../lib/stockPlan";
+import { calcularRequerimientoInsumosParaItems, getItemsExplotados } from "../../lib/stockPlan";
 import { usePlanSemanal } from "../../hooks/usePlanSemanal";
 import PlanSemanalTable from "./PlanSemanalTable";
 import PlanSemanalActions from "./PlanSemanalActions";
@@ -197,6 +197,7 @@ function PlanSemanal({
     recetaIngredientes,
     insumos,
     insumoComposicion,
+    recetas,
   );
 
   const insumosCompra = (requerimientos || [])
@@ -301,7 +302,12 @@ function PlanSemanal({
       await actualizarStock(receta.id, cantidad);
       try {
         if (consumirInsumosPorStock) {
-          await consumirInsumosPorStock(receta.id, cantidad);
+          const exploded = (recetas?.length && recetaIngredientes?.length)
+            ? getItemsExplotados(receta.id, cantidad, recetaIngredientes, recetas)
+            : [{ receta, cantidad }];
+          for (const { receta: r, cantidad: c } of exploded) {
+            if (r?.id && c > 0) await consumirInsumosPorStock(r.id, c);
+          }
         }
         const nuevaRealizada = realizado + cantidad;
         await upsertPlanRow({

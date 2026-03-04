@@ -1,5 +1,6 @@
 import { useCallback } from "react";
 import { aGramos, convertirAUnidadInsumo } from "../lib/units";
+import { getItemsExplotados } from "../lib/stockPlan";
 import { supabase } from "../lib/supabaseClient";
 
 export function useStockMutations({

@@ -393,12 +393,14 @@ function Insumos({
         const costoAntes = costoReceta(
           recId,
           recetaIngredientes || [],
-          insumosBefore
+          insumosBefore,
+          recetas || []
         );
         const costoDespues = costoReceta(
           recId,
           recetaIngredientes || [],
-          insumosAfter
+          insumosAfter,
+          recetas || []
         );
         const costoUnitAntes =
           rindeNum > 0 ? costoAntes / rindeNum : 0;

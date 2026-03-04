@@ -53,6 +53,9 @@ export const CAT_COLORS = {
   Packaging: "#B0A8C8",
 };
 
+// Cliente por defecto cuando no hay cliente asignado (ventas, deudas, etc.)
+export const CLIENTE_CONSUMIDOR_FINAL = "Consumidor final";
+
 // Config métricas de stock/ventas
 export const METRICAS_VENTANA_DIAS = 7;          // Ventana para promedio de ventas
 export const DIAS_ALERTA_ROJA = 2;              // < 2 días → alerta roja

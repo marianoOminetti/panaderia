@@ -55,7 +55,7 @@ export default function Analytics({ ventas, recetas, clientes, recetaIngrediente
     const map = {};
     for (const r of recetas || []) {
       const rindeNum = parseFloat(r.rinde) || 1;
-      const costoLoteCalc = costoReceta(r.id, recetaIngredientes, insumos);
+      const costoLoteCalc = costoReceta(r.id, recetaIngredientes, insumos, recetas || []);
       const costoUnitarioCalc =
         rindeNum > 0 ? costoLoteCalc / rindeNum : null;
       const costoUnitario =

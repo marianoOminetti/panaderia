@@ -12,7 +12,7 @@ import {
   SpeechRecognitionAPI,
   parsearVozAVentas,
 } from "../../lib/voice";
-import { getInsumosEnCeroParaRecetas } from "../../lib/stockPlan";
+import { getInsumosEnCeroParaRecetas, getItemsExplotados } from "../../lib/stockPlan";
 import StockList from "./StockList";
 import StockVoiceModal from "./StockVoiceModal";
 import StockProductionModal from "./StockProductionModal";
@@ -120,11 +120,22 @@ function Stock({
     }
     const consumoErrors = [];
     if (consumirInsumosPorStock) {
-      for (const { receta, cantidad: cant } of items) {
+      // Explotar precursoras para consumir insumos de todas las recetas involucradas
+      const explodedByReceta = {};
+      for (const { receta, cantidad } of items) {
+        const exploded = (recetas?.length && recetaIngredientes?.length)
+          ? getItemsExplotados(receta.id, cantidad, recetaIngredientes, recetas)
+          : [{ receta, cantidad }];
+        for (const { receta: r, cantidad: c } of exploded) {
+          if (r?.id && c > 0) explodedByReceta[r.id] = (explodedByReceta[r.id] || 0) + c;
+        }
+      }
+      for (const [recetaId, cant] of Object.entries(explodedByReceta)) {
+        const receta = recetas?.find((r) => r.id === recetaId);
         try {
-          await consumirInsumosPorStock(receta.id, cant);
+          await consumirInsumosPorStock(recetaId, cant);
         } catch (e) {
-          consumoErrors.push(receta.nombre || receta.id);
+          consumoErrors.push(receta?.nombre || recetaId);
         }
       }
     }
@@ -218,6 +229,7 @@ function Stock({
       insumos,
       insumoComposicion,
       insumoStock,
+      recetas,
     );
     setSavingVoice(true);
     try {
@@ -253,6 +265,7 @@ function Stock({
       insumos,
       insumoComposicion,
       insumoStock,
+      recetas,
     );
     setManualSaving(true);
     try {

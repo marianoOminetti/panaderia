@@ -1,15 +1,60 @@
 import { aGramos, convertirAUnidadInsumo } from "./units";
 
+/** Explota una receta (y sus precursoras) a ítems (receta, cantidad) para sumar insumos.
+ * Evita ciclos con visited. */
+function explotarRecetaAItems(recetaId, cantidadReceta, recetaIngredientes, recetas, visited, items) {
+  if (!recetaId || !cantidadReceta || cantidadReceta <= 0 || visited.has(recetaId)) return;
+  const receta = recetas.find((r) => r.id === recetaId);
+  if (!receta || !receta.rinde) return;
+  visited.add(recetaId);
+  const ings = (recetaIngredientes || []).filter((i) => i.receta_id === recetaId);
+  for (const ing of ings) {
+    if (ing.receta_id_precursora) {
+      const prec = recetas.find((r) => r.id === ing.receta_id_precursora);
+      const u = (ing.unidad || "u").toLowerCase();
+      const cantidadRaw = parseFloat(ing.cantidad) || 0;
+      const cantidadUnidades = u === "u" ? cantidadRaw : (aGramos(cantidadRaw, ing.unidad) / (parseFloat(prec?.gramos_por_unidad) || 1));
+      const cantPrec = cantidadUnidades / (receta.rinde || 1) * cantidadReceta;
+      explotarRecetaAItems(ing.receta_id_precursora, cantPrec, recetaIngredientes, recetas, visited, items);
+    }
+  }
+  visited.delete(recetaId);
+  const ya = items.find((x) => x.receta?.id === recetaId);
+  if (ya) ya.cantidad += cantidadReceta;
+  else items.push({ receta, cantidad: cantidadReceta });
+}
+
+/** Devuelve ítems (receta, cantidad) explotando precursoras. Para uso en consumo de insumos al cargar stock. */
+export function getItemsExplotados(recetaId, cantidad, recetaIngredientes, recetas) {
+  if (!recetas?.length) return [];
+  const items = [];
+  explotarRecetaAItems(recetaId, cantidad, recetaIngredientes || [], recetas, new Set(), items);
+  return items;
+}
+
 /** Calcula cuántos insumos se necesitan para una lista de recetas y cantidades.
+ * Incluye ingredientes de recetas precursoras (explotadas recursivamente).
  * Devuelve [{ insumo_id, insumo, cantidad }] donde cantidad está en la unidad del insumo. */
 export function calcularRequerimientoInsumosParaItems(
   items,
   recetaIngredientes,
   insumos,
   insumoComposicion,
+  recetas = [],
 ) {
   if (!items?.length || !recetaIngredientes?.length || !insumos?.length) {
     return [];
+  }
+  const itemsExplotados = [];
+  const visited = new Set();
+  const recetasList = recetas?.length ? recetas : items.map((x) => x.receta).filter(Boolean);
+  for (const { receta, cantidad } of items) {
+    if (!receta?.id || !receta.rinde || !cantidad || cantidad <= 0) continue;
+    if (recetasList.length) {
+      explotarRecetaAItems(receta.id, cantidad, recetaIngredientes, recetasList, visited, itemsExplotados);
+    } else {
+      itemsExplotados.push({ receta, cantidad });
+    }
   }
   const composicionPorInsumo = {};
   for (const c of insumoComposicion || []) {
@@ -19,7 +64,7 @@ export function calcularRequerimientoInsumosParaItems(
     composicionPorInsumo[c.insumo_id].push(c);
   }
   const requeridos = {};
-  for (const { receta, cantidad } of items) {
+  for (const { receta, cantidad } of itemsExplotados) {
     if (!receta?.id || !receta.rinde || !cantidad || cantidad <= 0) continue;
     const ings = (recetaIngredientes || []).filter(
       (i) => i.receta_id === receta.id && i.insumo_id,
@@ -76,15 +121,26 @@ export function calcularRequerimientoInsumosParaItems(
 }
 
 /** Devuelve insumos con stock 0 que se consumirían al cargar stock de las recetas dadas.
- * Incluye: ingredientes directos y componentes (si el insumo tiene composición). */
+ * Si se pasa recetas, explota recetas precursoras. Incluye componentes (insumo_composicion). */
 export function getInsumosEnCeroParaRecetas(
   items,
   recetaIngredientes,
   insumos,
   insumoComposicion,
   insumoStock,
+  recetas = [],
 ) {
   if (!items?.length || !insumos?.length) return [];
+  let itemsParaRevisar = items;
+  if (recetas?.length) {
+    const exploded = [];
+    const visited = new Set();
+    for (const { receta, cantidad } of items) {
+      if (!receta?.id || !cantidad || cantidad <= 0) continue;
+      explotarRecetaAItems(receta.id, cantidad, recetaIngredientes, recetas, visited, exploded);
+    }
+    itemsParaRevisar = exploded;
+  }
   const composicionPorInsumo = {};
   for (const c of insumoComposicion || []) {
     if (!composicionPorInsumo[c.insumo_id]) {
@@ -94,7 +150,7 @@ export function getInsumosEnCeroParaRecetas(
   }
   const idsEnCero = new Set();
   const insumosPorId = {};
-  for (const { receta } of items) {
+  for (const { receta } of itemsParaRevisar) {
     if (!receta?.rinde) continue;
     const ings = (recetaIngredientes || []).filter(
       (i) => i.receta_id === receta.id && i.insumo_id,
