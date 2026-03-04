@@ -30,7 +30,7 @@
     "supabase:link:prod": "supabase link --project-ref clgxrxlccjjqxzvapfav",
     "db:push": "supabase db push --yes",
     "db:push:dev": "supabase link --project-ref xdiggsdjmmylkvephyod && supabase db push --yes",
-    "db:push:prod": "supabase link --project-ref clgxrxlccjjqxzvapfav && supabase db push --yes",
+    "db:push:prod": "supabase link --project-ref clgxrxlccjjqxzvapfav && supabase db push --yes --include-all",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
   },
