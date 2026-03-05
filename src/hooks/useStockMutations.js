@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import { aGramos, convertirAUnidadInsumo } from "../lib/units";
 import { supabase } from "../lib/supabaseClient";
+import { notifyEvent } from "../lib/notifyEvent";
 
 export function useStockMutations({
   recetas,
@@ -52,6 +53,10 @@ export function useStockMutations({
             // ignore notification errors
           }
         }
+
+        if (typeof navigator !== "undefined" && navigator.onLine) {
+          notifyEvent("stock_zero", { receta_id });
+        }
       }
     },
     [recetas, setStock, showToast],
@@ -95,6 +100,9 @@ export function useStockMutations({
           const receta = (recetas || []).find((r) => r.id === receta_id);
           const nombre = receta?.nombre || "producto";
           showToast?.(`⚠️ ${nombre}: sin stock`);
+          if (typeof navigator !== "undefined" && navigator.onLine) {
+            notifyEvent("stock_zero", { receta_id });
+          }
         }
       }
     },
@@ -144,6 +152,13 @@ export function useStockMutations({
         throw errMov;
       }
       if (mov) setInsumoMovimientos?.((prev) => [mov, ...prev]);
+      if (tipo === "ingreso" && typeof navigator !== "undefined" && navigator.onLine) {
+        notifyEvent("ingreso_mercaderia", {
+          insumo_id,
+          movimiento_id: mov?.id,
+          cantidad,
+        });
+      }
     },
     [setInsumoMovimientos, setInsumoStock],
   );

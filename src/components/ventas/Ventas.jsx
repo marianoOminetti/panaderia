@@ -7,6 +7,7 @@ import { hoyLocalISO } from "../../lib/dates";
 import { saveVentaPendiente } from "../../lib/offlineVentas";
 import { reportError } from "../../utils/errorReport";
 import { agruparVentas, gruposConDeuda as getGruposConDeuda, totalDebeEnGrupo } from "../../lib/agrupadores";
+import { notifyEvent } from "../../lib/notifyEvent";
 import VentasList from "./VentasList";
 import VentasEditModal from "./VentasEditModal";
 import VentasChargeModal from "./VentasChargeModal";
@@ -138,24 +139,34 @@ function Ventas({
     );
   };
 
-  const registrarVentaEnSupabase = async (rows) => {
+  const registrarVentaEnSupabase = async (rows, transaccionId) => {
     const inserted = await insertVentas(rows);
-    if (!actualizarStock) return;
-    try {
-      for (const v of rows) {
-        const cant = v.cantidad || 0;
-        if (v.receta_id && cant > 0) await actualizarStock(v.receta_id, -cant);
-      }
-    } catch (err) {
-      const ids = (inserted || []).map((r) => r.id).filter(Boolean);
-      if (ids.length > 0) {
-        try {
-          await deleteVentas(ids);
-        } catch (rollbackErr) {
-          reportError(rollbackErr, { action: "rollbackVentasAfterStockFail", ids });
+    if (actualizarStock) {
+      try {
+        for (const v of rows) {
+          const cant = v.cantidad || 0;
+          if (v.receta_id && cant > 0) await actualizarStock(v.receta_id, -cant);
         }
+      } catch (err) {
+        const ids = (inserted || []).map((r) => r.id).filter(Boolean);
+        if (ids.length > 0) {
+          try {
+            await deleteVentas(ids);
+          } catch (rollbackErr) {
+            reportError(rollbackErr, { action: "rollbackVentasAfterStockFail", ids });
+          }
+        }
+        throw err;
       }
-      throw err;
+    }
+
+    // Notificación push (venta): fire-and-forget, solo si estamos online
+    if (typeof navigator !== "undefined" && navigator.onLine) {
+      const ventaIds = (inserted || []).map((r) => r.id).filter(Boolean);
+      notifyEvent("venta", {
+        transaccion_id: transaccionId || null,
+        venta_ids: ventaIds,
+      });
     }
   };
 
@@ -385,7 +396,7 @@ function Ventas({
         await saveVentaPendiente(rows);
         showToast(`✅ Venta guardada offline: ${fmt(usarOverride ? override : totalCarrito)}. Se sincronizará cuando vuelva la conexión.`);
       } else {
-        await registrarVentaEnSupabase(rows);
+        await registrarVentaEnSupabase(rows, transaccionId);
         showToast(`✅ Venta registrada: ${fmt(usarOverride ? override : totalCarrito)}`);
       }
       resetNuevaVenta();

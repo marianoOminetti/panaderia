@@ -6,6 +6,7 @@ import { useStockMutations } from "./hooks/useStockMutations";
 import { useVentas } from "./hooks/useVentas";
 import { usePlanResumen } from "./hooks/usePlanResumen";
 import { useSyncVentasPendientes } from "./hooks/useSyncVentasPendientes";
+import { usePushSubscription } from "./hooks/usePushSubscription";
 import { MORE_MENU_ITEMS } from "./config/nav";
 import Toast from "./components/ui/Toast";
 import ConfirmDialog from "./components/ui/ConfirmDialog";
@@ -84,6 +85,8 @@ export default function App() {
 
   const { deleteVentas } = useVentas();
 
+  usePushSubscription(session?.user?.id);
+
   const resumenPlanSemanal = usePlanResumen({
     recetas,
     recetaIngredientes,
@@ -102,10 +105,28 @@ export default function App() {
     showToast,
   });
 
-  useEffect(() => {
-    if (typeof window === "undefined" || typeof Notification === "undefined") return;
-    if (Notification.permission === "default") Notification.requestPermission().catch(() => {});
+  // Deep link: al cargar o al ganar foco, si la URL tiene ?tab=ventas&venta=KEY, abrir tab Ventas y esa venta
+  const applyDeepLink = useCallback(() => {
+    if (typeof window === "undefined" || !window.location.search) return;
+    const params = new URLSearchParams(window.location.search);
+    const tabParam = params.get("tab");
+    const ventaKey = params.get("venta");
+    if (tabParam === "ventas" && ventaKey) {
+      setTab("ventas");
+      setVentasPreloadGrupoKey(ventaKey);
+    }
   }, []);
+
+  useEffect(() => {
+    applyDeepLink();
+  }, [applyDeepLink]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handleFocus = () => applyDeepLink();
+    window.addEventListener("focus", handleFocus);
+    return () => window.removeEventListener("focus", handleFocus);
+  }, [applyDeepLink]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
