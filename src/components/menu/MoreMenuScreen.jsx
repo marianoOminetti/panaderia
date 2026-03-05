@@ -1,7 +1,10 @@
 import { useAuth } from "../../hooks/useAuth";
 import { usePushSubscription } from "../../hooks/usePushSubscription";
 
-const IS_DEV = process.env.REACT_APP_ENV === "development";
+const IS_DEV =
+  process.env.REACT_APP_ENV === "development" ||
+  (typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).has("debugPush"));
 
 export default function MoreMenuScreen({ items, onNavigate }) {
   const { session } = useAuth();
