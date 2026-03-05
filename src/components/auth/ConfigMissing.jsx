@@ -7,7 +7,7 @@ export default function ConfigMissing() {
   return (
     <div className="auth-screen">
       <div className="auth-card">
-        <h1 className="auth-title">🌾 Panadería SG</h1>
+        <h1 className="auth-title">🌾 Gluten Free</h1>
         <p className="auth-subtitle" style={{ marginBottom: 14 }}>
           Falta configuración de Supabase.
         </p>

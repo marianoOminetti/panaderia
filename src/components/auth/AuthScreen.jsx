@@ -22,7 +22,7 @@ export default function AuthScreen({ signIn }) {
   return (
     <div className="auth-screen">
       <div className="auth-card">
-        <h1 className="auth-title">🌾 Panadería SG</h1>
+        <h1 className="auth-title">🌾 Gluten Free</h1>
         <form className="auth-form" onSubmit={handleSubmit}>
           <input
             type="email"

@@ -60,17 +60,21 @@ export async function saveSubscriptionToSupabase(subscription, userId) {
   }
   const p256dh = btoa(String.fromCharCode.apply(null, new Uint8Array(key)));
   const authSecret = btoa(String.fromCharCode.apply(null, new Uint8Array(auth)));
-  const { error } = await supabase.from("push_subscriptions").upsert(
-    {
-      user_id: userId,
-      endpoint,
-      p256dh: p256dh,
-      auth: authSecret,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "user_id,endpoint" }
-  );
+
+  // Insertamos una fila por dispositivo (endpoint). Si ya existe (error 23505), lo ignoramos.
+  const { error } = await supabase.from("push_subscriptions").insert({
+    user_id: userId,
+    endpoint,
+    p256dh: p256dh,
+    auth: authSecret,
+    updated_at: new Date().toISOString(),
+  });
   if (error) {
+    // 23505 = unique_violation (ya existe fila para (user_id, endpoint)).
+    if (error.code === "23505") {
+      console.warn("[pushNotifications] subscription already exists for endpoint", endpoint);
+      return;
+    }
     console.error("[pushNotifications] saveSubscriptionToSupabase", error);
     throw error;
   }

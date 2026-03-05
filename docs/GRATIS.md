@@ -8,7 +8,7 @@ Sin pagar Apple ni Google, podés tener la app instalada en iOS y Android como s
 
 Una **Progressive Web App** se instala desde el navegador con "Agregar a pantalla de inicio". Se abre en pantalla completa, sin barra del navegador, y aparece como una app más en el celular.
 
-**Panadería SG ya está preparada** como PWA (manifest, íconos, meta tags), con **HTTPS** obligatorio en el hosting y **política de privacidad** en `/privacidad.html`.
+**Gluten Free ya está preparada** como PWA (manifest, íconos, meta tags), con **HTTPS** obligatorio en el hosting y **política de privacidad** en `/privacidad.html`.
 
 ---
 
@@ -33,12 +33,12 @@ Elegí uno de estos:
 5. Agregá las variables de entorno (Supabase URL y Key)
 6. Deploy
 
-Te dan una URL tipo: `https://panaderia-xxx.vercel.app`
+Te dan una URL tipo: `https://glutenfree-xxx.vercel.app`
 
 ### 2. Instalar en Android
 
 1. Abrí **Chrome** en el celular
-2. Entrá a tu URL (ej: `https://panaderia-xxx.vercel.app`)
+2. Entrá a tu URL (ej: `https://glutenfree-xxx.vercel.app`)
 3. Menú (⋮) → **"Agregar a la pantalla de inicio"** o **"Instalar app"**
 4. Confirmá
 

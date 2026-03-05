@@ -3,7 +3,7 @@
  * Muestra notificación con título/cuerpo del payload; al hacer clic abre la app con la URL del payload.
  */
 self.addEventListener("push", (event) => {
-  let data = { title: "Panadería SG", body: "" };
+  let data = { title: "Gluten Free", body: "" };
   if (event.data) {
     try {
       data = { ...data, ...event.data.json() };
@@ -16,10 +16,10 @@ self.addEventListener("push", (event) => {
     icon: "/logo192.png",
     badge: "/logo192.png",
     data: { url: data.url || "/" },
-    tag: data.tag || "panaderia-push",
+    tag: data.tag || "glutenfree-push",
   };
   event.waitUntil(
-    self.registration.showNotification(data.title || "Panadería SG", options)
+    self.registration.showNotification(data.title || "Gluten Free", options)
   );
 });
 
