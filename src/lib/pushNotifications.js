@@ -68,7 +68,7 @@ export async function saveSubscriptionToSupabase(subscription, userId) {
       auth: authSecret,
       updated_at: new Date().toISOString(),
     },
-    { onConflict: "user_id" }
+    { onConflict: "user_id,endpoint" }
   );
   if (error) {
     console.error("[pushNotifications] saveSubscriptionToSupabase", error);
