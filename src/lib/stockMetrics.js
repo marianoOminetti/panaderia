@@ -1,3 +1,7 @@
+/**
+ * Métricas de stock y pedidos: pedidos pendientes por semana, alertas por días restantes.
+ * Usado por Dashboard (alertas), Plan semanal.
+ */
 import { DIAS_ALERTA_AMARILLA } from "../config/appConfig";
 
 /**

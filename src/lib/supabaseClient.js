@@ -1,3 +1,7 @@
+/**
+ * Cliente Supabase (URL y anon key desde env) y flag SUPABASE_CONFIG_OK.
+ * Usado por todos los hooks que leen/escriben en la BD. Sin config válida, App muestra ConfigMissing.
+ */
 import { createClient } from "@supabase/supabase-js";
 
 const SUPABASE_URL = process.env.REACT_APP_SUPABASE_URL;

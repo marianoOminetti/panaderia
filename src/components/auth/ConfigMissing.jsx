@@ -1,3 +1,6 @@
+/**
+ * Pantalla cuando falta config de Supabase (REACT_APP_SUPABASE_URL / KEY). Muestra variables a definir y opcional log de errores.
+ */
 import { useState } from "react";
 import { getErrorLog } from "../../utils/errorReport";
 

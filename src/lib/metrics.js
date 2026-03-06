@@ -1,3 +1,7 @@
+/**
+ * Métricas de ventas y stock: promedio diario por receta, días restantes de stock (ventana configurable).
+ * Usado por Dashboard, Analytics, alertas de stock.
+ */
 import {
   METRICAS_VENTANA_DIAS,
 } from "../config/appConfig";

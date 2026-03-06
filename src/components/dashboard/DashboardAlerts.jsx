@@ -1,4 +1,8 @@
-import { pctFmt, fmt } from "../../lib/format";
+/**
+ * Panel de alertas del Dashboard: stock bajo, margen bajo, pedidos próximos, grupos con deuda, alertas roja/amarilla.
+ * Datos derivados vienen de useDashboardAlerts (Dashboard.jsx); este componente solo presenta y navega.
+ */
+import { pctFmt, fmt, fmtStock } from "../../lib/format";
 import {
   METRICAS_VENTANA_DIAS,
 } from "../../config/appConfig";
@@ -464,7 +468,7 @@ function DashboardAlerts({
                   }}
                 >
                   {(r.emoji || "🥐")} {r.nombre} · pedidos{" "}
-                  {pedidosCant} · stock {stockActual}
+                  {pedidosCant} · stock {fmtStock(stockActual)}
                 </span>
               );
             })}

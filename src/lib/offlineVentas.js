@@ -1,3 +1,7 @@
+/**
+ * Persistencia de ventas pendientes en IndexedDB cuando no hay conexión.
+ * Usado por useSyncVentasPendientes y flujo de ventas offline.
+ */
 const OFFLINE_DB_NAME = "panaderia-offline";
 const OFFLINE_DB_VERSION = 1;
 const OFFLINE_VENTAS_STORE = "ventas_pendientes";

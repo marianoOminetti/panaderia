@@ -1,8 +1,13 @@
+/**
+ * Lista de stock por receta: prioridades de producción, métricas (días restantes), pedidos pendientes y botón cargar.
+ * Recibe datos calculados desde Stock.jsx; al "Cargar" abre StockProductionModal (controlado por el padre).
+ */
 import { useState } from "react";
 import {
   DIAS_OBJETIVO_PRODUCCION,
   METRICAS_VENTANA_DIAS,
 } from "../../config/appConfig";
+import { fmtStock } from "../../lib/format";
 import { formatearDiasStock } from "../../lib/metrics";
 
 function StockList({
@@ -101,7 +106,7 @@ function StockList({
                     >
                       {stockActual <= 0
                         ? "Sin stock"
-                        : `Stock: ${stockActual}`}{" "}
+                        : `Stock: ${fmtStock(stockActual)}`}{" "}
                       {metrica && metrica.promedioDiario > 0 && (
                         <>
                           · prom.{" "}
@@ -169,7 +174,7 @@ function StockList({
                       : "var(--text-muted)",
                   }}
                 >
-                  {bajo ? "Sin stock" : `Stock: ${cant}`}
+                  {bajo ? "Sin stock" : `Stock: ${fmtStock(cant)}`}
                 </div>
                 {metrica && metrica.promedioDiario > 0 && (
                   <div

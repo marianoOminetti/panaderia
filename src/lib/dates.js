@@ -1,3 +1,7 @@
+/**
+ * Fechas: inicio de semana (lunes) en ISO, hoy en ISO local.
+ * Usado por Analytics, Plan semanal, ventas por período, etc.
+ */
 export function getSemanaInicioISO(fecha = new Date()) {
   const d = new Date(fecha);
   const day = d.getDay(); // 0 domingo, 1 lunes, ...

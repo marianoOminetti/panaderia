@@ -1,4 +1,10 @@
-import { useState, useMemo } from "react";
+/**
+ * Modal "Cargar producción": búsqueda de recetas, carrito (stockCart/addToStockCart), acciones Volver/Voz/Cargar.
+ * Estado del carrito y ejecutarCarga en Stock.jsx; este componente es presentacional + handlers pasados por props.
+ */
+import { fmtStock } from "../../lib/format";
+import ProductSearchInput from "../ui/ProductSearchInput";
+import { useFilterBySearch } from "../../hooks/useFilterBySearch";
 
 function StockProductionModal({
   recetasOrdenadasPorStock,
@@ -12,15 +18,10 @@ function StockProductionModal({
   onCargar,
   onVaciarCarrito,
 }) {
-  const [search, setSearch] = useState("");
-
-  const filteredRecetas = useMemo(() => {
-    const q = (search || "").trim().toLowerCase();
-    if (!q) return recetasOrdenadasPorStock;
-    return recetasOrdenadasPorStock.filter((r) =>
-      (r.nombre || "").toLowerCase().includes(q)
-    );
-  }, [recetasOrdenadasPorStock, search]);
+  const { search, setSearch, filteredItems: filteredRecetas } = useFilterBySearch(
+    recetasOrdenadasPorStock,
+    "nombre"
+  );
 
   return (
     <div className="screen-overlay">
@@ -206,18 +207,7 @@ function StockProductionModal({
           <div className="card-header">
             <span className="card-title">Productos</span>
           </div>
-          <input
-            type="search"
-            placeholder="Buscar producto…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="form-input"
-            style={{
-              marginBottom: 12,
-              padding: "8px 12px",
-              fontSize: 14,
-            }}
-          />
+          <ProductSearchInput value={search} onChange={setSearch} />
           <div
             style={{
               display: "grid",
@@ -281,7 +271,7 @@ function StockProductionModal({
                       color: sinStock ? "var(--danger)" : "var(--text-muted)",
                     }}
                   >
-                    Stock actual: {st} u
+                    Stock actual: {fmtStock(st)} u
                   </span>
                 </button>
               );

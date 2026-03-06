@@ -1,3 +1,7 @@
+/**
+ * Lista de ventas agrupadas por transacción/deuda: filtros, apertura de grupo, edición y cobro.
+ * Recibe ventas, callbacks de edición/cobro y estado desde Ventas.jsx (no persiste por sí mismo).
+ */
 import { fmt } from "../../lib/format";
 import { agruparVentas, totalDebeEnGrupo } from "../../lib/agrupadores";
 
@@ -32,7 +36,11 @@ export function computeClientesDeuda(ventas) {
     prev.total += monto;
     const refFecha = v.fecha || v.created_at;
     if (refFecha) {
-      const d = new Date(refFecha);
+      const fechaNorm =
+        String(refFecha).length <= 10
+          ? `${String(refFecha).slice(0, 10)}T12:00:00`
+          : refFecha;
+      const d = new Date(fechaNorm);
       if (!Number.isNaN(d.getTime()) && (!prev.ultimaFecha || d > prev.ultimaFecha))
         prev.ultimaFecha = d;
     }
@@ -165,13 +173,14 @@ export default function VentasList({
             let fechaHoraTxt = "";
             let horaTxt = "";
             if (ejemplo) {
+              // Preferir fecha (date-only) para que lo editado coincida con la lista; T12 evita desfase por timezone
+              const fechaSolo = ejemplo.fecha && String(ejemplo.fecha).slice(0, 10);
               const fechaBase =
-                ejemplo.created_at ||
-                (ejemplo.fecha && `${ejemplo.fecha}T00:00:00`);
+                (fechaSolo && `${fechaSolo}T12:00:00`) || ejemplo.created_at;
               if (fechaBase) {
                 const d = new Date(fechaBase);
                 if (!Number.isNaN(d.getTime())) {
-                  const esHoy = ejemplo.fecha === hoy;
+                  const esHoy = fechaSolo === hoy;
                   const hora = d.toLocaleTimeString("es-AR", {
                     hour: "2-digit",
                     minute: "2-digit",

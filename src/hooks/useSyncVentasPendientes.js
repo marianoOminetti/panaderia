@@ -3,6 +3,11 @@ import { supabase } from "../lib/supabaseClient";
 import { deleteVentaPendiente, getVentasPendientes } from "../lib/offlineVentas";
 import { reportError } from "../utils/errorReport";
 
+/**
+ * Sincroniza ventas guardadas en IndexedDB (offline) cuando hay sesión y conexión.
+ * Usado por App.js. Sube filas a Supabase, actualiza stock y borra pendientes; en error reporta y no borra.
+ * @param {{ session, isOnline, actualizarStock, deleteVentas, loadData, showToast }}
+ */
 export function useSyncVentasPendientes({
   session,
   isOnline,
@@ -38,7 +43,10 @@ export function useSyncVentasPendientes({
             inserted = res.data;
             error = res.error;
           }
-          if (error) throw error;
+          if (error) {
+            console.error("[syncVentasPendientes/insertVentas]", error);
+            throw error;
+          }
           if (actualizarStock) {
             try {
               for (const v of rows) {

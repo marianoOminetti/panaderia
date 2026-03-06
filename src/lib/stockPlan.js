@@ -1,3 +1,7 @@
+/**
+ * Plan de stock: explosión de recetas a ítems, cálculo de insumos necesarios para producción.
+ * Usado por Stock (producción), useStockMutations (consumir insumos al cargar stock).
+ */
 import { aGramos, convertirAUnidadInsumo } from "./units";
 
 /** Explota una receta (y sus precursoras) a ítems (receta, cantidad) para sumar insumos.

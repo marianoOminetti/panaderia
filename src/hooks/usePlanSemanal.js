@@ -1,6 +1,12 @@
 import { useCallback } from "react";
 import { supabase } from "../lib/supabaseClient";
 
+/**
+ * CRUD del plan semanal en Supabase (fetch, insert, update, delete, upsert por semana).
+ * Usado por usePlanSemanalScreen y por tanto por PlanSemanal.jsx.
+ * @param {{ onRefresh?: () => void, onPlanChanged?: () => void, showToast?: (msg: string) => void }}
+ * @returns {{ fetchPlan, insertPlanRow, updatePlanRow, deletePlanRow, upsertPlanRow }}
+ */
 export function usePlanSemanal({ onRefresh, onPlanChanged, showToast } = {}) {
   const fetchPlan = useCallback(async (semana_inicio) => {
     const { data, error } = await supabase
@@ -9,7 +15,10 @@ export function usePlanSemanal({ onRefresh, onPlanChanged, showToast } = {}) {
         "id, semana_inicio, receta_id, cantidad_planificada, cantidad_realizada",
       )
       .eq("semana_inicio", semana_inicio);
-    if (error) throw error;
+    if (error) {
+      console.error("[plan_semanal/fetchPlan]", error);
+      throw error;
+    }
     return data || [];
   }, []);
 
@@ -20,7 +29,10 @@ export function usePlanSemanal({ onRefresh, onPlanChanged, showToast } = {}) {
       cantidad_planificada: row.cantidad_planificada ?? 0,
       cantidad_realizada: row.cantidad_realizada ?? 0,
     });
-    if (error) throw error;
+    if (error) {
+      console.error("[plan_semanal/insertPlanRow]", error);
+      throw error;
+    }
   }, []);
 
   const updatePlanRow = useCallback(async (id, payload) => {
@@ -28,7 +40,10 @@ export function usePlanSemanal({ onRefresh, onPlanChanged, showToast } = {}) {
       .from("plan_semanal")
       .update(payload)
       .eq("id", id);
-    if (error) throw error;
+    if (error) {
+      console.error("[plan_semanal/updatePlanRow]", error);
+      throw error;
+    }
   }, []);
 
   const deletePlanRow = useCallback(async (id) => {
@@ -36,7 +51,10 @@ export function usePlanSemanal({ onRefresh, onPlanChanged, showToast } = {}) {
       .from("plan_semanal")
       .delete()
       .eq("id", id);
-    if (error) throw error;
+    if (error) {
+      console.error("[plan_semanal/deletePlanRow]", error);
+      throw error;
+    }
   }, []);
 
   const upsertPlanRow = useCallback(
@@ -50,7 +68,10 @@ export function usePlanSemanal({ onRefresh, onPlanChanged, showToast } = {}) {
         },
         { onConflict: "semana_inicio,receta_id" },
       );
-      if (error) throw error;
+      if (error) {
+        console.error("[plan_semanal/upsertPlanRow]", error);
+        throw error;
+      }
       await onRefresh?.();
       onPlanChanged?.();
     },

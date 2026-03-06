@@ -1,3 +1,7 @@
+/**
+ * Navegación: pestañas de la barra inferior (NAV_TABS) e ítems del menú "Más" (MORE_MENU_ITEMS).
+ * Usado por AppNav y App para rutas (tab/setTab).
+ */
 export const NAV_TABS = [
   { id: "dashboard", icon: "📊", label: "Inicio" },
   { id: "ventas", icon: "💰", label: "Ventas" },

@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { CATEGORIAS, CAT_COLORS } from "../../config/appConfig";
-import { fmtPrecio } from "../../lib/format";
+import { fmtPrecio, fmtStock } from "../../lib/format";
 
 function InsumosCompra({
   compraCart,
@@ -365,7 +365,7 @@ function InsumosCompra({
                     <div className="insumo-detalle">
                       {i.presentacion} ·{" "}
                       <span className="chip">{precioPorU(i)}</span> · Stock:{" "}
-                      {stockActual} {unidad}
+                      {fmtStock(stockActual)} {unidad}
                     </div>
                   </div>
                   <div className="insumo-precio" style={{ marginLeft: 8 }}>

@@ -1,3 +1,7 @@
+/**
+ * Pantalla "Más": grilla de ítems (analytics, plan, clientes, insumos, recetas) que navegan por setTab.
+ * En dev muestra panel de push (usePushSubscription). items = MORE_MENU_ITEMS desde App.
+ */
 import { useAuth } from "../../hooks/useAuth";
 import { usePushSubscription } from "../../hooks/usePushSubscription";
 

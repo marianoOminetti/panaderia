@@ -1,3 +1,7 @@
+/**
+ * Agrupación de ventas e ítems: por receta, por transaccion_id, grupos con total y estado.
+ * Usado por Ventas (lista, cobro, edición), Analytics, Dashboard.
+ */
 /** Agrupa ítems de una transacción por receta (suma cantidades) */
 export function agregarItemsPorReceta(items) {
   if (!items || items.length === 0) return [];
@@ -57,10 +61,24 @@ export function agruparVentas(ventas) {
       cliente_id: v.cliente_id,
     });
   }
+  /** Ordenar por fecha de venta (la que se muestra y se puede editar), no por created_at */
+  function fechaOrdenable(grupo) {
+    const raw = grupo.rawItems?.[0] || grupo.items?.[0];
+    if (!raw) return "";
+    const fecha = raw.fecha;
+    if (fecha && String(fecha).length >= 10) {
+      return `${String(fecha).slice(0, 10)}T12:00:00`;
+    }
+    return raw.created_at || "";
+  }
   return grupos.sort((a, b) => {
-    const aTime = a.items[0]?.created_at || "";
-    const bTime = b.items[0]?.created_at || "";
-    return bTime.localeCompare(aTime);
+    const aTime = fechaOrdenable(a);
+    const bTime = fechaOrdenable(b);
+    const cmp = bTime.localeCompare(aTime);
+    if (cmp !== 0) return cmp;
+    const aCreated = a.rawItems?.[0]?.created_at || "";
+    const bCreated = b.rawItems?.[0]?.created_at || "";
+    return bCreated.localeCompare(aCreated);
   });
 }
 

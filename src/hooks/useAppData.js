@@ -3,6 +3,12 @@ import { supabase } from "../lib/supabaseClient";
 import { INSUMOS_SEED } from "../config/appConfig";
 import { reportError } from "../utils/errorReport";
 
+/**
+ * Carga y mantiene todos los datos de la app (insumos, recetas, ventas, clientes, pedidos, stock, etc.).
+ * Usado solo por App.js. loadData() re-fetcha todo; límites: ventas 1000, pedidos 1000, insumo_movimientos 100.
+ * @param {{ showToast?: (msg: string) => void }} options
+ * @returns {{ insumos, recetas, ventas, recetaIngredientes, clientes, pedidos, stock, insumoStock, insumoMovimientos, insumoComposicion, precioHistorial, gastosFijos, loading, loadData, setStock, setInsumoStock, setInsumoMovimientos, recetasFilterIds, setRecetasFilterIds, planSemanalVersion, setPlanSemanalVersion }}
+ */
 export function useAppData({ showToast } = {}) {
   const [insumos, setInsumos] = useState([]);
   const [recetas, setRecetas] = useState([]);
@@ -26,6 +32,7 @@ export function useAppData({ showToast } = {}) {
   const [recetasFilterIds, setRecetasFilterIds] = useState([]);
   const [planSemanalVersion, setPlanSemanalVersion] = useState(0);
 
+  // Límites de carga en queries: ventas 1000, pedidos 1000, insumo_movimientos 100, precio_historial 5000.
   const loadData = useCallback(async () => {
     const stPromise = supabase
       .from("stock")
@@ -201,7 +208,10 @@ export function useAppData({ showToast } = {}) {
     if (!seededRef.current && insRes.data && insRes.data.length === 0) {
       try {
         const { error } = await supabase.from("insumos").insert(INSUMOS_SEED);
-        if (error) throw error;
+        if (error) {
+          console.error("[useAppData/seedInsumos]", error);
+          throw error;
+        }
         seededRef.current = true;
         setSeeded(true);
         const { data: fresh } = await supabase

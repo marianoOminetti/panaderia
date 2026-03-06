@@ -27,7 +27,10 @@ export function useAuth() {
       email: email.trim(),
       password,
     });
-    if (error) throw error;
+    if (error) {
+      console.error("[auth/signIn]", error);
+      throw error;
+    }
   }, []);
 
   const signOut = useCallback(async () => {

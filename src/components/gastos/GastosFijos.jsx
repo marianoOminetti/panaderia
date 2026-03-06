@@ -1,7 +1,11 @@
-import { useState } from "react";
+/**
+ * Pantalla Gastos fijos: lista, resumen diario/semanal y formulario (useGastosFijosForm).
+ * calcularGastosFijosNormalizados se exporta para uso en Analytics/Dashboard.
+ */
 import { fmt } from "../../lib/format";
 import { reportError } from "../../utils/errorReport";
 import { useGastosFijos as useGastosFijosMutations } from "../../hooks/useGastosFijos";
+import { useGastosFijosForm } from "../../hooks/useGastosFijosForm";
 
 /** Normaliza gastos fijos a valores diarios y semanales */
 export function calcularGastosFijosNormalizados(gastos) {
@@ -28,63 +32,13 @@ export function calcularGastosFijosNormalizados(gastos) {
 }
 
 export default function GastosFijos({ gastos, onRefresh, showToast }) {
-  const { saveGastoFijo, toggleActivo: toggleActivoMutation, deleteGastoFijo } =
-    useGastosFijosMutations({ onRefresh, showToast });
+  const {
+    saveGastoFijo,
+    toggleActivo: toggleActivoMutation,
+    deleteGastoFijo,
+  } = useGastosFijosMutations({ onRefresh, showToast });
 
-  const [modal, setModal] = useState(false);
-  const [editando, setEditando] = useState(null);
-  const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({
-    nombre: "",
-    monto: "",
-    frecuencia: "mensual",
-    activo: true,
-  });
-
-  const openNew = () => {
-    setEditando(null);
-    setForm({ nombre: "", monto: "", frecuencia: "mensual", activo: true });
-    setModal(true);
-  };
-
-  const openEdit = (g) => {
-    setEditando(g);
-    setForm({
-      nombre: g.nombre,
-      monto: String(g.monto ?? ""),
-      frecuencia: g.frecuencia || "mensual",
-      activo: g.activo !== false,
-    });
-    setModal(true);
-  };
-
-  const save = async () => {
-    if (!form.nombre.trim()) {
-      showToast("⚠️ Nombre requerido");
-      return;
-    }
-    const monto = parseFloat(String(form.monto).replace(",", "."));
-    if (!monto || monto <= 0) {
-      showToast("⚠️ Monto inválido");
-      return;
-    }
-    setSaving(true);
-    const payload = {
-      nombre: form.nombre.trim(),
-      monto,
-      frecuencia: form.frecuencia,
-      activo: form.activo,
-    };
-    try {
-      await saveGastoFijo(payload, editando?.id);
-      setModal(false);
-    } catch (err) {
-      reportError(err, { action: "saveGastoFijo" });
-      showToast("⚠️ Error al guardar gasto fijo");
-    } finally {
-      setSaving(false);
-    }
-  };
+  const formState = useGastosFijosForm({ showToast, saveGastoFijo });
 
   const toggleActivo = async (g) => {
     try {
@@ -137,7 +91,7 @@ export default function GastosFijos({ gastos, onRefresh, showToast }) {
           <button
             type="button"
             className="edit-btn"
-            onClick={openNew}
+            onClick={formState.openNew}
           >
             + Agregar
           </button>
@@ -153,8 +107,8 @@ export default function GastosFijos({ gastos, onRefresh, showToast }) {
               g.frecuencia === "diario"
                 ? "Diario"
                 : g.frecuencia === "semanal"
-                ? "Semanal"
-                : "Mensual";
+                  ? "Semanal"
+                  : "Mensual";
             return (
               <div
                 key={g.id}
@@ -172,7 +126,7 @@ export default function GastosFijos({ gastos, onRefresh, showToast }) {
                   <button
                     type="button"
                     className="edit-btn"
-                    onClick={() => openEdit(g)}
+                    onClick={() => formState.openEdit(g)}
                   >
                     Editar
                   </button>
@@ -204,22 +158,22 @@ export default function GastosFijos({ gastos, onRefresh, showToast }) {
         )}
       </div>
 
-      <button className="fab" onClick={openNew}>
+      <button className="fab" onClick={formState.openNew}>
         +
       </button>
 
-      {modal && (
+      {formState.modal && (
         <div className="screen-overlay">
           <div className="screen-header">
             <button
               className="screen-back"
-              onClick={() => setModal(false)}
-              disabled={saving}
+              onClick={formState.closeModal}
+              disabled={formState.saving}
             >
               ← Volver
             </button>
             <span className="screen-title">
-              {editando ? "Editar gasto fijo" : "Nuevo gasto fijo"}
+              {formState.editando ? "Editar gasto fijo" : "Nuevo gasto fijo"}
             </span>
           </div>
           <div className="screen-content">
@@ -227,9 +181,9 @@ export default function GastosFijos({ gastos, onRefresh, showToast }) {
               <label className="form-label">Nombre</label>
               <input
                 className="form-input"
-                value={form.nombre}
+                value={formState.form.nombre}
                 onChange={(e) =>
-                  setForm((f) => ({ ...f, nombre: e.target.value }))
+                  formState.setForm((f) => ({ ...f, nombre: e.target.value }))
                 }
                 placeholder="Ej: Alquiler, Luz, Sueldos"
               />
@@ -242,9 +196,9 @@ export default function GastosFijos({ gastos, onRefresh, showToast }) {
                   type="number"
                   min="0"
                   step="0.01"
-                  value={form.monto}
+                  value={formState.form.monto}
                   onChange={(e) =>
-                    setForm((f) => ({ ...f, monto: e.target.value }))
+                    formState.setForm((f) => ({ ...f, monto: e.target.value }))
                   }
                   placeholder="Ej: 300000"
                 />
@@ -253,9 +207,12 @@ export default function GastosFijos({ gastos, onRefresh, showToast }) {
                 <label className="form-label">Frecuencia</label>
                 <select
                   className="form-select"
-                  value={form.frecuencia}
+                  value={formState.form.frecuencia}
                   onChange={(e) =>
-                    setForm((f) => ({ ...f, frecuencia: e.target.value }))
+                    formState.setForm((f) => ({
+                      ...f,
+                      frecuencia: e.target.value,
+                    }))
                   }
                 >
                   <option value="diario">Diario</option>
@@ -268,9 +225,9 @@ export default function GastosFijos({ gastos, onRefresh, showToast }) {
               <label className="form-label">Estado</label>
               <select
                 className="form-select"
-                value={form.activo ? "activo" : "inactivo"}
+                value={formState.form.activo ? "activo" : "inactivo"}
                 onChange={(e) =>
-                  setForm((f) => ({
+                  formState.setForm((f) => ({
                     ...f,
                     activo: e.target.value === "activo",
                   }))
@@ -282,15 +239,15 @@ export default function GastosFijos({ gastos, onRefresh, showToast }) {
             </div>
             <button
               className="btn-primary"
-              onClick={save}
-              disabled={saving}
+              onClick={formState.save}
+              disabled={formState.saving}
             >
-              {saving ? "Guardando…" : "Guardar"}
+              {formState.saving ? "Guardando…" : "Guardar"}
             </button>
             <button
               className="btn-secondary"
-              onClick={() => setModal(false)}
-              disabled={saving}
+              onClick={formState.closeModal}
+              disabled={formState.saving}
             >
               Cancelar
             </button>

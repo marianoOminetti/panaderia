@@ -1,3 +1,7 @@
+/**
+ * Conversión de unidades (g, kg, ml, l, u) para insumos y recetas.
+ * Usado por costos.js, stockPlan.js, Recetas (ingredientes).
+ */
 export function aGramos(cantidad, unidad) {
   const u = (unidad || "g").toLowerCase();
   if (u === "g") return cantidad;

@@ -1,3 +1,7 @@
+/**
+ * Cabecera de la app: título (link a Inicio), botón log de errores, cerrar sesión.
+ * Usado por App.js.
+ */
 import { getErrorLog } from "../../utils/errorReport";
 
 export default function AppHeader({ setErrorLogOpen, signOut, showToast, onGoHome }) {

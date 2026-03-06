@@ -1,3 +1,6 @@
+/**
+ * Overlay que muestra el log de errores (errorReport). Usado por App.js cuando el usuario abre el log desde el header.
+ */
 import { getErrorLog } from "../../utils/errorReport";
 
 export default function ErrorLogOverlay({ onClose }) {

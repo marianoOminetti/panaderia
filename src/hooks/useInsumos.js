@@ -6,6 +6,12 @@ function normalizeNombre(nombre) {
   return (nombre || "").trim();
 }
 
+/**
+ * CRUD de insumos en Supabase (update, insert, delete, precio historial, composición). No carga la lista; eso lo hace useAppData.
+ * Usado por Insumos.jsx (pasa callbacks a useInsumosCompra y useInsumosLista).
+ * @param {{ onRefresh?: () => void, showToast?: (msg: string) => void }}
+ * @returns {{ updateInsumo, insertInsumo, deleteInsumo, insertPrecioHistorial, updateRecetaCostos, ... }}
+ */
 export function useInsumos({ onRefresh, showToast } = {}) {
   const updateInsumo = useCallback(
     async (id, data) => {
@@ -14,7 +20,10 @@ export function useInsumos({ onRefresh, showToast } = {}) {
         .update(data)
         .eq("id", id)
         .select("id, precio");
-      if (error) throw error;
+      if (error) {
+        console.error("[insumos/updateInsumo]", error);
+        throw error;
+      }
     },
     [],
   );
@@ -37,7 +46,10 @@ export function useInsumos({ onRefresh, showToast } = {}) {
         .eq("nombre", nombre)
         .eq("categoria", categoria)
         .limit(1);
-      if (selectError) throw selectError;
+      if (selectError) {
+        console.error("[insumos/insertInsumo select]", selectError);
+        throw selectError;
+      }
       if (existentes && existentes.length > 0) {
         showToast?.("Ya existe un insumo con ese nombre y categoría");
         const dupError = new Error("INSUMO_DUPLICADO");
@@ -58,6 +70,7 @@ export function useInsumos({ onRefresh, showToast } = {}) {
           dupError.code = "INSUMO_DUPLICADO";
           throw dupError;
         }
+        console.error("[insumos/insertInsumo]", error);
         throw error;
       }
       return row;
@@ -81,7 +94,10 @@ export function useInsumos({ onRefresh, showToast } = {}) {
       .from("recetas")
       .update({ costo_lote, costo_unitario })
       .eq("id", recetaId);
-    if (error) throw error;
+    if (error) {
+      console.error("[insumos/updateRecetaCostos]", error);
+      throw error;
+    }
   }, []);
 
   const deleteInsumoComposicion = useCallback(
@@ -91,7 +107,10 @@ export function useInsumos({ onRefresh, showToast } = {}) {
         .delete()
         .eq("insumo_id", insumo_id)
         .eq("insumo_id_componente", insumo_id_componente);
-      if (error) throw error;
+      if (error) {
+        console.error("[insumos/deleteInsumoComposicion]", error);
+        throw error;
+      }
       showToast?.("✅ Componente quitado");
       await onRefresh?.();
     },
@@ -103,7 +122,10 @@ export function useInsumos({ onRefresh, showToast } = {}) {
       const { error } = await supabase
         .from("insumo_composicion")
         .upsert(row, { onConflict: "insumo_id,insumo_id_componente" });
-      if (error) throw error;
+      if (error) {
+        console.error("[insumos/upsertInsumoComposicion]", error);
+        throw error;
+      }
       await onRefresh?.();
     },
     [onRefresh],
@@ -112,7 +134,10 @@ export function useInsumos({ onRefresh, showToast } = {}) {
   const deleteInsumo = useCallback(
     async (id) => {
       const { error } = await supabase.from("insumos").delete().eq("id", id);
-      if (error) throw error;
+      if (error) {
+        console.error("[insumos/deleteInsumo]", error);
+        throw error;
+      }
       showToast?.("🗑️ Insumo eliminado");
       await onRefresh?.();
     },

@@ -1,6 +1,11 @@
 import { useCallback } from "react";
 import { supabase } from "../lib/supabaseClient";
 
+/**
+ * CRUD de clientes y operaciones relacionadas (ventas, pedidos). Usado por Clientes.jsx y ClienteFormModal.
+ * @param {{ onRefresh?: () => void, showToast?: (msg: string) => void }}
+ * @returns {{ insertCliente, updateVentasClienteId, deleteCliente, ... }}
+ */
 export function useClientes({ onRefresh, showToast } = {}) {
   const insertCliente = useCallback(
     async ({ nombre, telefono }, options = {}) => {
@@ -9,7 +14,10 @@ export function useClientes({ onRefresh, showToast } = {}) {
         .insert({ nombre: nombre.trim(), telefono: telefono || null })
         .select("id")
         .single();
-      if (error) throw error;
+      if (error) {
+        console.error("[clientes/insertCliente]", error);
+        throw error;
+      }
       if (!options.skipToast) showToast?.("✅ Cliente agregado");
       if (!options.skipRefresh) await onRefresh?.();
       return data;
@@ -22,7 +30,10 @@ export function useClientes({ onRefresh, showToast } = {}) {
       .from("ventas")
       .update({ cliente_id: toClienteId })
       .eq("cliente_id", fromClienteId);
-    if (error) throw error;
+    if (error) {
+      console.error("[clientes/updateVentasClienteId]", error);
+      throw error;
+    }
   }, []);
 
   /** Reasigna todos los pedidos de un cliente a otro (para fusión). Orden: llamar después de updateVentasClienteId y antes de deleteCliente. */
@@ -31,25 +42,37 @@ export function useClientes({ onRefresh, showToast } = {}) {
       .from("pedidos")
       .update({ cliente_id: toClienteId })
       .eq("cliente_id", fromClienteId);
-    if (error) throw error;
+    if (error) {
+      console.error("[clientes/updatePedidosClienteId]", error);
+      throw error;
+    }
   }, []);
 
   const deleteCliente = useCallback(async (id) => {
     const { error } = await supabase.from("clientes").delete().eq("id", id);
-    if (error) throw error;
+    if (error) {
+      console.error("[clientes/deleteCliente]", error);
+      throw error;
+    }
   }, []);
 
   /** Borra ventas por ids (para rollback cuando falla updatePedidoEntregado tras insertVentas). */
   const deleteVentasByIds = useCallback(async (ids) => {
     if (!ids?.length) return;
     const { error } = await supabase.from("ventas").delete().in("id", ids);
-    if (error) throw error;
+    if (error) {
+      console.error("[clientes/deleteVentasByIds]", error);
+      throw error;
+    }
   }, []);
 
   const insertPedidos = useCallback(
     async (rows) => {
       const { error } = await supabase.from("pedidos").insert(rows);
-      if (error) throw error;
+      if (error) {
+        console.error("[clientes/insertPedidos]", error);
+        throw error;
+      }
       showToast?.("✅ Pedido guardado");
       await onRefresh?.();
     },
@@ -62,7 +85,10 @@ export function useClientes({ onRefresh, showToast } = {}) {
         .from("pedidos")
         .update({ estado })
         .eq("pedido_id", pedido_id);
-      if (error) throw error;
+      if (error) {
+        console.error("[clientes/updatePedidoEstado]", error);
+        throw error;
+      }
       await onRefresh?.();
     },
     [onRefresh],
@@ -74,7 +100,10 @@ export function useClientes({ onRefresh, showToast } = {}) {
       .from("ventas")
       .insert(rows)
       .select("id");
-    if (error) throw error;
+    if (error) {
+      console.error("[clientes/insertVentas]", error);
+      throw error;
+    }
     return data || [];
   }, []);
 
@@ -84,7 +113,10 @@ export function useClientes({ onRefresh, showToast } = {}) {
         .from("pedidos")
         .update({ estado: "entregado" })
         .eq("pedido_id", pedido_id);
-      if (error) throw error;
+      if (error) {
+        console.error("[clientes/updatePedidoEntregado]", error);
+        throw error;
+      }
       showToast?.("✅ Pedido entregado registrado como venta");
       await onRefresh?.();
     },

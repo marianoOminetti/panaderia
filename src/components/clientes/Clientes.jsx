@@ -1,3 +1,7 @@
+/**
+ * Pantalla Clientes: lista (ClientesList), detalle (ClienteDetalle) y modal ABM (ClienteFormModal).
+ * useClientes para CRUD; estado local para búsqueda y cliente seleccionado.
+ */
 import { useState } from "react";
 import { useClientes } from "../../hooks/useClientes";
 import ClientesList from "./ClientesList";

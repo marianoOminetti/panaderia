@@ -1,4 +1,5 @@
 import { CATEGORIAS, CAT_COLORS } from "../../config/appConfig";
+import { fmtStock } from "../../lib/format";
 
 function InsumosList({
   search,
@@ -85,7 +86,7 @@ function InsumosList({
                         fontWeight: stockNegativo ? 600 : undefined,
                       }}
                     >
-                      {stock} {unidad}
+                      {fmtStock(stock)} {unidad}
                     </span>
                     {" · "}
                     <span style={{ textDecoration: "underline" }}>Tocar para ver</span>

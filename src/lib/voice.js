@@ -1,3 +1,7 @@
+/**
+ * Voz para ventas: API de reconocimiento, parseo de texto a ítems (receta + cantidad).
+ * Usado por useVentasVoz y VentasVoiceModal.
+ */
 export const SpeechRecognitionAPI =
   typeof window !== "undefined" &&
   (window.SpeechRecognition || window.webkitSpeechRecognition);

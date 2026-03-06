@@ -74,14 +74,22 @@ body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--cream); c
 /* Stats row */
 .stats-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
 .stat-card { background: var(--surface); border-radius: 14px; padding: 14px; box-shadow: var(--shadow); border: 1px solid var(--border); }
-.dashboard-metrics { background: linear-gradient(135deg, var(--purple-dark) 0%, var(--purple) 100%); border-radius: 16px; padding: 20px; margin-bottom: 16px; color: white; }
+.dashboard-metrics { position: relative; background: linear-gradient(135deg, var(--purple-dark) 0%, var(--purple) 100%); border-radius: 16px; padding: 20px; margin-bottom: 16px; color: white; }
 .dashboard-metric-main { margin-bottom: 12px; }
-.dashboard-metric-label { font-size: 11px; opacity: 0.8; letter-spacing: 1px; text-transform: uppercase; }
+.dashboard-metric-value-row { display: flex; align-items: center; gap: 12px; }
 .dashboard-metric-value { font-family: 'Outfit', sans-serif; font-size: 28px; font-weight: 700; }
+.dashboard-metrics-toggle { display: inline-flex; align-items: center; justify-content: center; padding: 8px; background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.35); border-radius: 8px; color: white; cursor: pointer; transition: background 0.2s; }
+.dashboard-metrics-toggle:hover { background: rgba(255,255,255,0.3); }
+.dashboard-metrics-toggle-icon { display: inline-flex; align-items: center; justify-content: center; }
+.dashboard-metrics-toggle-icon svg { flex-shrink: 0; }
+.dashboard-metric-label { font-size: 11px; opacity: 0.8; letter-spacing: 1px; text-transform: uppercase; }
+.dashboard-metric-value-sm { font-size: 22px; }
 .dashboard-metric-row { display: flex; gap: 20px; }
 .dashboard-metric-mini { display: flex; flex-direction: column; gap: 2px; }
 .dashboard-metric-mini-val { font-weight: 600; font-size: 15px; }
 .dashboard-metric-mini-lbl { font-size: 11px; opacity: 0.8; }
+.dashboard-metric-margen { margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.25); }
+.dashboard-metric-margen .dashboard-metric-label { margin-bottom: 2px; }
 .dashboard-quick-grid { display: flex; flex-direction: column; gap: 8px; }
 .dashboard-quick { display: flex; align-items: center; gap: 14px; padding: 14px 16px; background: var(--cream); border: 1px solid var(--border); border-radius: 12px; width: 100%; text-align: left; cursor: pointer; transition: background 0.2s; }
 .dashboard-quick:hover { background: var(--surface); }

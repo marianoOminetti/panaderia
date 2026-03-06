@@ -19,13 +19,19 @@ export function useVentas() {
       data = res.data;
       error = res.error;
     }
-    if (error) throw error;
+    if (error) {
+      console.error("[ventas/insertVentas]", error);
+      throw error;
+    }
     return data || [];
   }, []);
 
   const deleteVentas = useCallback(async (ids) => {
     const { error } = await supabase.from("ventas").delete().in("id", ids);
-    if (error) throw error;
+    if (error) {
+      console.error("[ventas/deleteVentas]", error);
+      throw error;
+    }
   }, []);
 
   const updateVenta = useCallback(async (id, payload) => {
@@ -33,7 +39,10 @@ export function useVentas() {
       .from("ventas")
       .update(payload)
       .eq("id", id);
-    if (error) throw error;
+    if (error) {
+      console.error("[ventas/updateVenta]", error);
+      throw error;
+    }
   }, []);
 
   return { insertVentas, deleteVentas, updateVenta };

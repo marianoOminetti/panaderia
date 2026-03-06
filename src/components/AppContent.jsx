@@ -1,3 +1,8 @@
+/**
+ * Orquestador por tab: según el valor de tab renderiza una sola pantalla y le pasa las props.
+ * Pantallas: dashboard, more (MoreMenuScreen), analytics, insumos, recetas, ventas, stock, plan, clientes, gastos.
+ * Detalle de props: docs/APP_PROPS_Y_CONTEXT.md y docs/CONTEXTO_APP_PARA_AGENTES.md.
+ */
 import Dashboard from "./dashboard/Dashboard";
 import Insumos from "./insumos/Insumos";
 import Ventas from "./ventas/Ventas";
@@ -18,6 +23,12 @@ export default function AppContent({
   ventasPreloadGrupoKey,
   onOpenGrupoDeuda,
   onConsumedVentasPreload,
+  onOpenNuevaVenta,
+  onOpenCargarStock,
+  ventasNuevaFlag,
+  onConsumedVentasNueva,
+  stockOpenManual,
+  onConsumedStockOpenManual,
   loading,
   moreMenuItems,
   insumos,
@@ -54,6 +65,7 @@ export default function AppContent({
   }
   return (
     <>
+      {/* --- Dashboard --- */}
       {tab === "dashboard" && (
         <Dashboard
           insumos={insumos}
@@ -63,14 +75,16 @@ export default function AppContent({
           clientes={clientes}
           stock={stock}
           pedidos={pedidos}
-          gastosFijos={gastosFijos}
-          resumenPlanSemanal={resumenPlanSemanal}
           onNavigate={setTab}
           onOpenCargarProduccion={onOpenCargarProduccion}
           onOpenGrupoDeuda={onOpenGrupoDeuda}
+          onOpenNuevaVenta={onOpenNuevaVenta}
+          onOpenCargarStock={onOpenCargarStock}
         />
       )}
+      {/* --- More (menú) --- */}
       {tab === "more" && <MoreMenuScreen items={moreMenuItems} onNavigate={setTab} />}
+      {/* --- Analytics --- */}
       {tab === "analytics" && (
         <Analytics
           ventas={ventas}
@@ -81,6 +95,7 @@ export default function AppContent({
           gastosFijos={gastosFijos}
         />
       )}
+      {/* --- Insumos --- */}
       {tab === "insumos" && (
         <Insumos
           insumos={insumos}
@@ -100,6 +115,7 @@ export default function AppContent({
           }}
         />
       )}
+      {/* --- Recetas --- */}
       {tab === "recetas" && (
         <Recetas
           recetas={recetas}
@@ -112,6 +128,7 @@ export default function AppContent({
           onClearFilter={() => setRecetasFilterIds([])}
         />
       )}
+      {/* --- Ventas --- */}
       {tab === "ventas" && (
         <Ventas
           recetas={recetas}
@@ -125,8 +142,11 @@ export default function AppContent({
           confirm={confirm}
           ventasPreloadGrupoKey={ventasPreloadGrupoKey}
           onConsumedVentasPreload={onConsumedVentasPreload}
+          ventasNuevaFlag={ventasNuevaFlag}
+          onConsumedVentasNueva={onConsumedVentasNueva}
         />
       )}
+      {/* --- Stock --- */}
       {tab === "stock" && (
         <Stock
           recetas={recetas}
@@ -145,8 +165,11 @@ export default function AppContent({
           pedidos={pedidos}
           stockProductionPreloadReceta={stockProductionPreloadReceta}
           onConsumedPreloadReceta={onConsumedPreloadReceta}
+          stockOpenManual={stockOpenManual}
+          onConsumedStockOpenManual={onConsumedStockOpenManual}
         />
       )}
+      {/* --- Plan semanal --- */}
       {tab === "plan" && (
         <PlanSemanal
           recetas={recetas}
@@ -161,6 +184,7 @@ export default function AppContent({
           onPlanChanged={() => setPlanSemanalVersion((v) => v + 1)}
         />
       )}
+      {/* --- Clientes --- */}
       {tab === "clientes" && (
         <Clientes
           ventas={ventas}
@@ -173,6 +197,7 @@ export default function AppContent({
           confirm={confirm}
         />
       )}
+      {/* --- Gastos fijos --- */}
       {tab === "gastos" && (
         <GastosFijos gastos={gastosFijos} onRefresh={loadData} showToast={showToast} />
       )}

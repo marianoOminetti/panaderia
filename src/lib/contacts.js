@@ -1,3 +1,7 @@
+/**
+ * Contact Picker API: selección de contactos del teléfono (nombre, tel) para Clientes.
+ * Chrome Android con HTTPS. Usado por ClienteFormModal o búsqueda de clientes.
+ */
 /** Contact Picker API - selecciona un contacto del celular (Chrome Android con HTTPS) */
 export async function selectContactFromPhone() {
   if (!navigator.contacts?.select) return { error: "no-support" };

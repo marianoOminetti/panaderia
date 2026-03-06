@@ -6,6 +6,12 @@ const SpeechRecognitionAPI =
   typeof window !== "undefined" &&
   (window.SpeechRecognition || window.webkitSpeechRecognition);
 
+/**
+ * Estado y handlers del flujo de venta por voz (modal, reconocimiento, parseo a ítems, inyección al carrito).
+ * Usado por Ventas.jsx. setCartItems viene de useVentasCart; no registra la venta (eso lo hace el usuario desde el carrito).
+ * @param {{ recetas: Array, setCartItems: Function, showToast: Function }}
+ * @returns {{ voiceModal, setVoiceModal, listening, transcript, parsedVentas, savingVoice, iniciarVoz, ... }}
+ */
 export function useVentasVoz({ recetas, setCartItems, showToast }) {
   const [voiceModal, setVoiceModal] = useState(false);
   const [listening, setListening] = useState(false);

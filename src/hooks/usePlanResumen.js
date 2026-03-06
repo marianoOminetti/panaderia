@@ -3,6 +3,12 @@ import { supabase } from "../lib/supabaseClient";
 import { getSemanaInicioISO } from "../lib/dates";
 import { calcularRequerimientoInsumosParaItems } from "../lib/stockPlan";
 
+/**
+ * Resumen del plan semanal actual (planificado vs realizado, ítems pendientes, requerimientos de insumos).
+ * Usado por App.js; resumenPlanSemanal se pasa a AppContent (actualmente no se inyecta al Dashboard).
+ * @param {{ recetas, recetaIngredientes, insumos, insumoComposicion, insumoStock, planSemanalVersion }}
+ * @returns {{ resumenPlanSemanal }}
+ */
 export function usePlanResumen({
   recetas,
   recetaIngredientes,

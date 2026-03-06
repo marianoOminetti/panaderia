@@ -1,8 +1,22 @@
-function QuickAction({ icon, label, sub, tab, alert, onNavigate }) {
+function QuickAction({
+  icon,
+  label,
+  sub,
+  tab,
+  alert,
+  onNavigate,
+  onClick,
+}) {
   return (
     <button
       className="dashboard-quick"
-      onClick={() => onNavigate?.(tab)}
+      onClick={() => {
+        if (onClick) {
+          onClick();
+        } else {
+          onNavigate?.(tab);
+        }
+      }}
     >
       <span className="dashboard-quick-icon">{icon}</span>
       <div className="dashboard-quick-text">
@@ -23,6 +37,8 @@ function DashboardQuickGrid({
   insumosCount,
   recetasCount,
   onNavigate,
+  onOpenNuevaVenta,
+  onOpenCargarStock,
 }) {
   return (
     <div className="card">
@@ -36,6 +52,7 @@ function DashboardQuickGrid({
           sub="Manual o por voz"
           tab="ventas"
           onNavigate={onNavigate}
+          onClick={onOpenNuevaVenta}
         />
         <QuickAction
           icon="📥"
@@ -48,6 +65,7 @@ function DashboardQuickGrid({
           tab="stock"
           alert={stockBajo.length > 0 ? stockBajo.length : null}
           onNavigate={onNavigate}
+          onClick={onOpenCargarStock}
         />
         <QuickAction
           icon="📆"

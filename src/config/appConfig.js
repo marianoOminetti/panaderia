@@ -1,3 +1,8 @@
+/**
+ * Configuración y constantes de la app: datos semilla de insumos, categorías, colores,
+ * cliente por defecto, umbrales de métricas (ventana días, alertas, objetivo producción).
+ * Usado por Insumos, Dashboard, lib de métricas, etc.
+ */
 export const INSUMOS_SEED = [
   { nombre: "Premezcla (casera)", categoria: "Harinas", presentacion: "x kg", precio: 1680, cantidad_presentacion: 1000, unidad: "g" },
   { nombre: "Almidón/Harina de Mandioca", categoria: "Harinas", presentacion: "x 10kg", precio: 23100, cantidad_presentacion: 10000, unidad: "g" },

@@ -1,6 +1,6 @@
 /**
- * Parsea texto de voz a compras de insumos.
- * Ej: "compré 2kg de harina de almendras a 43000 pesos y 500g de levadura"
+ * Voz para insumos: parseo de texto a compras (insumo, cantidad, precio).
+ * Ej: "compré 2kg de harina de almendras a 43000 pesos". Usado por useInsumosCompra / InsumosCompra.
  */
 export function parsearVozAComprasInsumos(texto, insumos) {
   if (!texto || !insumos?.length) return [];

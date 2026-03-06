@@ -1,3 +1,6 @@
+/**
+ * Pantalla de login (email/password). Usado por App.js cuando no hay session. signIn desde useAuth.
+ */
 import { useState } from "react";
 
 export default function AuthScreen({ signIn }) {

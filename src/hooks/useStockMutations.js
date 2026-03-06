@@ -3,6 +3,11 @@ import { aGramos, convertirAUnidadInsumo } from "../lib/units";
 import { supabase } from "../lib/supabaseClient";
 import { notifyEvent } from "../lib/notifyEvent";
 
+/**
+ * Mutaciones de stock y insumos: actualizarStock, actualizarStockBatch, registrarMovimientoInsumo, consumirInsumosPorStock.
+ * Usado por App.js; recibe datos de recetas, insumos, stock e insumoStock y setters. Persiste en Supabase y notifica.
+ * @returns {{ actualizarStock, actualizarStockBatch, registrarMovimientoInsumo, consumirInsumosPorStock }}
+ */
 export function useStockMutations({
   recetas,
   recetaIngredientes,
@@ -19,21 +24,37 @@ export function useStockMutations({
     async (receta_id, delta) => {
       let nuevo;
       let anterior;
-      setStock((prev) => {
-        const actual = prev[receta_id] ?? 0;
+      setStock((prevRaw) => {
+        const prev = prevRaw || {};
+        const actualRaw = prev[receta_id] ?? 0;
+        const actual =
+          typeof actualRaw === "number"
+            ? actualRaw
+            : parseFloat(actualRaw) || 0;
+        const deltaNum =
+          typeof delta === "number" ? delta : parseFloat(delta) || 0;
         anterior = actual;
-        nuevo = actual + delta;
+        nuevo = actual + deltaNum;
         return { ...prev, [receta_id]: nuevo };
       });
-      const { error } = await supabase.from("stock").upsert(
-        { receta_id, cantidad: nuevo, updated_at: new Date().toISOString() },
-        { onConflict: "receta_id" },
-      );
+      const { error } = await supabase
+        .from("stock")
+        .upsert(
+          { receta_id, cantidad: nuevo, updated_at: new Date().toISOString() },
+          { onConflict: "receta_id" },
+        );
       if (error) {
-        setStock((prev) => ({
-          ...prev,
-          [receta_id]: (prev[receta_id] ?? 0) - delta,
-        }));
+        setStock((prevRaw) => {
+          const prev = prevRaw || {};
+          const actualRaw = prev[receta_id] ?? 0;
+          const actual =
+            typeof actualRaw === "number"
+              ? actualRaw
+              : parseFloat(actualRaw) || 0;
+          const deltaNum =
+            typeof delta === "number" ? delta : parseFloat(delta) || 0;
+          return { ...prev, [receta_id]: actual - deltaNum };
+        });
         throw error;
       }
       if (anterior > 0 && nuevo <= 0) {
@@ -66,47 +87,79 @@ export function useStockMutations({
   const actualizarStockBatch = useCallback(
     async (updates) => {
       if (!updates || updates.length === 0) return;
-      const deltas = updates.map((u) => ({ receta_id: u.receta_id, delta: u.delta }));
-      let nextStock = null;
-      setStock((prev) => {
-        nextStock = { ...prev };
-        for (const { receta_id, delta } of deltas) {
-          nextStock[receta_id] = (nextStock[receta_id] ?? 0) + delta;
-        }
-        return nextStock;
-      });
+      const deltas = updates.map((u) => ({
+        receta_id: u.receta_id,
+        delta:
+          typeof u.delta === "number"
+            ? u.delta
+            : parseFloat(u.delta) || 0,
+      }));
+      const updatedAt = new Date().toISOString();
+      // Calcular next y rows desde stock actual (no dentro de setState) para no depender
+      // de que React 18 ejecute el updater de forma síncrona.
+      const prev = stock ?? {};
+      const next = { ...prev };
+      for (const { receta_id, delta } of deltas) {
+        const actualRaw = next[receta_id] ?? 0;
+        const actual =
+          typeof actualRaw === "number"
+            ? actualRaw
+            : parseFloat(actualRaw) || 0;
+        const deltaNum =
+          typeof delta === "number" ? delta : parseFloat(delta) || 0;
+        next[receta_id] = actual + deltaNum;
+      }
       const rows = deltas.map(({ receta_id }) => ({
         receta_id,
-        cantidad: nextStock[receta_id],
-        updated_at: new Date().toISOString(),
+        cantidad:
+          typeof next[receta_id] === "number"
+            ? next[receta_id]
+            : parseFloat(next[receta_id]) || 0,
+        updated_at: updatedAt,
       }));
+      setStock(next);
       const { error } = await supabase
         .from("stock")
         .upsert(rows, { onConflict: "receta_id" });
       if (error) {
-        setStock((prev) => {
+        setStock((prevRaw) => {
+          const prev = prevRaw || {};
           const rollback = { ...prev };
           for (const { receta_id, delta } of deltas) {
-            rollback[receta_id] = (rollback[receta_id] ?? 0) - delta;
+            const actualRaw = rollback[receta_id] ?? 0;
+            const actual =
+              typeof actualRaw === "number"
+                ? actualRaw
+                : parseFloat(actualRaw) || 0;
+            const deltaNum =
+              typeof delta === "number" ? delta : parseFloat(delta) || 0;
+            rollback[receta_id] = actual - deltaNum;
           }
           return rollback;
         });
         throw error;
       }
-      for (const { receta_id } of deltas) {
-        const anterior = (nextStock[receta_id] ?? 0) - (deltas.find((d) => d.receta_id === receta_id)?.delta ?? 0);
-        const nuevo = nextStock[receta_id] ?? 0;
-        if (anterior > 0 && nuevo <= 0) {
-          const receta = (recetas || []).find((r) => r.id === receta_id);
-          const nombre = receta?.nombre || "producto";
-          showToast?.(`⚠️ ${nombre}: sin stock`);
-          if (typeof navigator !== "undefined" && navigator.onLine) {
-            notifyEvent("stock_zero", { receta_id });
+
+      // Notificaciones de stock en cero (usando cantidades ya calculadas en rows)
+      if (rows.length > 0) {
+        for (const { receta_id, delta } of deltas) {
+          const row = rows.find((r) => r.receta_id === receta_id);
+          const nuevo = row ? (typeof row.cantidad === "number" ? row.cantidad : parseFloat(row.cantidad) || 0) : 0;
+          const deltaNum =
+            typeof delta === "number" ? delta : parseFloat(delta) || 0;
+          const anterior = nuevo - deltaNum;
+          if (anterior > 0 && nuevo <= 0) {
+            const receta = (recetas || []).find((r) => r.id === receta_id);
+            const nombre = receta?.nombre || "producto";
+            showToast?.(`⚠️ ${nombre}: sin stock`);
+            if (typeof navigator !== "undefined" && navigator.onLine) {
+              notifyEvent("stock_zero", { receta_id });
+            }
           }
         }
       }
     },
-    [recetas, setStock, showToast],
+    [recetas, setStock, showToast, stock],
   );
 
   const registrarMovimientoInsumo = useCallback(

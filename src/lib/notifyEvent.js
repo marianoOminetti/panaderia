@@ -1,3 +1,7 @@
+/**
+ * Dispara evento de notificación en el backend (Edge Function notify-event).
+ * Tipos: venta, stock_zero, ingreso_mercaderia. Usado por Ventas/Stock tras acciones.
+ */
 import { supabase } from "./supabaseClient";
 
 /**

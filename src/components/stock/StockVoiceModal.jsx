@@ -1,3 +1,5 @@
+import { fmtStock } from "../../lib/format";
+
 function StockVoiceModal({
   transcript,
   parsedStock,
@@ -60,7 +62,7 @@ function StockVoiceModal({
                       color: "var(--text-muted)",
                     }}
                   >
-                    +{v.cantidad} unidades
+                    +{fmtStock(v.cantidad)} unidades
                   </div>
                 </div>
               </div>
@@ -116,7 +118,7 @@ function StockVoiceModal({
         >
           {savingVoice
             ? "Cargando…"
-            : `Cargar +${totalUnidades} unidades`}
+            : `Cargar +${fmtStock(totalUnidades)} unidades`}
         </button>
         <button className="btn-secondary" onClick={onCancelar}>
           Cancelar

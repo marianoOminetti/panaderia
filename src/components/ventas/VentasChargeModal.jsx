@@ -1,4 +1,8 @@
-import { fmt } from "../../lib/format";
+/**
+ * Modal de cobro: cliente, medio de pago, total editable (chargeTotalOverride), lista de ítems (readOnly) y botón registrar.
+ * Estado y onRegistrar vienen de Ventas.jsx; no persiste por sí mismo.
+ */
+import { fmtMonedaDecimal } from "../../lib/format";
 import { SelectorCliente, SelectoresPago } from "./VentasSelectors";
 import VentasCart from "./VentasCart";
 
@@ -75,7 +79,7 @@ export default function VentasChargeModal({
                 type="number"
                 value={chargeTotalOverride}
                 onChange={(e) => setChargeTotalOverride(e.target.value)}
-                placeholder={fmt(cartTotal)}
+                placeholder={fmtMonedaDecimal(cartTotal)}
                 style={{ flex: 1 }}
               />
             </div>

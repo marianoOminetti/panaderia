@@ -1,3 +1,8 @@
+/**
+ * Raíz de la app Panadería: auth, datos globales (useAppData), mutaciones de stock, navegación por tab,
+ * toasts/confirm, deep links y preloads (ventas, stock). Todo el estado se pasa por props a AppContent.
+ * Ver docs/APP_PROPS_Y_CONTEXT.md para el detalle de props y posible evolución a Context.
+ */
 import { useState, useEffect, useCallback, useRef } from "react";
 import { SUPABASE_CONFIG_OK } from "./lib/supabaseClient";
 import { useAuth } from "./hooks/useAuth";
@@ -19,10 +24,14 @@ import AppNav from "./components/layout/AppNav";
 import "./App.css";
 
 export default function App() {
+  // --- Auth ---
   const { session, authLoading, signIn, signOut } = useAuth();
+  // --- Navegación y deep links ---
   const [tab, setTab] = useState("dashboard");
   const [stockProductionPreloadReceta, setStockProductionPreloadReceta] = useState(null);
   const [ventasPreloadGrupoKey, setVentasPreloadGrupoKey] = useState(null);
+  const [ventasNuevaFlag, setVentasNuevaFlag] = useState(false);
+  const [stockOpenManual, setStockOpenManual] = useState(false);
   const [toast, setToast] = useState(null);
   const [confirmState, setConfirmState] = useState(null);
   const [errorLogOpen, setErrorLogOpen] = useState(false);
@@ -31,6 +40,7 @@ export default function App() {
   );
   const confirmResolveRef = useRef(null);
 
+  // --- UI global (toast, confirm) ---
   const showToast = useCallback((msg) => setToast(msg), []);
   const confirm = useCallback((message, { destructive = false } = {}) => {
     return new Promise((resolve) => {
@@ -45,6 +55,7 @@ export default function App() {
     setConfirmState(null);
   }, []);
 
+  // --- Datos (useAppData) ---
   const {
     insumos,
     recetas,
@@ -182,6 +193,18 @@ export default function App() {
           setTab("ventas");
         }}
         onConsumedVentasPreload={() => setVentasPreloadGrupoKey(null)}
+        onOpenNuevaVenta={() => {
+          setVentasNuevaFlag(true);
+          setTab("ventas");
+        }}
+        onOpenCargarStock={() => {
+          setStockOpenManual(true);
+          setTab("stock");
+        }}
+        ventasNuevaFlag={ventasNuevaFlag}
+        onConsumedVentasNueva={() => setVentasNuevaFlag(false)}
+        stockOpenManual={stockOpenManual}
+        onConsumedStockOpenManual={() => setStockOpenManual(false)}
         loading={loading}
         moreMenuItems={MORE_MENU_ITEMS}
         insumos={insumos}
