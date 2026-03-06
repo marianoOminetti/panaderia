@@ -76,6 +76,7 @@ export default function VentasCart({
                     alignItems: "center",
                     gap: 8,
                     marginTop: readOnly ? 0 : 4,
+                    flexWrap: "wrap",
                   }}
                 >
                   {readOnly ? (
@@ -168,7 +169,8 @@ export default function VentasCart({
                           display: "flex",
                           alignItems: "center",
                           gap: 4,
-                          flex: 1,
+                          flex: "1 1 200px",
+                          minWidth: 0,
                         }}
                       >
                         {priceReadOnly ? (
@@ -176,6 +178,7 @@ export default function VentasCart({
                             style={{
                               fontSize: 12,
                               color: "var(--text-muted)",
+                              whiteSpace: "nowrap",
                             }}
                           >
                             {fmtMonedaDecimal(item.precio_unitario || 0)} c/u
@@ -186,6 +189,7 @@ export default function VentasCart({
                               style={{
                                 fontSize: 12,
                                 color: "var(--text-muted)",
+                                flexShrink: 0,
                               }}
                             >
                               $
@@ -205,9 +209,12 @@ export default function VentasCart({
                                 updateCartPrice(itemKey, e.target.value)
                               }
                               style={{
-                                maxWidth: 110,
+                                minWidth: 72,
+                                width: "100%",
+                                maxWidth: 140,
                                 padding: "5px 7px",
                                 fontSize: 14,
+                                boxSizing: "border-box",
                               }}
                             />
                           </>
@@ -215,6 +222,7 @@ export default function VentasCart({
                         <div
                           style={{
                             minWidth: 80,
+                            flexShrink: 0,
                             textAlign: "right",
                             fontWeight: 500,
                           }}
