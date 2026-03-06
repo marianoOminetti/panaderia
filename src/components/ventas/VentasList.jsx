@@ -173,28 +173,28 @@ export default function VentasList({
             let fechaHoraTxt = "";
             let horaTxt = "";
             if (ejemplo) {
-              // Preferir fecha (date-only) para que lo editado coincida con la lista; T12 evita desfase por timezone
               const fechaSolo = ejemplo.fecha && String(ejemplo.fecha).slice(0, 10);
-              const fechaBase =
-                (fechaSolo && `${fechaSolo}T12:00:00`) || ejemplo.created_at;
-              if (fechaBase) {
-                const d = new Date(fechaBase);
-                if (!Number.isNaN(d.getTime())) {
-                  const esHoy = fechaSolo === hoy;
-                  const hora = d.toLocaleTimeString("es-AR", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  });
-                  horaTxt = `${hora} hs`;
-                  const diaTxt = esHoy
-                    ? "Hoy"
-                    : d.toLocaleDateString("es-AR", {
-                        weekday: "short",
-                        day: "numeric",
-                        month: "short",
-                      });
-                  fechaHoraTxt = `${diaTxt} · ${horaTxt}`;
-                }
+              const createdFull = ejemplo.created_at && String(ejemplo.created_at).length > 10;
+              // Día: usar fecha (date-only) para coincidir con edición; T12 evita desfase por timezone
+              const dParaDia = fechaSolo ? new Date(`${fechaSolo}T12:00:00`) : (ejemplo.created_at ? new Date(ejemplo.created_at) : null);
+              // Hora: usar created_at (timestamp real) cuando existe; sino fecha+T12
+              const dParaHoraRaw = createdFull ? new Date(ejemplo.created_at) : dParaDia;
+              const dParaHora = (dParaHoraRaw && !Number.isNaN(dParaHoraRaw.getTime())) ? dParaHoraRaw : dParaDia;
+              if (dParaDia && !Number.isNaN(dParaDia.getTime())) {
+                const esHoy = fechaSolo === hoy;
+                const hora = dParaHora.toLocaleTimeString("es-AR", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                });
+                horaTxt = `${hora} hs`;
+                const diaTxt = esHoy
+                  ? "Hoy"
+                  : dParaDia.toLocaleDateString("es-AR", {
+                      weekday: "short",
+                      day: "numeric",
+                      month: "short",
+                    });
+                fechaHoraTxt = `${diaTxt} · ${horaTxt}`;
               }
             }
             const medio = ejemplo?.medio_pago || "efectivo";
