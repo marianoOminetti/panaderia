@@ -2,8 +2,11 @@
  * Lista de ventas agrupadas por transacción/deuda: filtros, apertura de grupo, edición y cobro.
  * Recibe ventas, callbacks de edición/cobro y estado desde Ventas.jsx (no persiste por sí mismo).
  */
+import { useState } from "react";
 import { fmt } from "../../lib/format";
 import { agruparVentas, totalDebeEnGrupo } from "../../lib/agrupadores";
+import { useFilterVentasGrupos } from "../../hooks/useFilterVentasGrupos";
+import VentasListFilters from "./VentasListFilters";
 
 function formatRelDia(d, hoyDate) {
   if (!d || Number.isNaN(d.getTime())) return "";
@@ -66,6 +69,8 @@ export default function VentasList({
 }) {
   const hoyDate = new Date(hoy);
   const grupos = agruparVentas(ventas || []);
+  const [search, setSearch] = useState("");
+  const filteredGrupos = useFilterVentasGrupos(grupos, recetas, clientes, search);
 
   return (
     <>
@@ -164,7 +169,14 @@ export default function VentasList({
           <div className="card-header" style={{ marginBottom: 8 }}>
             <span className="card-title">Ventas recientes</span>
           </div>
-          {grupos.map((grupo) => {
+          <VentasListFilters search={search} onSearchChange={setSearch} />
+          {filteredGrupos.length === 0 && search.trim() ? (
+            <div className="empty">
+              <div className="empty-icon">🔍</div>
+              <p>Sin resultados</p>
+            </div>
+          ) : (
+          filteredGrupos.map((grupo) => {
             const cliente = (clientes || []).find(
               (c) => c.id === grupo.cliente_id,
             );
@@ -261,7 +273,7 @@ export default function VentasList({
                   </span>
                 </div>
                 {grupo.items.map((v, vi) => {
-                  const r = recetas.find((r2) => r2.id === v.receta_id);
+                  const r = (recetas || []).find((r2) => r2.id === v.receta_id);
                   return (
                     <div
                       key={v.id || `${grupo.key}-${v.receta_id}-${vi}`}
@@ -315,7 +327,8 @@ export default function VentasList({
                 </div>
               </div>
             );
-          })}
+          })
+          )}
         </>
       )}
     </>
