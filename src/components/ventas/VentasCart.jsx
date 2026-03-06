@@ -36,14 +36,10 @@ export default function VentasCart({
     );
   }
 
-  const itemSubtotal = (it) =>
-    (it.precio_unitario || 0) *
-    (typeof it.cantidad === "number" ? it.cantidad : toCantidadNumber(it.cantidad) || 0);
-
   return (
     <>
       <div>
-        {cartItems.map((item, index) => {
+        {cartItems.map((item) => {
           const itemKey = getItemKey(item);
           const priceReadOnly = readOnly || !priceEditable;
           const canRemove = !readOnly;
@@ -51,82 +47,39 @@ export default function VentasCart({
           const displayQty = quantityIntegerOnly
             ? Math.round(cantNum) || 1
             : item.cantidad;
-          const subtotal = itemSubtotal(item);
-          const isLast = index === cartItems.length - 1;
 
           return (
             <div
               key={itemKey}
               className={readOnly ? "venta-item venta-item-simple" : "insumo-item"}
               style={{
-                paddingBottom: isLast ? 0 : 10,
-                marginBottom: isLast ? 0 : 10,
-                borderBottom: isLast ? "none" : "1px solid var(--border)",
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
               }}
             >
-              {/* Línea 1: emoji + nombre (puede wrappear) + X a la derecha */}
-              <div
+              <span
+                className={readOnly ? "venta-emoji" : ""}
                 style={{
-                  display: "flex",
-                  alignItems: "flex-start",
-                  gap: 8,
-                  marginBottom: 6,
+                  fontSize: readOnly ? undefined : 20,
+                  alignSelf: "flex-start",
+                  marginTop: 2,
                 }}
               >
-                <span
-                  className={readOnly ? "venta-emoji" : ""}
-                  style={{
-                    fontSize: 24,
-                    lineHeight: 1,
-                    flexShrink: 0,
-                  }}
-                >
-                  {item.receta?.emoji}
-                </span>
+                {item.receta?.emoji}
+              </span>
+              <div className="insumo-info" style={{ flex: 1 }}>
+                <div className="insumo-nombre">{item.receta?.nombre}</div>
                 <div
-                  className="insumo-nombre"
                   style={{
-                    flex: 1,
-                    minWidth: 0,
-                    fontWeight: 600,
-                    fontSize: 14,
-                    wordWrap: "break-word",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    marginTop: readOnly ? 0 : 4,
+                    flexWrap: "wrap",
                   }}
                 >
-                  {item.receta?.nombre}
-                </div>
-                {canRemove && (
-                  <button
-                    type="button"
-                    onClick={() => removeFromCart(itemKey)}
-                    style={{
-                      flexShrink: 0,
-                      background: "none",
-                      border: "none",
-                      color: "var(--danger)",
-                      cursor: "pointer",
-                      fontSize: 18,
-                      padding: 0,
-                      lineHeight: 1,
-                    }}
-                    title="Quitar"
-                  >
-                    ✕
-                  </button>
-                )}
-              </div>
-
-              {/* Línea 2: indentada; controles cantidad + precio (90px fijo) + subtotal derecha */}
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  marginLeft: 32,
-                }}
-              >
-                {readOnly ? (
-                  <>
+                  {readOnly ? (
                     <div
                       style={{
                         fontSize: 12,
@@ -141,145 +94,178 @@ export default function VentasCart({
                       )}{" "}
                       · {fmtMonedaDecimal(item.precio_unitario || 0)} c/u
                     </div>
-                    <div
-                      style={{
-                        marginLeft: "auto",
-                        fontWeight: 600,
-                        color: "var(--purple-dark)",
-                        fontSize: 14,
-                      }}
-                    >
-                      {fmtMonedaDecimal(subtotal)}
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => updateCartQuantity(itemKey, -1)}
-                      style={{
-                        width: 26,
-                        height: 26,
-                        borderRadius: 999,
-                        border: "1px solid var(--border)",
-                        background: "var(--cream)",
-                        fontSize: 16,
-                        cursor: "pointer",
-                        padding: 0,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                    >
-                      −
-                    </button>
-                    <input
-                      type="text"
-                      inputMode={quantityIntegerOnly ? "numeric" : "decimal"}
-                      className="form-input"
-                      value={displayQty}
-                      onChange={(e) => {
-                        if (!setCartQuantity) return;
-                        const raw = e.target.value.trim();
-                        if (quantityIntegerOnly) {
-                          const n = parseInt(raw, 10);
-                          setCartQuantity(
-                            itemKey,
-                            Number.isNaN(n) || n < 1 ? 1 : n
-                          );
-                        } else {
-                          setCartQuantity(itemKey, raw === "" ? "" : raw);
-                        }
-                      }}
-                      style={{
-                        width: 36,
-                        minWidth: 36,
-                        textAlign: "center",
-                        padding: "2px 4px",
-                        fontSize: 13,
-                        boxSizing: "border-box",
-                      }}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => updateCartQuantity(itemKey, 1)}
-                      style={{
-                        width: 26,
-                        height: 26,
-                        borderRadius: 999,
-                        border: "1px solid var(--border)",
-                        background: "var(--cream)",
-                        fontSize: 16,
-                        cursor: "pointer",
-                        padding: 0,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                    >
-                      +
-                    </button>
-                    <span
-                      style={{
-                        fontSize: 12,
-                        color: "var(--text-muted)",
-                        flexShrink: 0,
-                        marginLeft: 4,
-                      }}
-                    >
-                      $
-                    </span>
-                    {priceReadOnly ? (
-                      <span
+                  ) : (
+                    <>
+                      <div
                         style={{
-                          width: 90,
-                          fontSize: 14,
-                          color: "var(--text-muted)",
-                          textAlign: "center",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 6,
                         }}
                       >
-                        {fmtMonedaDecimal(item.precio_unitario || 0)}
-                      </span>
-                    ) : (
-                      <input
-                        type="text"
-                        inputMode="decimal"
-                        className="form-input"
-                        value={
-                          item.precio_unitario === ""
-                            ? ""
-                            : typeof item.precio_unitario === "number"
-                              ? String(item.precio_unitario)
-                              : item.precio_unitario
-                        }
-                        onChange={(e) =>
-                          updateCartPrice(itemKey, e.target.value)
-                        }
+                        <button
+                          type="button"
+                          onClick={() =>
+                            updateCartQuantity(itemKey, -1)
+                          }
+                          style={{
+                            width: 28,
+                            height: 28,
+                            borderRadius: 999,
+                            border: "1px solid var(--border)",
+                            background: "var(--cream)",
+                            fontSize: 18,
+                            cursor: "pointer",
+                          }}
+                        >
+                          −
+                        </button>
+                        <input
+                          type="text"
+                          inputMode={quantityIntegerOnly ? "numeric" : "decimal"}
+                          className="form-input"
+                          value={displayQty}
+                          onChange={(e) => {
+                            if (!setCartQuantity) return;
+                            const raw = e.target.value.trim();
+                            if (quantityIntegerOnly) {
+                              const n = parseInt(raw, 10);
+                              setCartQuantity(
+                                itemKey,
+                                Number.isNaN(n) || n < 1 ? 1 : n
+                              );
+                            } else {
+                              setCartQuantity(itemKey, raw === "" ? "" : raw);
+                            }
+                          }}
+                          style={{
+                            minWidth: 36,
+                            maxWidth: 60,
+                            textAlign: "center",
+                            padding: "3px 4px",
+                            fontSize: 13,
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() =>
+                            updateCartQuantity(itemKey, 1)
+                          }
+                          style={{
+                            width: 28,
+                            height: 28,
+                            borderRadius: 999,
+                            border: "1px solid var(--border)",
+                            background: "var(--cream)",
+                            fontSize: 18,
+                            cursor: "pointer",
+                          }}
+                        >
+                          +
+                        </button>
+                      </div>
+                      <div
                         style={{
-                          width: 90,
-                          minWidth: 90,
-                          maxWidth: 90,
-                          padding: "4px 6px",
-                          fontSize: 14,
-                          textAlign: "center",
-                          boxSizing: "border-box",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 4,
+                          flex: "1 1 200px",
+                          minWidth: 0,
                         }}
-                      />
-                    )}
-                    <div
-                      style={{
-                        marginLeft: "auto",
-                        fontWeight: 600,
-                        color: "var(--purple-dark)",
-                        fontSize: 14,
-                        flexShrink: 0,
-                      }}
-                    >
-                      {fmtMonedaDecimal(subtotal)}
-                    </div>
-                  </>
-                )}
+                      >
+                        {priceReadOnly ? (
+                          <span
+                            style={{
+                              fontSize: 12,
+                              color: "var(--text-muted)",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {fmtMonedaDecimal(item.precio_unitario || 0)} c/u
+                          </span>
+                        ) : (
+                          <>
+                            <span
+                              style={{
+                                fontSize: 12,
+                                color: "var(--text-muted)",
+                                flexShrink: 0,
+                              }}
+                            >
+                              $
+                            </span>
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              className="form-input"
+                              value={
+                                item.precio_unitario === ""
+                                  ? ""
+                                  : typeof item.precio_unitario === "number"
+                                    ? String(item.precio_unitario)
+                                    : item.precio_unitario
+                              }
+                              onChange={(e) =>
+                                updateCartPrice(itemKey, e.target.value)
+                              }
+                              style={{
+                                minWidth: 72,
+                                width: "100%",
+                                maxWidth: 140,
+                                padding: "5px 7px",
+                                fontSize: 14,
+                                boxSizing: "border-box",
+                              }}
+                            />
+                          </>
+                        )}
+                        <div
+                          style={{
+                            minWidth: 80,
+                            flexShrink: 0,
+                            textAlign: "right",
+                            fontWeight: 500,
+                          }}
+                        >
+                          {fmtMonedaDecimal(
+                            (item.precio_unitario || 0) *
+                              (typeof item.cantidad === "number"
+                                ? item.cantidad
+                                : toCantidadNumber(item.cantidad) || 0)
+                          )}
+                        </div>
+                        {canRemove && (
+                          <button
+                            type="button"
+                            onClick={() => removeFromCart(itemKey)}
+                            style={{
+                              marginLeft: 4,
+                              background: "none",
+                              border: "none",
+                              color: "var(--danger)",
+                              cursor: "pointer",
+                              fontSize: 18,
+                            }}
+                            title="Quitar"
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
+              {readOnly && (
+                <div style={{ fontWeight: 500 }}>
+                  {fmtMonedaDecimal(
+                    (item.precio_unitario || 0) *
+                      (typeof item.cantidad === "number"
+                        ? item.cantidad
+                        : toCantidadNumber(item.cantidad) || 0)
+                  )}
+                </div>
+              )}
             </div>
           );
         })}
