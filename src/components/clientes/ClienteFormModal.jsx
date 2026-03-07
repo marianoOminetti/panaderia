@@ -5,6 +5,7 @@ import {
   selectContactsFromPhoneMultiple,
 } from "../../lib/contacts";
 import { useClientes } from "../../hooks/useClientes";
+import { FormInput } from "../ui";
 
 function ClienteFormModal({ visible, onClose, clientes, onRefresh, showToast }) {
   const { insertCliente } = useClientes({ onRefresh, showToast });
@@ -114,42 +115,29 @@ function ClienteFormModal({ visible, onClose, clientes, onRefresh, showToast }) 
         <span className="screen-title">Nuevo cliente</span>
       </div>
       <div className="screen-content">
-        <div className="form-group">
-          <label className="form-label">Nombre</label>
-          <input
-            className="form-input"
-            value={form.nombre}
-            onChange={(e) =>
-              setForm({ ...form, nombre: e.target.value })
-            }
-            placeholder="Ej: María García"
-          />
-        </div>
-        <div className="form-group">
-          <label className="form-label">Teléfono</label>
-          <input
-            className="form-input"
-            type="tel"
-            value={form.telefono}
-            onChange={(e) =>
-              setForm({ ...form, telefono: e.target.value })
-            }
-            placeholder="+54 11 1234-5678"
-          />
-        </div>
+        <FormInput
+          label="Nombre"
+          value={form.nombre}
+          onChange={(v) => setForm({ ...form, nombre: v })}
+          placeholder="Ej: María García"
+          required
+          autoFocus
+        />
+        <FormInput
+          label="Teléfono"
+          type="tel"
+          value={form.telefono}
+          onChange={(v) => setForm({ ...form, telefono: v })}
+          placeholder="+54 11 1234-5678"
+        />
         <div className="form-group">
           <label className="form-label">
             Tomar de contactos del celular
           </label>
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: 8,
-            }}
-          >
+          <div className="btn-group-vertical">
             <button
               type="button"
+              className="btn-icon"
               onClick={async () => {
                 const r = await selectContactFromPhone();
                 if (r.error === "no-support") {
@@ -160,69 +148,28 @@ function ClienteFormModal({ visible, onClose, clientes, onRefresh, showToast }) 
                 setForm({ nombre: r.name, telefono: r.tel });
               }}
               disabled={importingMultiple}
-              style={{
-                border: "1px solid var(--border)",
-                borderRadius: 10,
-                padding: "8px 12px",
-                fontSize: 13,
-                background: "var(--cream)",
-                cursor: importingMultiple
-                  ? "not-allowed"
-                  : "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 6,
-              }}
             >
-              <span style={{ fontSize: 16 }}>📇</span>
+              <span className="btn-icon-emoji">📇</span>
               <span>Elegir contacto</span>
             </button>
             <button
               type="button"
+              className="btn-icon"
               onClick={importarVariosContactos}
               disabled={importingMultiple}
-              style={{
-                border: "1px solid var(--border)",
-                borderRadius: 10,
-                padding: "8px 12px",
-                fontSize: 13,
-                background: "var(--cream)",
-                cursor: importingMultiple
-                  ? "not-allowed"
-                  : "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 6,
-              }}
             >
-              <span style={{ fontSize: 16 }}>📋</span>
+              <span className="btn-icon-emoji">📋</span>
               <span>
-                {importingMultiple
-                  ? "Importando…"
-                  : "Importar varios"}
+                {importingMultiple ? "Importando…" : "Importar varios"}
               </span>
             </button>
           </div>
           {importingMultiple && importProgress.total > 0 && (
-            <p
-              style={{
-                fontSize: 12,
-                color: "var(--text-muted)",
-                marginTop: 8,
-              }}
-            >
+            <p className="form-hint" style={{ marginTop: 8 }}>
               {importProgress.done} / {importProgress.total} contactos…
             </p>
           )}
-          <p
-            style={{
-              fontSize: 11,
-              color: "var(--text-muted)",
-              marginTop: 6,
-            }}
-          >
+          <p className="form-hint" style={{ marginTop: 6 }}>
             Funciona en Chrome Android con HTTPS. Elegí uno o varios
             contactos para crear clientes.
           </p>

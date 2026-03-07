@@ -73,16 +73,18 @@ export default function Clientes({
       <p className="page-title">Clientes</p>
       <p className="page-subtitle">Mejores clientes por gasto total</p>
 
-      <div className="stats-row" style={{ marginBottom: 16 }}>
+      <div className="stats-stack">
         <div className="stat-card">
           <div className="stat-label">Clientes</div>
           <div className="stat-value">{clientes.length}</div>
+          <div className="analytics-kpi-sub">Total registrados</div>
         </div>
         <div className="stat-card">
           <div className="stat-label">Con compras</div>
           <div className="stat-value accent">
             {clientesConGasto.filter((c) => c.total > 0).length}
           </div>
+          <div className="analytics-kpi-sub">Clientes con al menos una venta</div>
         </div>
       </div>
 

@@ -1,8 +1,7 @@
 import { fmt, fmtMonedaDecimal, fmtStock } from "../../lib/format";
 import VentasCart from "./VentasCart";
 import { SelectorCliente, SelectoresPago } from "./VentasSelectors";
-import DatePicker from "../ui/DatePicker";
-import ProductSearchInput from "../ui/ProductSearchInput";
+import { DatePicker, ProductSearchInput, FormMoneyInput } from "../ui";
 import { useFilterBySearch } from "../../hooks/useFilterBySearch";
 
 export default function VentasManualScreen({
@@ -162,36 +161,16 @@ export default function VentasManualScreen({
                 setEditForm?.((prev) => ({ ...prev, fecha: v }))
               }
             />
-            <div className="form-group" style={{ marginTop: 12 }}>
-              <label className="form-label">Total final (editable)</label>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                }}
-              >
-                <span style={{ fontSize: 18 }}>💰</span>
-                <input
-                  className="form-input"
-                  type="number"
-                  value={editTotalOverride}
-                  onChange={(e) => setEditTotalOverride?.(e.target.value)}
-                  placeholder={fmtMonedaDecimal(editCartTotal)}
-                  style={{ flex: 1 }}
-                />
-              </div>
-              <p
-                style={{
-                  fontSize: 12,
-                  color: "var(--text-muted)",
-                  marginTop: 4,
-                }}
-              >
-                Dejalo vacío para usar el total del carrito. Usalo para
-                descuentos o redondeos.
-              </p>
-            </div>
+            <FormMoneyInput
+              label="Total final (editable)"
+              value={editTotalOverride}
+              onChange={(v) => setEditTotalOverride?.(v)}
+              placeholder={fmtMonedaDecimal(editCartTotal).replace("$", "").trim()}
+              style={{ marginTop: 12 }}
+            />
+            <p className="form-hint" style={{ marginTop: -8 }}>
+              Dejalo vacío para usar el total del carrito. Usalo para descuentos o redondeos.
+            </p>
           </div>
         )}
         <div className="card" style={{ marginBottom: 16 }}>
@@ -214,13 +193,7 @@ export default function VentasManualScreen({
             <span className="card-title">Productos</span>
           </div>
           <ProductSearchInput value={search} onChange={setSearch} />
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-              gap: 12,
-            }}
-          >
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {filteredRecetas.map((r) => {
               const st = (stock || {})[r.id] ?? 0;
               return (
@@ -228,63 +201,52 @@ export default function VentasManualScreen({
                   key={r.id}
                   type="button"
                   onClick={() => addToCart(r, 1)}
-                  className="producto-card"
+                  className="producto-row"
                   style={{
                     display: "flex",
-                    flexDirection: "column",
-                    alignItems: "flex-start",
-                    padding: 10,
-                    borderRadius: 12,
+                    alignItems: "center",
+                    gap: 10,
+                    padding: "8px 12px",
+                    borderRadius: 8,
                     border: "1px solid var(--border)",
                     background: "var(--surface)",
                     cursor: "pointer",
-                    transition:
-                      "transform 0.08s ease, box-shadow 0.08s ease",
-                  }}
-                  onMouseDown={(e) => {
-                    e.currentTarget.style.transform = "scale(0.97)";
-                    e.currentTarget.style.boxShadow =
-                      "0 2px 4px rgba(0,0,0,0.06)";
-                  }}
-                  onMouseUp={(e) => {
-                    e.currentTarget.style.transform = "scale(1)";
-                    e.currentTarget.style.boxShadow = "none";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = "scale(1)";
-                    e.currentTarget.style.boxShadow = "none";
+                    transition: "background 0.1s ease",
+                    textAlign: "left",
                   }}
                 >
-                  <span style={{ fontSize: 26, marginBottom: 4 }}>
-                    {r.emoji}
-                  </span>
+                  <span style={{ fontSize: 20, flexShrink: 0 }}>{r.emoji}</span>
                   <span
                     style={{
+                      flex: 1,
                       fontSize: 14,
                       fontWeight: 500,
-                      marginBottom: 2,
-                      textAlign: "left",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
                     }}
                   >
                     {r.nombre}
                   </span>
                   <span
                     style={{
-                      fontSize: 12,
+                      fontSize: 13,
                       color: "var(--text-muted)",
+                      flexShrink: 0,
                     }}
                   >
-                    {fmt(r.precio_venta || 0)}/
-                    {(r.unidad_rinde || "u").replace("porción", "porc.")}
+                    {fmt(r.precio_venta || 0)}
                   </span>
                   <span
                     style={{
                       fontSize: 11,
                       color: "var(--text-muted)",
-                      marginTop: 2,
+                      flexShrink: 0,
+                      minWidth: 50,
+                      textAlign: "right",
                     }}
                   >
-                    Stock: {fmtStock(st)}
+                    {fmtStock(st)}
                   </span>
                 </button>
               );

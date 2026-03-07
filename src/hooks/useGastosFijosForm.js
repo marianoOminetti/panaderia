@@ -4,12 +4,15 @@ import { reportError } from "../utils/errorReport";
 const INITIAL_FORM = {
   nombre: "",
   monto: "",
+  tipo: "fijo",
   frecuencia: "mensual",
+  fecha: "",
   activo: true,
 };
 
 /**
- * Estado y handlers del formulario de gasto fijo (modal alta/edición).
+ * Estado y handlers del formulario de gasto (modal alta/edición).
+ * Soporta tipo fijo, variable y puntual.
  * Usado por GastosFijos.jsx. La persistencia (saveGastoFijo) se recibe desde el componente.
  * @param {{ showToast: Function, saveGastoFijo: Function }}
  * @returns {{ modal, setModal, editando, form, setForm, saving, openNew, openEdit, save, closeModal }}
@@ -31,7 +34,9 @@ export function useGastosFijosForm({ showToast, saveGastoFijo }) {
     setForm({
       nombre: g.nombre,
       monto: String(g.monto ?? ""),
+      tipo: g.tipo || "fijo",
       frecuencia: g.frecuencia || "mensual",
+      fecha: g.fecha ? String(g.fecha).slice(0, 10) : "",
       activo: g.activo !== false,
     });
     setModal(true);
@@ -43,6 +48,7 @@ export function useGastosFijosForm({ showToast, saveGastoFijo }) {
   }, []);
 
   const save = useCallback(async () => {
+    if (saving) return;
     if (!form.nombre.trim()) {
       showToast("⚠️ Nombre requerido");
       return;
@@ -52,23 +58,57 @@ export function useGastosFijosForm({ showToast, saveGastoFijo }) {
       showToast("⚠️ Monto inválido");
       return;
     }
+    const tipo = (form.tipo || "fijo").toLowerCase();
+    if (tipo === "fijo") {
+      const freq = (form.frecuencia || "").toLowerCase();
+      if (!["diario", "semanal", "mensual"].includes(freq)) {
+        showToast("⚠️ Frecuencia requerida para gasto fijo");
+        return;
+      }
+    } else if (tipo === "variable" || tipo === "puntual") {
+      const fechaStr = (form.fecha || "").trim();
+      if (!fechaStr) {
+        showToast("⚠️ Fecha requerida para gasto variable/puntual");
+        return;
+      }
+      const d = new Date(fechaStr);
+      if (Number.isNaN(d.getTime())) {
+        showToast("⚠️ Fecha inválida");
+        return;
+      }
+    }
+
     setSaving(true);
-    const payload = {
-      nombre: form.nombre.trim(),
-      monto,
-      frecuencia: form.frecuencia,
-      activo: form.activo,
-    };
+    let payload;
+    if (tipo === "fijo") {
+      payload = {
+        nombre: form.nombre.trim(),
+        monto,
+        frecuencia: form.frecuencia,
+        activo: form.activo,
+        tipo: "fijo",
+        fecha: null,
+      };
+    } else {
+      payload = {
+        nombre: form.nombre.trim(),
+        monto,
+        fecha: form.fecha.trim().slice(0, 10),
+        activo: form.activo,
+        tipo,
+        frecuencia: null,
+      };
+    }
     try {
       await saveGastoFijo(payload, editando?.id);
       closeModal();
     } catch (err) {
       reportError(err, { action: "saveGastoFijo" });
-      showToast("⚠️ Error al guardar gasto fijo");
+      showToast("⚠️ Error al guardar gasto");
     } finally {
       setSaving(false);
     }
-  }, [form, editando, showToast, saveGastoFijo, closeModal]);
+  }, [form, editando, saving, showToast, saveGastoFijo, closeModal]);
 
   return {
     modal,

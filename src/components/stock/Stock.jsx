@@ -250,6 +250,46 @@ function Stock({
         </div>
       </div>
 
+      {sinStockCount > 0 && (
+        <div className="card dashboard-alert" style={{ marginBottom: 12 }}>
+          <div className="card-header">
+            <span className="card-title">⚠️ Stock bajo</span>
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {recetas
+              .filter((r) => ((stock || {})[r.id] ?? 0) <= 0)
+              .slice(0, 6)
+              .map((r) => (
+                <button
+                  key={r.id}
+                  type="button"
+                  onClick={() => {
+                    addToStockCart(r, 1);
+                    setManualScreenOpen(true);
+                  }}
+                  style={{
+                    fontSize: 12,
+                    padding: "4px 10px",
+                    background: "var(--surface)",
+                    borderRadius: 20,
+                    border: "1px solid var(--border)",
+                    cursor: "pointer",
+                    font: "inherit",
+                    color: "inherit",
+                  }}
+                >
+                  {r.emoji || "🍞"} {r.nombre}
+                </button>
+              ))}
+            {sinStockCount > 6 && (
+              <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                +{sinStockCount - 6} más
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
       <StockList
         prioridadesProduccion={prioridadesProduccion}
         recetasOrdenadasPorStock={recetasOrdenadasPorStock}

@@ -15,22 +15,26 @@ CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user_id ON push_subscriptions(
 ALTER TABLE push_subscriptions ENABLE ROW LEVEL SECURITY;
 
 -- Solo el propio usuario puede ver sus suscripciones
+DROP POLICY IF EXISTS "push_subscriptions_select_own" ON push_subscriptions;
 CREATE POLICY "push_subscriptions_select_own"
   ON push_subscriptions FOR SELECT
   USING (auth.uid() = user_id);
 
 -- Solo el propio usuario puede insertar (user_id debe ser auth.uid())
+DROP POLICY IF EXISTS "push_subscriptions_insert_own" ON push_subscriptions;
 CREATE POLICY "push_subscriptions_insert_own"
   ON push_subscriptions FOR INSERT
   WITH CHECK (auth.uid() = user_id);
 
 -- Solo el propio usuario puede actualizar sus filas
+DROP POLICY IF EXISTS "push_subscriptions_update_own" ON push_subscriptions;
 CREATE POLICY "push_subscriptions_update_own"
   ON push_subscriptions FOR UPDATE
   USING (auth.uid() = user_id)
   WITH CHECK (auth.uid() = user_id);
 
 -- Solo el propio usuario puede borrar sus filas
+DROP POLICY IF EXISTS "push_subscriptions_delete_own" ON push_subscriptions;
 CREATE POLICY "push_subscriptions_delete_own"
   ON push_subscriptions FOR DELETE
   USING (auth.uid() = user_id);

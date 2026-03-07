@@ -1,12 +1,27 @@
 import { selectContactFromPhone } from "../../lib/contacts";
-import SearchableCliente from "../ui/SearchableCliente";
+import { SearchableCliente, SearchableSelect } from "../ui";
 
 const CONTACT_PICKER_AVAILABLE = typeof navigator !== "undefined" && !!navigator.contacts?.select;
 
-export function SelectorCliente({ value, onChange, clientes, insertCliente, showToast }) {
+const MEDIOS_PAGO = [
+  { value: "efectivo", label: "💵 Efectivo" },
+  { value: "transferencia", label: "📱 Transferencia" },
+  { value: "debito", label: "💳 Débito" },
+  { value: "credito", label: "💳 Crédito" },
+];
+
+const ESTADOS_PAGO = [
+  { value: "pagado", label: "✅ Pagado" },
+  { value: "debe", label: "⏳ Debe" },
+];
+
+export function SelectorCliente({ value, onChange, clientes, insertCliente, showToast, required }) {
   return (
     <div className="form-group">
-      <label className="form-label">Cliente</label>
+      <label className="form-label">
+        Cliente
+        {required && <span style={{ color: "var(--danger)", marginLeft: 4 }}>*</span>}
+      </label>
       <SearchableCliente
         value={value || ""}
         onChange={(id) => onChange(id || null)}
@@ -70,27 +85,21 @@ export function SelectoresPago({ medioPago, setMedioPago, estadoPago, setEstadoP
     >
       <div className="form-group">
         <label className="form-label">Medio</label>
-        <select
-          className="form-input"
+        <SearchableSelect
+          options={MEDIOS_PAGO}
           value={medioPago}
-          onChange={(e) => setMedioPago(e.target.value)}
-        >
-          <option value="efectivo">💵 Efectivo</option>
-          <option value="transferencia">📱 Transferencia</option>
-          <option value="debito">💳 Débito</option>
-          <option value="credito">💳 Crédito</option>
-        </select>
+          onChange={setMedioPago}
+          placeholder="Seleccionar medio"
+        />
       </div>
       <div className="form-group">
         <label className="form-label">Estado</label>
-        <select
-          className="form-input"
+        <SearchableSelect
+          options={ESTADOS_PAGO}
           value={estadoPago}
-          onChange={(e) => setEstadoPago(e.target.value)}
-        >
-          <option value="pagado">✅ Pagado</option>
-          <option value="debe">⏳ Debe</option>
-        </select>
+          onChange={setEstadoPago}
+          placeholder="Seleccionar estado"
+        />
       </div>
     </div>
   );

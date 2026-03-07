@@ -1,12 +1,9 @@
 /**
- * Panel de alertas del Dashboard: stock bajo, margen bajo, pedidos próximos, grupos con deuda, alertas roja/amarilla.
+ * Panel de alertas del Dashboard: grupos con deuda, alertas stock por ventas, pedidos próximos.
+ * Stock bajo y margen bajo se muestran en Stock y Recetas respectivamente.
  * Datos derivados vienen de useDashboardAlerts (Dashboard.jsx); este componente solo presenta y navega.
  */
-import { pctFmt, fmt, fmtStock } from "../../lib/format";
-import {
-  METRICAS_VENTANA_DIAS,
-} from "../../config/appConfig";
-import { formatearDiasStock } from "../../lib/metrics";
+import { fmt, fmtStock } from "../../lib/format";
 import { totalDebeEnGrupo } from "../../lib/agrupadores";
 
 function formatRelDia(d, hoyDate) {
@@ -20,8 +17,6 @@ function formatRelDia(d, hoyDate) {
 }
 
 function DashboardAlerts({
-  stockBajo,
-  recetasMargenBajo,
   pedidosHoyCount,
   pedidosManianaCountResumen,
   gruposConDeuda = [],
@@ -31,9 +26,6 @@ function DashboardAlerts({
   pedidosList,
   alertasPedidosManiana,
   pedidosManianaPorReceta,
-  alertaRoja,
-  alertaAmarilla,
-  metricasStock,
   clientes,
   stock,
   onNavigate,
@@ -119,198 +111,6 @@ function DashboardAlerts({
                     </span>
                   </div>
                 </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {stockBajo.length > 0 && (
-        <div
-          className="card dashboard-alert"
-          onClick={() => onNavigate?.("stock")}
-        >
-          <div className="card-header">
-            <span className="card-title">⚠️ Stock bajo</span>
-            <span
-              className="card-link"
-              style={{ cursor: "pointer" }}
-            >
-              Ir a Stock →
-            </span>
-          </div>
-          <div
-            style={{ display: "flex", flexWrap: "wrap", gap: 6 }}
-          >
-            {stockBajo.slice(0, 6).map((r) => (
-              <button
-                key={r.id}
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onOpenCargarProduccion?.(r);
-                }}
-                style={{
-                  fontSize: 12,
-                  padding: "4px 10px",
-                  background: "var(--surface)",
-                  borderRadius: 20,
-                  border: "1px solid var(--border)",
-                  cursor: "pointer",
-                  font: "inherit",
-                  color: "inherit",
-                }}
-              >
-                {r.emoji} {r.nombre}
-              </button>
-            ))}
-            {stockBajo.length > 6 && (
-              <span
-                style={{
-                  fontSize: 12,
-                  color: "var(--text-muted)",
-                }}
-              >
-                +{stockBajo.length - 6} más
-              </span>
-            )}
-          </div>
-        </div>
-      )}
-
-      {recetasMargenBajo.length > 0 && (
-        <div
-          className="card dashboard-alert"
-          onClick={() => onNavigate?.("recetas")}
-        >
-          <div className="card-header">
-            <span className="card-title">⚠️ Margen bajo</span>
-            <span
-              className="card-link"
-              style={{ cursor: "pointer" }}
-            >
-              Ver recetas →
-            </span>
-          </div>
-          <div
-            style={{ display: "flex", flexWrap: "wrap", gap: 6 }}
-          >
-            {recetasMargenBajo.slice(0, 6).map((r) => {
-              const precio = Number(r.precio_venta) || 0;
-              const costoUnit =
-                typeof r.costo_unitario === "number"
-                  ? Number(r.costo_unitario)
-                  : null;
-              const margenVal =
-                precio && costoUnit != null
-                  ? (precio - costoUnit) / precio
-                  : null;
-              const margenTxt =
-                margenVal != null ? pctFmt(margenVal) : "—";
-              return (
-                <span
-                  key={r.id}
-                  style={{
-                    fontSize: 12,
-                    padding: "4px 10px",
-                    background: "var(--surface)",
-                    borderRadius: 20,
-                    border: "1px solid var(--border)",
-                  }}
-                >
-                  {r.emoji || "🍞"} {r.nombre} · {margenTxt}
-                </span>
-              );
-            })}
-            {recetasMargenBajo.length > 6 && (
-              <span
-                style={{
-                  fontSize: 12,
-                  color: "var(--text-muted)",
-                }}
-              >
-                +{recetasMargenBajo.length - 6} más
-              </span>
-            )}
-          </div>
-        </div>
-      )}
-
-      {(alertaRoja.length > 0 || alertaAmarilla.length > 0) && (
-        <div className="card">
-          <div className="card-header">
-            <span className="card-title">
-              Alertas de stock por ventas (últimos{" "}
-              {METRICAS_VENTANA_DIAS} días)
-            </span>
-          </div>
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: 6,
-            }}
-          >
-            {alertaRoja.slice(0, 5).map((r) => {
-              const m = metricasStock[r.id];
-              const diasTxt = formatearDiasStock(m?.diasRestantes);
-              return (
-                <div
-                  key={r.id}
-                  style={{
-                    fontSize: 13,
-                    color: "var(--danger)",
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                  }}
-                >
-                  <span>
-                    ⚠️ {r.nombre}: stock para {diasTxt} día
-                    {diasTxt === "1" ? "" : "s"}
-                  </span>
-                  <button
-                    type="button"
-                    className="card-link"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onOpenCargarProduccion?.(r);
-                    }}
-                  >
-                    Ver
-                  </button>
-                </div>
-              );
-            })}
-            {alertaAmarilla.slice(0, 5).map((r) => {
-              const m = metricasStock[r.id];
-              const diasTxt = formatearDiasStock(m?.diasRestantes);
-              return (
-                <div
-                  key={r.id}
-                  style={{
-                    fontSize: 13,
-                    color: "#C48F00",
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                  }}
-                >
-                  <span>
-                    🟡 {r.nombre}: stock para {diasTxt} día
-                    {diasTxt === "1" ? "" : "s"}
-                  </span>
-                  <button
-                    type="button"
-                    className="card-link"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onOpenCargarProduccion?.(r);
-                    }}
-                  >
-                    Ver
-                  </button>
-                </div>
               );
             })}
           </div>

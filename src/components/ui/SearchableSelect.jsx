@@ -6,7 +6,7 @@ function normalizeForSearch(s) {
   return s
     .toLowerCase()
     .normalize("NFD")
-    .replace(/\u0300-\u036f/g, "");
+    .replace(/[\u0300-\u036f]/g, "");
 }
 
 /**
@@ -39,7 +39,10 @@ export default function SearchableSelect({
   useEffect(() => {
     if (!open) return;
     setSearch("");
-    const t = setTimeout(() => inputRef.current?.focus(), 50);
+    const t = setTimeout(() => {
+      inputRef.current?.focus();
+      inputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 50);
     return () => clearTimeout(t);
   }, [open]);
 

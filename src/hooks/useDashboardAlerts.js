@@ -1,55 +1,16 @@
 import { useMemo } from "react";
 import { hoyLocalISO } from "../lib/dates";
-import {
-  DIAS_ALERTA_ROJA,
-  DIAS_ALERTA_AMARILLA,
-  METRICAS_VENTANA_DIAS,
-} from "../config/appConfig";
 import { agruparPedidos, gruposConDeuda as getGruposConDeuda, totalDebeEnGrupo } from "../lib/agrupadores";
-import { calcularMetricasVentasYStock } from "../lib/metrics";
 
 /**
- * Calcula todas las estructuras de datos que alimentan DashboardAlerts y DashboardQuickGrid:
- * stock bajo, margen bajo, pedidos próximos, grupos con deuda, alertas roja/amarilla, etc.
- * Recibe datos crudos y devuelve valores derivados (sin cambiar lógica ni fórmulas).
+ * Calcula estructuras de datos para DashboardAlerts:
+ * pedidos próximos, grupos con deuda, alertas de pedidos sin stock.
  */
 export function useDashboardAlerts({ recetas, ventas, stock, pedidos }) {
   return useMemo(() => {
     const hoyStr = hoyLocalISO();
     const hoyDate = new Date(hoyStr);
     const MS_POR_DIA = 24 * 60 * 60 * 1000;
-
-    const stockBajo = (recetas || []).filter((r) => ((stock || {})[r.id] ?? 0) <= 0);
-    const recetasMargenBajo = (recetas || []).filter((r) => {
-      const precio = Number(r.precio_venta) || 0;
-      const costoUnit =
-        typeof r.costo_unitario === "number"
-          ? Number(r.costo_unitario)
-          : null;
-      if (!precio || costoUnit == null || !isFinite(costoUnit)) return false;
-      const margenVal = (precio - costoUnit) / precio;
-      return margenVal < 0.5;
-    });
-
-    const metricasStock = calcularMetricasVentasYStock(
-      recetas || [],
-      ventas || [],
-      stock || {},
-      METRICAS_VENTANA_DIAS
-    );
-    const alertaRoja = (recetas || []).filter((r) => {
-      const m = metricasStock[r.id];
-      return m && m.diasRestantes != null && m.diasRestantes < DIAS_ALERTA_ROJA;
-    });
-    const alertaAmarilla = (recetas || []).filter((r) => {
-      const m = metricasStock[r.id];
-      return (
-        m &&
-        m.diasRestantes != null &&
-        m.diasRestantes >= DIAS_ALERTA_ROJA &&
-        m.diasRestantes < DIAS_ALERTA_AMARILLA
-      );
-    });
 
     const pedidosList = pedidos || [];
     const pedidosConFecha = pedidosList.filter((p) => p && p.fecha_entrega);
@@ -115,8 +76,6 @@ export function useDashboardAlerts({ recetas, ventas, stock, pedidos }) {
     const totalDeuda = gruposConDeuda.reduce((s, g) => s + totalDebeEnGrupo(g), 0);
 
     return {
-      stockBajo,
-      recetasMargenBajo,
       pedidosHoyCount,
       pedidosManianaCountResumen,
       pedidosPasadoCount,
@@ -124,9 +83,6 @@ export function useDashboardAlerts({ recetas, ventas, stock, pedidos }) {
       pedidosList,
       alertasPedidosManiana,
       pedidosManianaPorReceta,
-      alertaRoja,
-      alertaAmarilla,
-      metricasStock,
       gruposConDeuda,
       totalDeuda,
     };

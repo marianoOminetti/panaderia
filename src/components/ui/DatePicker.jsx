@@ -146,6 +146,7 @@ export default function DatePicker({
             <button
               type="button"
               onClick={handlePrev}
+              aria-label="Mes anterior"
               style={{
                 background: "var(--cream)",
                 border: "1px solid var(--border)",
@@ -172,6 +173,7 @@ export default function DatePicker({
             <button
               type="button"
               onClick={handleNext}
+              aria-label="Mes siguiente"
               style={{
                 background: "var(--cream)",
                 border: "1px solid var(--border)",

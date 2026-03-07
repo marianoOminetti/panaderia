@@ -23,7 +23,7 @@ function Dashboard({
   onOpenCargarProduccion,
   onOpenGrupoDeuda,
   onOpenNuevaVenta,
-  onOpenCargarStock,
+  onOpenNuevoPedido,
 }) {
   const hoyStr = hoyLocalISO();
   const ventasHoy = ventas.filter((v) => v.fecha === hoyStr);
@@ -69,8 +69,6 @@ function Dashboard({
       />
 
       <DashboardAlerts
-        stockBajo={alerts.stockBajo}
-        recetasMargenBajo={alerts.recetasMargenBajo}
         pedidosHoyCount={alerts.pedidosHoyCount}
         pedidosManianaCountResumen={alerts.pedidosManianaCountResumen}
         gruposConDeuda={alerts.gruposConDeuda}
@@ -80,9 +78,6 @@ function Dashboard({
         pedidosList={alerts.pedidosList}
         alertasPedidosManiana={alerts.alertasPedidosManiana}
         pedidosManianaPorReceta={alerts.pedidosManianaPorReceta}
-        alertaRoja={alerts.alertaRoja}
-        alertaAmarilla={alerts.alertaAmarilla}
-        metricasStock={alerts.metricasStock}
         clientes={clientes}
         stock={stock}
         onNavigate={onNavigate}
@@ -91,14 +86,10 @@ function Dashboard({
       />
 
       <DashboardQuickGrid
-        stockBajo={alerts.stockBajo}
-        recetasMargenBajo={alerts.recetasMargenBajo}
-        clientesCount={clientes?.length || 0}
         insumosCount={insumos?.length || 0}
-        recetasCount={recetas?.length || 0}
         onNavigate={onNavigate}
         onOpenNuevaVenta={onOpenNuevaVenta}
-        onOpenCargarStock={onOpenCargarStock}
+        onOpenNuevoPedido={onOpenNuevoPedido}
       />
 
       {ventasHoy.length > 0 && (

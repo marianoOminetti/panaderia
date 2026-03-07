@@ -48,6 +48,19 @@ export default function Recetas({ recetas, insumos, recetaIngredientes, showToas
     (a.nombre || "").localeCompare(b.nombre || "", "es", { sensitivity: "base" })
   );
 
+  const recetasMargenBajo = recetas.filter((r) => {
+    const rindeNum = parseFloat(r.rinde) || 1;
+    const costoLoteCalc = costoReceta(r.id, recetaIngredientes, insumos, recetas);
+    const costoUnitarioCalc = rindeNum > 0 ? costoLoteCalc / rindeNum : null;
+    const costoUnitario = (typeof r.costo_unitario === "number" && r.costo_unitario > 0)
+      ? r.costo_unitario
+      : costoUnitarioCalc;
+    const precio = Number(r.precio_venta) || 0;
+    if (!precio || costoUnitario == null || !isFinite(costoUnitario)) return false;
+    const margenVal = (precio - costoUnitario) / precio;
+    return margenVal < 0.5;
+  });
+
   const copyReceta = async (r) => {
     setSaving(true);
     try {
@@ -212,6 +225,51 @@ export default function Recetas({ recetas, insumos, recetaIngredientes, showToas
         >
           Ver todas las recetas
         </button>
+      )}
+
+      {recetasMargenBajo.length > 0 && (
+        <div className="card dashboard-alert" style={{ marginBottom: 12 }}>
+          <div className="card-header">
+            <span className="card-title">⚠️ Margen bajo</span>
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {recetasMargenBajo.slice(0, 6).map((r) => {
+              const rindeNum = parseFloat(r.rinde) || 1;
+              const costoLoteCalc = costoReceta(r.id, recetaIngredientes, insumos, recetas);
+              const costoUnitarioCalc = rindeNum > 0 ? costoLoteCalc / rindeNum : null;
+              const costoUnitario = (typeof r.costo_unitario === "number" && r.costo_unitario > 0)
+                ? r.costo_unitario
+                : costoUnitarioCalc;
+              const precio = Number(r.precio_venta) || 0;
+              const margenVal = precio && costoUnitario != null ? (precio - costoUnitario) / precio : null;
+              const margenTxt = margenVal != null ? pctFmt(margenVal) : "—";
+              return (
+                <button
+                  key={r.id}
+                  type="button"
+                  onClick={() => openEdit(r)}
+                  style={{
+                    fontSize: 12,
+                    padding: "4px 10px",
+                    background: "var(--surface)",
+                    borderRadius: 20,
+                    border: "1px solid var(--border)",
+                    cursor: "pointer",
+                    font: "inherit",
+                    color: "inherit",
+                  }}
+                >
+                  {r.emoji || "🍞"} {r.nombre} · {margenTxt}
+                </button>
+              );
+            })}
+            {recetasMargenBajo.length > 6 && (
+              <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                +{recetasMargenBajo.length - 6} más
+              </span>
+            )}
+          </div>
+        </div>
       )}
 
       {recetas.length === 0 ? (

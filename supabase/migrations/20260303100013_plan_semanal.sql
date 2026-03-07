@@ -17,6 +17,7 @@ CREATE INDEX IF NOT EXISTS idx_plan_semanal_receta ON plan_semanal(receta_id);
 
 -- RLS
 ALTER TABLE plan_semanal ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "auth_required_plan_semanal" ON plan_semanal;
 CREATE POLICY "auth_required_plan_semanal" ON plan_semanal
   FOR ALL USING (auth.uid() IS NOT NULL) WITH CHECK (auth.uid() IS NOT NULL);
 

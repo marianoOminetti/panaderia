@@ -16,11 +16,16 @@ const args = process.argv.slice(2);
 const CLEAR = args.includes("--clear");
 const UPSERT = args.includes("--upsert");
 
-const SUPABASE_URL = "https://clgxrxlccjjqxzvapfav.supabase.co";
-const SUPABASE_KEY = process.env.SUPABASE_KEY;
+const SUPABASE_URL =
+  process.env.SUPABASE_URL ||
+  process.env.REACT_APP_SUPABASE_URL ||
+  "https://clgxrxlccjjqxzvapfav.supabase.co";
+const SUPABASE_KEY =
+  process.env.SUPABASE_KEY || process.env.REACT_APP_SUPABASE_ANON_KEY;
 
 if (!SUPABASE_KEY) {
   console.error("❌ Falta la variable de entorno SUPABASE_KEY (ver docs/AMBIENTES.md).");
+  console.error("   O configurá REACT_APP_SUPABASE_ANON_KEY en .env.development.local y ejecutá: npm run import-recetas");
   process.exit(1);
 }
 

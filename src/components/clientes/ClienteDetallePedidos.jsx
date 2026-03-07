@@ -1,31 +1,37 @@
 import { fmt } from "../../lib/format";
 import { hoyLocalISO } from "../../lib/dates";
+import { FormInput, FormMoneyInput, SearchableSelect, DatePicker } from "../ui";
 
 function ClienteDetallePedidos({
   pedidosClienteAgrupados,
   recetas,
   nuevoPedidoAbierto,
   setNuevoPedidoAbierto,
-  pedidoFechaEntrega,
-  setPedidoFechaEntrega,
-  pedidoRecetaSel,
-  setPedidoRecetaSel,
-  pedidoCantidad,
-  setPedidoCantidad,
-  pedidoPrecio,
-  setPedidoPrecio,
-  pedidoItems,
-  pedidoSenia,
-  setPedidoSenia,
-  pedidoEstado,
-  setPedidoEstado,
-  savingPedido,
-  addPedidoItem,
-  quitarPedidoItem,
-  guardarPedido,
+  pedidoForm,
+  savingEntrega,
   actualizarEstadoPedido,
   marcarPedidoEntregado,
 }) {
+  const {
+    fechaEntrega,
+    setFechaEntrega,
+    recetaSel,
+    setRecetaSel,
+    cantidad,
+    setCantidad,
+    precio,
+    setPrecio,
+    items,
+    senia,
+    setSenia,
+    estado,
+    setEstado,
+    saving,
+    addItem,
+    quitarItem,
+    guardar,
+  } = pedidoForm;
+
   const hoyStr = hoyLocalISO();
   const pendientes = pedidosClienteAgrupados.filter((g) => {
     if (!g.fecha_entrega) return g.estado !== "entregado";
@@ -39,10 +45,10 @@ function ClienteDetallePedidos({
       return value;
     }
   };
-  const estadoLabel = (estado) => {
-    if (estado === "en_preparacion") return "En preparación";
-    if (estado === "listo") return "Listo";
-    if (estado === "entregado") return "Entregado";
+  const estadoLabel = (estadoVal) => {
+    if (estadoVal === "en_preparacion") return "En preparación";
+    if (estadoVal === "listo") return "Listo";
+    if (estadoVal === "entregado") return "Entregado";
     return "Pendiente";
   };
 
@@ -94,102 +100,65 @@ function ClienteDetallePedidos({
                 : "none",
           }}
         >
-          <div className="form-group">
-            <label className="form-label">Fecha de entrega</label>
-            <input
-              className="form-input"
-              type="date"
-              value={pedidoFechaEntrega}
-              min={hoyLocalISO()}
-              onChange={(e) => setPedidoFechaEntrega(e.target.value)}
-            />
-          </div>
+          <DatePicker
+            label="Fecha de entrega"
+            value={fechaEntrega}
+            onChange={setFechaEntrega}
+          />
           <div className="form-row">
             <div className="form-group" style={{ flex: 2 }}>
               <label className="form-label">Producto</label>
-              <select
-                className="form-select"
-                value={pedidoRecetaSel}
-                onChange={(e) => setPedidoRecetaSel(e.target.value)}
-              >
-                <option value="">Elegí un producto</option>
-                {recetas.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.nombre}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="form-group" style={{ flex: 1 }}>
-              <label className="form-label">Cantidad</label>
-              <input
-                className="form-input"
-                type="number"
-                min="1"
-                value={pedidoCantidad}
-                onChange={(e) =>
-                  setPedidoCantidad(Number(e.target.value) || 1)
-                }
+              <SearchableSelect
+                options={[
+                  { value: "", label: "Elegí un producto" },
+                  ...recetas.map((r) => ({
+                    value: r.id,
+                    label: `${r.emoji || ""} ${r.nombre}`.trim(),
+                  })),
+                ]}
+                value={recetaSel}
+                onChange={setRecetaSel}
+                placeholder="Buscar producto..."
               />
             </div>
-          </div>
-          <div className="form-group">
-            <label className="form-label">
-              Precio acordado por unidad ($)
-            </label>
-            <input
-              className="form-input"
+            <FormInput
+              label="Cantidad"
               type="number"
-              value={pedidoPrecio}
-              onChange={(e) => setPedidoPrecio(e.target.value)}
-              placeholder="Dejar vacío para usar precio de lista"
+              min={1}
+              value={cantidad}
+              onChange={(v) => setCantidad(Number(v) || 1)}
+              style={{ flex: 1 }}
             />
           </div>
+          <FormMoneyInput
+            label="Precio acordado por unidad (opcional)"
+            value={precio}
+            onChange={setPrecio}
+            placeholder="Precio de lista"
+          />
           <button
             type="button"
             className="btn-secondary"
-            onClick={addPedidoItem}
+            onClick={addItem}
             style={{ marginBottom: 8 }}
           >
             Agregar ítem
           </button>
-          {pedidoItems.length > 0 && (
-            <div
-              style={{
-                fontSize: 13,
-                color: "var(--text-muted)",
-                marginBottom: 8,
-              }}
-            >
-              {pedidoItems.map((it) => (
-                <div
-                  key={it.receta.id}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: 8,
-                    padding: "4px 0",
-                  }}
-                >
+          {items.length > 0 && (
+            <div className="pedido-items-preview">
+              {items.map((it) => (
+                <div key={it.receta.id} className="pedido-item-row">
                   <span>
                     {it.cantidad}x {it.receta.nombre}
                   </span>
                   <span>
-                    {fmt(
-                      (it.precio_unitario || 0) * (it.cantidad || 0),
-                    )}
+                    {fmt((it.precio_unitario || 0) * (it.cantidad || 0))}
                   </span>
                   <button
                     type="button"
-                    onClick={() => quitarPedidoItem(it.receta.id)}
-                    style={{
-                      border: "none",
-                      background: "none",
-                      color: "#999",
-                      cursor: "pointer",
-                      fontSize: 14,
-                    }}
+                    className="btn-remove"
+                    onClick={() => quitarItem(it.receta.id)}
+                    style={{ color: "var(--text-muted)" }}
                   >
                     ✕
                   </button>
@@ -198,40 +167,37 @@ function ClienteDetallePedidos({
             </div>
           )}
           <div className="form-row">
-            <div className="form-group" style={{ flex: 1 }}>
-              <label className="form-label">Seña / adelanto ($)</label>
-              <input
-                className="form-input"
-                type="number"
-                value={pedidoSenia}
-                onChange={(e) => setPedidoSenia(e.target.value)}
-                placeholder="0"
-              />
-            </div>
-            <div className="form-group" style={{ flex: 1 }}>
+            <FormMoneyInput
+              label="Seña / adelanto"
+              value={senia}
+              onChange={setSenia}
+              placeholder="0"
+            />
+            <div className="form-group">
               <label className="form-label">Estado inicial</label>
-              <select
-                className="form-select"
-                value={pedidoEstado}
-                onChange={(e) => setPedidoEstado(e.target.value)}
-              >
-                <option value="pendiente">Pendiente</option>
-                <option value="en_preparacion">En preparación</option>
-                <option value="listo">Listo</option>
-              </select>
+              <SearchableSelect
+                options={[
+                  { value: "pendiente", label: "Pendiente" },
+                  { value: "en_preparacion", label: "En preparación" },
+                  { value: "listo", label: "Listo" },
+                ]}
+                value={estado}
+                onChange={setEstado}
+                placeholder="Estado"
+              />
             </div>
           </div>
           <button
             type="button"
             className="btn-primary"
-            onClick={guardarPedido}
+            onClick={() => guardar()}
             disabled={
-              savingPedido ||
-              pedidoItems.length === 0 ||
-              !pedidoFechaEntrega
+              saving ||
+              items.length === 0 ||
+              !fechaEntrega
             }
           >
-            {savingPedido ? "Guardando…" : "Guardar pedido"}
+            {saving ? "Guardando…" : "Guardar pedido"}
           </button>
         </div>
       )}
@@ -304,6 +270,7 @@ function ClienteDetallePedidos({
                       onChange={(e) =>
                         actualizarEstadoPedido(g, e.target.value)
                       }
+                      aria-label="Estado del pedido"
                       style={{
                         marginTop: 6,
                         fontSize: 11,
@@ -325,7 +292,7 @@ function ClienteDetallePedidos({
                         padding: "4px 8px",
                       }}
                       onClick={() => marcarPedidoEntregado(g)}
-                      disabled={savingPedido}
+                      disabled={savingEntrega}
                     >
                       Marcar entregado
                     </button>

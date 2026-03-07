@@ -24,7 +24,7 @@ export default function AppContent({
   onOpenGrupoDeuda,
   onConsumedVentasPreload,
   onOpenNuevaVenta,
-  onOpenCargarStock,
+  onOpenNuevoPedido,
   ventasNuevaFlag,
   onConsumedVentasNueva,
   stockOpenManual,
@@ -54,6 +54,8 @@ export default function AppContent({
   recetasFilterIds,
   setRecetasFilterIds,
   setPlanSemanalVersion,
+  ventasPedidoFlag,
+  onConsumedVentasPedido,
 }) {
   if (loading) {
     return (
@@ -79,7 +81,7 @@ export default function AppContent({
           onOpenCargarProduccion={onOpenCargarProduccion}
           onOpenGrupoDeuda={onOpenGrupoDeuda}
           onOpenNuevaVenta={onOpenNuevaVenta}
-          onOpenCargarStock={onOpenCargarStock}
+          onOpenNuevoPedido={onOpenNuevoPedido}
         />
       )}
       {/* --- More (menú) --- */}
@@ -144,6 +146,8 @@ export default function AppContent({
           onConsumedVentasPreload={onConsumedVentasPreload}
           ventasNuevaFlag={ventasNuevaFlag}
           onConsumedVentasNueva={onConsumedVentasNueva}
+          ventasPedidoFlag={ventasPedidoFlag}
+          onConsumedVentasPedido={onConsumedVentasPedido}
         />
       )}
       {/* --- Stock --- */}

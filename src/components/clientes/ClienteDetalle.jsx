@@ -1,6 +1,6 @@
 /**
  * Detalle de un cliente: pedidos (ClienteDetallePedidos) y ventas (ClienteDetalleVentas), alta de pedido y acciones.
- * Usa useClientes para insertar pedidos/ventas y actualizar estados. Estado local para formulario de nuevo pedido.
+ * Usa usePedidoForm para formulario de nuevo pedido, useClientes para operaciones de estado.
  */
 import { useState } from "react";
 import { fmt } from "../../lib/format";
@@ -8,6 +8,7 @@ import { hoyLocalISO } from "../../lib/dates";
 import { agruparPedidos } from "../../lib/agrupadores";
 import { reportError } from "../../utils/errorReport";
 import { useClientes } from "../../hooks/useClientes";
+import { usePedidoForm } from "../../hooks/usePedidoForm";
 import ClienteDetallePedidos from "./ClienteDetallePedidos";
 import ClienteDetalleVentas from "./ClienteDetalleVentas";
 
@@ -31,120 +32,20 @@ function ClienteDetalle({
   } = useClientes({ onRefresh, showToast });
 
   const [nuevoPedidoAbierto, setNuevoPedidoAbierto] = useState(false);
-  const [pedidoFechaEntrega, setPedidoFechaEntrega] = useState("");
-  const [pedidoRecetaSel, setPedidoRecetaSel] = useState("");
-  const [pedidoCantidad, setPedidoCantidad] = useState(1);
-  const [pedidoPrecio, setPedidoPrecio] = useState("");
-  const [pedidoItems, setPedidoItems] = useState([]);
-  const [pedidoSenia, setPedidoSenia] = useState("");
-  const [pedidoEstado, setPedidoEstado] = useState("pendiente");
-  const [savingPedido, setSavingPedido] = useState(false);
+  const [savingEntrega, setSavingEntrega] = useState(false);
+
+  const pedidoForm = usePedidoForm({
+    recetas,
+    clienteId: cliente?.id,
+    insertPedidos,
+    showToast,
+    onSuccess: () => setNuevoPedidoAbierto(false),
+  });
 
   if (!cliente) return null;
 
   const getVentasDeCliente = (clienteId) =>
     ventas.filter((v) => v.cliente_id === clienteId);
-
-  const resetFormularioPedido = () => {
-    setPedidoFechaEntrega("");
-    setPedidoRecetaSel("");
-    setPedidoCantidad(1);
-    setPedidoPrecio("");
-    setPedidoItems([]);
-    setPedidoSenia("");
-    setPedidoEstado("pendiente");
-  };
-
-  const addPedidoItem = () => {
-    if (!pedidoRecetaSel) return;
-    const receta = recetas.find(
-      (r) => String(r.id) === String(pedidoRecetaSel),
-    );
-    if (!receta) return;
-    const cantidadNum = Number(pedidoCantidad) || 0;
-    if (cantidadNum <= 0) return;
-    const precioNum =
-      pedidoPrecio !== ""
-        ? Number(String(pedidoPrecio).replace(",", "."))
-        : Number(receta.precio_venta || 0);
-    if (Number.isNaN(precioNum) || precioNum < 0) return;
-    setPedidoItems((prev) => {
-      const idx = prev.findIndex((it) => it.receta.id === receta.id);
-      if (idx >= 0) {
-        const copy = [...prev];
-        copy[idx] = {
-          ...copy[idx],
-          cantidad: copy[idx].cantidad + cantidadNum,
-          precio_unitario: precioNum,
-        };
-        return copy;
-      }
-      return [
-        ...prev,
-        { receta, cantidad: cantidadNum, precio_unitario: precioNum },
-      ];
-    });
-    setPedidoRecetaSel("");
-    setPedidoCantidad(1);
-    setPedidoPrecio("");
-  };
-
-  const quitarPedidoItem = (recetaId) => {
-    setPedidoItems((prev) => prev.filter((it) => it.receta.id !== recetaId));
-  };
-
-  const guardarPedido = async () => {
-    if (!pedidoFechaEntrega) {
-      showToast("Elegí una fecha de entrega");
-      return;
-    }
-    if (pedidoItems.length === 0) {
-      showToast("Agregá al menos un producto");
-      return;
-    }
-    setSavingPedido(true);
-    try {
-      const pedidoId = crypto.randomUUID?.() || `p-${Date.now()}`;
-      const seniaNum =
-        parseFloat(String(pedidoSenia || "").replace(",", ".")) || 0;
-      const rows = pedidoItems.map((item) => {
-        const precio =
-          parseFloat(String(item.precio_unitario).replace(",", ".")) || 0;
-        const cantidad = Number(item.cantidad) || 0;
-        return {
-          pedido_id: pedidoId,
-          cliente_id: cliente.id,
-          receta_id: item.receta.id,
-          cantidad,
-          precio_unitario: precio,
-          senia: seniaNum,
-          estado: pedidoEstado,
-          fecha_entrega: pedidoFechaEntrega,
-        };
-      });
-      try {
-        await insertPedidos(rows);
-      } catch (error) {
-        reportError(error, {
-          action: "guardarPedidoCliente",
-          cliente_id: cliente.id,
-        });
-        showToast("⚠️ Error al guardar pedido");
-        setSavingPedido(false);
-        return;
-      }
-      resetFormularioPedido();
-      setNuevoPedidoAbierto(false);
-    } catch (err) {
-      reportError(err, {
-        action: "guardarPedidoCliente",
-        cliente_id: cliente?.id,
-      });
-      showToast("⚠️ Error al guardar pedido");
-    } finally {
-      setSavingPedido(false);
-    }
-  };
 
   const actualizarEstadoPedido = async (grupo, nuevoEstado) => {
     if (!grupo || !nuevoEstado || grupo.estado === nuevoEstado) return;
@@ -166,7 +67,7 @@ function ClienteDetalle({
       { destructive: false },
     );
     if (!ok) return;
-    setSavingPedido(true);
+    setSavingEntrega(true);
     try {
       const hoy = hoyLocalISO();
       const transaccionId = crypto.randomUUID?.() || `p-${grupo.key}`;
@@ -190,13 +91,6 @@ function ClienteDetalle({
           estado_pago: "pagado",
         };
       });
-      if (actualizarStock) {
-        for (const p of grupo.rawItems) {
-          const cant = p.cantidad || 0;
-          if (!p.receta_id || cant <= 0) continue;
-          await actualizarStock(p.receta_id, -cant);
-        }
-      }
       let insertedIds = [];
       try {
         const inserted = await insertVentas(rows);
@@ -210,18 +104,14 @@ function ClienteDetalle({
             reportError(rollbackErr, { action: "rollbackVentasAfterPedidoEntregadoFail" });
           }
         }
-        if (actualizarStock) {
-          try {
-            for (const p of grupo.rawItems) {
-              const cant = p.cantidad || 0;
-              if (!p.receta_id || cant <= 0) continue;
-              await actualizarStock(p.receta_id, cant);
-            }
-          } catch (rollbackErr) {
-            reportError(rollbackErr, { action: "rollbackStockAfterPedidoEntregadoFail" });
-          }
-        }
         throw ventaErr;
+      }
+      if (actualizarStock) {
+        for (const p of grupo.rawItems) {
+          const cant = p.cantidad || 0;
+          if (!p.receta_id || cant <= 0) continue;
+          await actualizarStock(p.receta_id, -cant);
+        }
       }
     } catch (err) {
       reportError(err, {
@@ -230,7 +120,7 @@ function ClienteDetalle({
       });
       showToast("⚠️ No se pudo marcar el pedido como entregado");
     } finally {
-      setSavingPedido(false);
+      setSavingEntrega(false);
     }
   };
 
@@ -246,7 +136,7 @@ function ClienteDetalle({
           onClick={() => {
             onClose();
             setNuevoPedidoAbierto(false);
-            resetFormularioPedido();
+            pedidoForm.reset();
           }}
         >
           ← Volver
@@ -305,23 +195,8 @@ function ClienteDetalle({
           recetas={recetas}
           nuevoPedidoAbierto={nuevoPedidoAbierto}
           setNuevoPedidoAbierto={setNuevoPedidoAbierto}
-          pedidoFechaEntrega={pedidoFechaEntrega}
-          setPedidoFechaEntrega={setPedidoFechaEntrega}
-          pedidoRecetaSel={pedidoRecetaSel}
-          setPedidoRecetaSel={setPedidoRecetaSel}
-          pedidoCantidad={pedidoCantidad}
-          setPedidoCantidad={setPedidoCantidad}
-          pedidoPrecio={pedidoPrecio}
-          setPedidoPrecio={setPedidoPrecio}
-          pedidoItems={pedidoItems}
-          pedidoSenia={pedidoSenia}
-          setPedidoSenia={setPedidoSenia}
-          pedidoEstado={pedidoEstado}
-          setPedidoEstado={setPedidoEstado}
-          savingPedido={savingPedido}
-          addPedidoItem={addPedidoItem}
-          quitarPedidoItem={quitarPedidoItem}
-          guardarPedido={guardarPedido}
+          pedidoForm={pedidoForm}
+          savingEntrega={savingEntrega}
           actualizarEstadoPedido={actualizarEstadoPedido}
           marcarPedidoEntregado={marcarPedidoEntregado}
         />
@@ -336,4 +211,3 @@ function ClienteDetalle({
 }
 
 export default ClienteDetalle;
-

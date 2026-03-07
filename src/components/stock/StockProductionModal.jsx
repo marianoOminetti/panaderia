@@ -3,7 +3,7 @@
  * Estado del carrito y ejecutarCarga en Stock.jsx; este componente es presentacional + handlers pasados por props.
  */
 import { fmtStock } from "../../lib/format";
-import ProductSearchInput from "../ui/ProductSearchInput";
+import { ProductSearchInput, QuantityControl } from "../ui";
 import { useFilterBySearch } from "../../hooks/useFilterBySearch";
 
 function StockProductionModal({
@@ -109,65 +109,19 @@ function StockProductionModal({
                   <div className="insumo-info" style={{ flex: 1 }}>
                     <div className="insumo-nombre">{item.receta.nombre}</div>
                   </div>
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 6,
-                    }}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => addToStockCart(item.receta, -1)}
-                      style={{
-                        width: 28,
-                        height: 28,
-                        borderRadius: "50%",
-                        border: "1px solid var(--border)",
-                        background: "var(--cream)",
-                        cursor: "pointer",
-                        fontSize: 16,
-                      }}
-                      disabled={manualSaving}
-                    >
-                      −
-                    </button>
-                    <span
-                      style={{
-                        minWidth: 20,
-                        textAlign: "center",
-                        fontSize: 14,
-                      }}
-                    >
-                      {item.cantidad}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => addToStockCart(item.receta, 1)}
-                      style={{
-                        width: 28,
-                        height: 28,
-                        borderRadius: "50%",
-                        border: "1px solid var(--border)",
-                        background: "var(--cream)",
-                        cursor: "pointer",
-                        fontSize: 16,
-                      }}
-                      disabled={manualSaving}
-                    >
-                      +
-                    </button>
-                  </div>
+                  <QuantityControl
+                    value={item.cantidad}
+                    onChange={(v) => addToStockCart(item.receta, v - item.cantidad)}
+                    min={1}
+                    disabled={manualSaving}
+                    size="sm"
+                    showInput={false}
+                    allowDecimals={false}
+                  />
                   <button
                     type="button"
+                    className="btn-remove"
                     onClick={() => addToStockCart(item.receta, -item.cantidad)}
-                    style={{
-                      background: "none",
-                      border: "none",
-                      color: "var(--danger)",
-                      fontSize: 18,
-                      cursor: "pointer",
-                    }}
                     disabled={manualSaving}
                   >
                     ×
@@ -208,13 +162,7 @@ function StockProductionModal({
             <span className="card-title">Productos</span>
           </div>
           <ProductSearchInput value={search} onChange={setSearch} />
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-              gap: 12,
-            }}
-          >
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {filteredRecetas.map((r) => {
               const st = (stock || {})[r.id] ?? 0;
               const sinStock = st <= 0;
@@ -223,55 +171,46 @@ function StockProductionModal({
                   key={r.id}
                   type="button"
                   onClick={() => addToStockCart(r, 1)}
-                  className="producto-card"
+                  className="producto-row"
+                  data-sin-stock={sinStock || undefined}
                   style={{
                     display: "flex",
-                    flexDirection: "column",
-                    alignItems: "flex-start",
-                    padding: 10,
-                    borderRadius: 12,
+                    alignItems: "center",
+                    gap: 10,
+                    padding: "8px 12px",
+                    borderRadius: 8,
                     border: "1px solid var(--border)",
                     background: sinStock
                       ? "rgba(200, 80, 80, 0.06)"
                       : "var(--surface)",
                     cursor: "pointer",
-                    transition:
-                      "transform 0.08s ease, box-shadow 0.08s ease",
-                  }}
-                  onMouseDown={(e) => {
-                    e.currentTarget.style.transform = "scale(0.97)";
-                    e.currentTarget.style.boxShadow =
-                      "0 2px 4px rgba(0,0,0,0.06)";
-                  }}
-                  onMouseUp={(e) => {
-                    e.currentTarget.style.transform = "scale(1)";
-                    e.currentTarget.style.boxShadow = "none";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = "scale(1)";
-                    e.currentTarget.style.boxShadow = "none";
+                    transition: "background 0.1s ease",
+                    textAlign: "left",
                   }}
                 >
-                  <span style={{ fontSize: 26, marginBottom: 4 }}>
-                    {r.emoji}
-                  </span>
+                  <span style={{ fontSize: 20, flexShrink: 0 }}>{r.emoji}</span>
                   <span
                     style={{
+                      flex: 1,
                       fontSize: 14,
                       fontWeight: 500,
-                      marginBottom: 2,
-                      textAlign: "left",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
                     }}
                   >
                     {r.nombre}
                   </span>
                   <span
                     style={{
-                      fontSize: 12,
+                      fontSize: 11,
                       color: sinStock ? "var(--danger)" : "var(--text-muted)",
+                      flexShrink: 0,
+                      minWidth: 50,
+                      textAlign: "right",
                     }}
                   >
-                    Stock actual: {fmtStock(st)} u
+                    {fmtStock(st)}
                   </span>
                 </button>
               );

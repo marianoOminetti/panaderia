@@ -1,14 +1,16 @@
 /**
  * Pantalla Ventas: orquesta nueva venta (carrito useVentasCart), cobro (useVentasChargeModal), lista (VentasList),
- * edición de ventas, venta manual (VentasManualScreen) y venta por voz (useVentasVoz). Registro y persistencia aquí.
+ * edición de ventas (useVentasEdit), venta manual (VentasManualScreen) y venta por voz (useVentasVoz).
  */
 import { useState, useEffect } from "react";
 import { fmt, toCantidadNumber } from "../../lib/format";
+import { generateTransaccionId } from "../../lib/ventas";
 import { useVentas } from "../../hooks/useVentas";
 import { useClientes } from "../../hooks/useClientes";
 import { useVentasVoz } from "../../hooks/useVentasVoz";
 import { useVentasCart } from "../../hooks/useVentasCart";
 import { useVentasChargeModal } from "../../hooks/useVentasChargeModal";
+import { useVentasEdit } from "../../hooks/useVentasEdit";
 import { hoyLocalISO } from "../../lib/dates";
 import { saveVentaPendiente } from "../../lib/offlineVentas";
 import { reportError } from "../../utils/errorReport";
@@ -18,20 +20,6 @@ import VentasList from "./VentasList";
 import VentasChargeModal from "./VentasChargeModal";
 import VentasVoiceModal from "./VentasVoiceModal";
 import VentasManualScreen from "./VentasManualScreen";
-
-function generateTransaccionId() {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-    return crypto.randomUUID();
-  }
-  // Fallback UUID v4 compatible
-  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    const v = c === "x" ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
-}
-
-// Normaliza cantidades que pueden venir como number, string, null, etc.
 
 function Ventas({
   recetas,
@@ -47,9 +35,11 @@ function Ventas({
   onConsumedVentasPreload,
   ventasNuevaFlag,
   onConsumedVentasNueva,
+  ventasPedidoFlag,
+  onConsumedVentasPedido,
 }) {
   const { insertVentas, deleteVentas, updateVenta } = useVentas();
-  const { insertCliente } = useClientes({ onRefresh, showToast });
+  const { insertCliente, insertPedidos } = useClientes({ onRefresh, showToast });
 
   const {
     cartItems,
@@ -67,6 +57,10 @@ function Ventas({
   const [medioPago, setMedioPago] = useState("efectivo");
   const [estadoPago, setEstadoPago] = useState("pagado");
   const [saving, setSaving] = useState(false);
+  const [fechaEntrega, setFechaEntrega] = useState("");
+  const [senia, setSenia] = useState("");
+  const [horaEntrega, setHoraEntrega] = useState("");
+  const [notas, setNotas] = useState("");
   const {
     chargeModalOpen,
     chargeTotalOverride,
@@ -74,21 +68,21 @@ function Ventas({
     openChargeModal,
     closeChargeModal,
   } = useVentasChargeModal();
-  const [editGrupo, setEditGrupo] = useState(null);
-  const [editForm, setEditForm] = useState({
-    cliente_id: null,
-    medio_pago: "efectivo",
-    estado_pago: "pagado",
-    fecha: null,
-  });
-  const [editCantidades, setEditCantidades] = useState({});
-  const [editSaving, setEditSaving] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
-  const [editItemsToAdd, setEditItemsToAdd] = useState([]);
-  /** receta_ids que el usuario quitó del carrito (en vista agrupada una línea = un producto). */
-  const [editRemovedRecetas, setEditRemovedRecetas] = useState([]);
-  const [editPrecios, setEditPrecios] = useState({});
-  const [editTotalOverride, setEditTotalOverride] = useState("");
+  const hoy = hoyLocalISO();
+
+  const edit = useVentasEdit({
+    recetas,
+    updateVenta,
+    deleteVentas,
+    insertVentas,
+    actualizarStock,
+    actualizarStockBatch,
+    showToast,
+    onRefresh,
+    hoy,
+    onCloseEdit: () => setManualScreenOpen(false),
+  });
 
   const {
     voiceModal,
@@ -104,7 +98,6 @@ function Ventas({
     SpeechRecognitionAPI,
   } = useVentasVoz({ recetas, setCartItems, showToast });
 
-  const hoy = hoyLocalISO();
   const ventasHoy = (ventas || []).filter((v) => v.fecha === hoy);
   const ingresoHoy = ventasHoy.reduce(
     (s, v) =>
@@ -155,6 +148,10 @@ function Ventas({
     setClienteSel(null);
     setMedioPago("efectivo");
     setEstadoPago("pagado");
+    setFechaEntrega("");
+    setSenia("");
+    setHoraEntrega("");
+    setNotas("");
     closeChargeModal();
   };
 
@@ -228,28 +225,7 @@ function Ventas({
   };
 
   const abrirEditar = (grupo) => {
-    setEditGrupo(grupo);
-    const primera = grupo.rawItems[0];
-    setEditForm({
-      cliente_id: grupo.cliente_id || null,
-      medio_pago: primera?.medio_pago || "efectivo",
-      estado_pago: primera?.estado_pago || "pagado",
-      fecha: primera?.fecha || hoyLocalISO(),
-    });
-    const cantByReceta = {};
-    const preciosByReceta = {};
-    for (const v of grupo.rawItems) {
-      const rid = v.receta_id;
-      if (rid == null) continue;
-      const c = Math.max(0.1, toCantidadNumber(v.cantidad));
-      cantByReceta[rid] = (cantByReceta[rid] || 0) + c;
-      if (preciosByReceta[rid] == null) preciosByReceta[rid] = v.precio_unitario ?? 0;
-    }
-    setEditCantidades(cantByReceta);
-    setEditPrecios(preciosByReceta);
-    setEditItemsToAdd([]);
-    setEditRemovedRecetas([]);
-    setEditTotalOverride("");
+    edit.abrirEditar(grupo);
     setManualScreenOpen(true);
   };
 
@@ -269,321 +245,24 @@ function Ventas({
     onConsumedVentasNueva?.();
   }, [ventasNuevaFlag]); // eslint-disable-line react-hooks/exhaustive-deps -- callback estable desde App
 
-  /** Carrito derivado para modo edición: una línea por producto (receta_id), agrupado como nueva venta. */
-  const editCartItems = editGrupo
-    ? (() => {
-        const recetaIds = new Set();
-        for (const v of editGrupo.rawItems) {
-          if (v.receta_id != null && !editRemovedRecetas.includes(v.receta_id))
-            recetaIds.add(v.receta_id);
-        }
-        for (const it of editItemsToAdd) {
-          if (it.receta_id != null) recetaIds.add(it.receta_id);
-        }
-        return Array.from(recetaIds).map((rid) => {
-          const receta = recetas.find((r) => r.id === rid);
-          if (!receta) return null;
-          const rawCant = editCantidades[rid];
-          const cantNum = toCantidadNumber(rawCant ?? 0);
-          const qtyFallback = cantNum < 0.1 ? 0.1 : cantNum;
-          const precio = editPrecios[rid] ?? receta.precio_venta ?? 0;
-          return {
-            id: rid,
-            receta,
-            cantidad: rawCant !== undefined && rawCant !== null ? rawCant : qtyFallback,
-            precio_unitario: precio,
-          };
-        }).filter(Boolean);
-      })()
-    : [];
-
-  const editCartTotal = editCartItems.reduce((s, item) => {
-    const c =
-      typeof item.cantidad === "number"
-        ? item.cantidad
-        : toCantidadNumber(item.cantidad);
-    const qty = Math.max(0.1, c);
-    return s + (item.precio_unitario || 0) * qty;
-  }, 0);
-
-  /** En modo agrupado itemKey es siempre receta_id. Misma lógica de paso que nueva venta: 0.1 por debajo de 1, 1 por encima. */
-  const editUpdateQuantity = (recetaId, delta) => {
-    setEditCantidades((prev) => {
-      const actual = toCantidadNumber(prev[recetaId] ?? 0) || 0.1;
-      const sign = delta > 0 ? 1 : -1;
-      let step;
-      if (sign > 0) {
-        step = actual >= 1 ? 1 : 0.1;
-      } else {
-        // Bajar: por debajo de 2 uso 0.1 (1 → 0.9 → 0.8…); desde 2 o más, de a 1
-        step = actual >= 2 ? 1 : 0.1;
-      }
-      let next = actual + sign * step;
-      if (next < 0.1) next = 0.1;
-      return { ...prev, [recetaId]: Number(next.toFixed(2)) };
-    });
-  };
-
-  const editSetQuantity = (recetaId, value) => {
-    const text = String(value ?? "").trim().replace(",", ".");
-    setEditCantidades((prev) => ({
-      ...prev,
-      [recetaId]: text === "" ? "" : text,
-    }));
-  };
-
-  const editRemoveItem = (recetaId) => {
-    setEditRemovedRecetas((prev) =>
-      prev.includes(recetaId) ? prev : [...prev, recetaId],
-    );
-  };
-
-  const editUpdatePrice = (recetaId, value) => {
-    const text = String(value ?? "").trim();
-    if (text === "") {
-      setEditPrecios((prev) => {
-        const next = { ...prev };
-        delete next[recetaId];
-        return next;
-      });
-      return;
-    }
-    const num = parseFloat(text.replace(",", "."));
-    if (Number.isNaN(num) || num < 0) return;
-    setEditPrecios((prev) => ({ ...prev, [recetaId]: num }));
-  };
-
-  const addToCartForEdit = (receta, cantidad = 1) => {
-    if (!receta) return;
-    const rid = receta.id;
-    const c = Math.max(0.1, toCantidadNumber(cantidad));
-    const inRaw =
-      editGrupo?.rawItems.some(
-        (v) => v.receta_id === rid && !editRemovedRecetas.includes(rid),
-      );
-    const inAddIdx = editItemsToAdd.findIndex((it) => it.receta_id === rid);
-    if (inRaw || inAddIdx >= 0) {
-      setEditCantidades((prev) => ({
-        ...prev,
-        [rid]: (toCantidadNumber(prev[rid]) || 0) + c,
-      }));
-      setEditPrecios((prev) =>
-        prev[rid] != null ? prev : { ...prev, [rid]: receta.precio_venta ?? 0 },
-      );
-      if (inAddIdx >= 0) {
-        setEditItemsToAdd((prev) =>
-          prev.map((it, i) =>
-            i === inAddIdx
-              ? { ...it, cantidad: (toCantidadNumber(it.cantidad) || 0) + c }
-              : it,
-          ),
-        );
-      }
-    } else {
-      setEditItemsToAdd((prev) => [
-        ...prev,
-        {
-          receta_id: rid,
-          cantidad: c,
-          receta,
-          precio_unitario: receta.precio_venta ?? 0,
-        },
-      ]);
-      setEditCantidades((prev) => ({ ...prev, [rid]: c }));
-      setEditPrecios((prev) => ({ ...prev, [rid]: receta.precio_venta ?? 0 }));
-    }
-  };
+  useEffect(() => {
+    if (!ventasPedidoFlag) return;
+    const maniana = new Date();
+    maniana.setDate(maniana.getDate() + 1);
+    const manianaISO = maniana.toISOString().split("T")[0];
+    setFechaEntrega(manianaISO);
+    setManualScreenOpen(true);
+    closeChargeModal();
+    setVoiceModal(false);
+    onConsumedVentasPedido?.();
+  }, [ventasPedidoFlag]); // eslint-disable-line react-hooks/exhaustive-deps -- callback estable desde App
 
   const closeManualScreen = () => {
-    if (editGrupo) {
+    if (edit.editGrupo) {
       setManualScreenOpen(false);
-      setEditGrupo(null);
-      setEditCantidades({});
-      setEditItemsToAdd([]);
-      setEditRemovedRecetas([]);
-      setEditPrecios({});
-      setEditTotalOverride("");
-      setEditForm({
-        cliente_id: null,
-        medio_pago: "efectivo",
-        estado_pago: "pagado",
-        fecha: null,
-      });
+      edit.closeEdit();
     } else {
       resetNuevaVenta();
-    }
-  };
-
-  const guardarEdicion = async () => {
-    if (!editGrupo) return;
-    setEditSaving(true);
-    const fechaEdit = (editForm.fecha && editForm.fecha.slice(0, 10)) || hoyLocalISO();
-    let transaccionId = editGrupo.rawItems[0]?.transaccion_id;
-    if (editItemsToAdd.length > 0 && !transaccionId)
-      transaccionId = generateTransaccionId();
-    const deltasMap = {};
-    const idsToDelete = [];
-    for (const rid of editRemovedRecetas) {
-      for (const v of editGrupo.rawItems) {
-        if (v.receta_id === rid && v.id != null) idsToDelete.push(v.id);
-      }
-    }
-    const rawByReceta = {};
-    for (const v of editGrupo.rawItems) {
-      if (editRemovedRecetas.includes(v.receta_id)) continue;
-      if (!rawByReceta[v.receta_id]) rawByReceta[v.receta_id] = [];
-      rawByReceta[v.receta_id].push(v);
-    }
-    for (const rid of Object.keys(rawByReceta)) {
-      const raws = rawByReceta[rid];
-      const nuevaCant = Math.max(0.1, toCantidadNumber(editCantidades[rid] ?? 0));
-      const cantOrig = raws.reduce((s, v) => s + toCantidadNumber(v.cantidad), 0);
-      const deltaCant = nuevaCant - cantOrig;
-      if (deltaCant !== 0) {
-        deltasMap[rid] = (deltasMap[rid] || 0) - deltaCant;
-      }
-      if (raws.length > 1) {
-        for (let i = 1; i < raws.length; i++) idsToDelete.push(raws[i].id);
-      }
-    }
-    const addByReceta = {};
-    for (const it of editItemsToAdd) {
-      if (!it.receta_id) continue;
-      const c = Math.max(0.1, toCantidadNumber(editCantidades[it.receta_id] ?? it.cantidad));
-      addByReceta[it.receta_id] = {
-        cantidad: c,
-        receta: it.receta,
-        precio: editPrecios[it.receta_id] ?? it.precio_unitario ?? it.receta?.precio_venta ?? 0,
-      };
-      if (c > 0) deltasMap[it.receta_id] = (deltasMap[it.receta_id] || 0) - c;
-    }
-    const stockDeltas = Object.entries(deltasMap)
-      .filter(([, d]) => d !== 0)
-      .map(([receta_id, delta]) => ({ receta_id, delta }));
-
-    // Líneas para total: existentes + nuevas (misma lógica que nueva venta para override)
-    const lineas = [];
-    for (const rid of Object.keys(rawByReceta)) {
-      const raws = rawByReceta[rid];
-      const first = raws[0];
-      const nuevaCant = Math.max(0.1, toCantidadNumber(editCantidades[rid] ?? 0));
-      const precio = editPrecios[rid] ?? first.precio_unitario ?? 0;
-      lineas.push({ rid, cant: nuevaCant, precio, key: `raw-${rid}` });
-    }
-    for (const [rid, { cantidad, receta, precio }] of Object.entries(addByReceta)) {
-      const cantNum = Math.max(0.1, toCantidadNumber(cantidad));
-      const p = precio ?? receta?.precio_venta ?? 0;
-      lineas.push({ rid, cant: cantNum, precio: p, key: `add-${rid}` });
-    }
-    const totalCart = lineas.reduce((s, l) => s + l.cant * l.precio, 0);
-    const overrideVal = parseFloat(String(editTotalOverride || "").replace(",", "."));
-    const usarOverride =
-      !Number.isNaN(overrideVal) &&
-      overrideVal >= 0 &&
-      totalCart > 0 &&
-      overrideVal !== totalCart;
-    if (
-      !Number.isNaN(overrideVal) &&
-      overrideVal > 0 &&
-      totalCart === 0
-    ) {
-      showToast("Para aplicar un total final, asigná precios mayores a 0 en el carrito.");
-      setEditSaving(false);
-      return;
-    }
-    const preciosAjustados = {};
-    if (usarOverride) {
-      let acumulado = 0;
-      lineas.forEach((l, i) => {
-        const nuevoSubtotal =
-          i === lineas.length - 1
-            ? overrideVal - acumulado
-            : Math.round((l.cant * l.precio * overrideVal) / totalCart);
-        preciosAjustados[l.key] = l.cant > 0 ? nuevoSubtotal / l.cant : l.precio;
-        acumulado += nuevoSubtotal;
-      });
-    }
-
-    try {
-      if (stockDeltas.length > 0 && actualizarStockBatch) {
-        await actualizarStockBatch(stockDeltas);
-      } else if (stockDeltas.length > 0 && actualizarStock) {
-        for (const { receta_id, delta } of stockDeltas) {
-          await actualizarStock(receta_id, delta);
-        }
-      }
-      try {
-        for (const rid of Object.keys(rawByReceta)) {
-          const raws = rawByReceta[rid];
-          const first = raws[0];
-          const nuevaCant = Math.max(0.1, toCantidadNumber(editCantidades[rid] ?? 0));
-          const precioBase = editPrecios[rid] ?? first.precio_unitario ?? 0;
-          const precio = preciosAjustados[`raw-${rid}`] ?? precioBase;
-          const subtotal = precio * nuevaCant;
-          const payload = {
-            cliente_id: editForm.cliente_id || null,
-            medio_pago: editForm.medio_pago,
-            estado_pago: editForm.estado_pago,
-            fecha: fechaEdit,
-            cantidad: nuevaCant,
-            precio_unitario: precio,
-            subtotal,
-            total_final: usarOverride ? subtotal : subtotal - (first.descuento ?? 0),
-          };
-          if (Object.keys(addByReceta).length > 0) payload.transaccion_id = transaccionId;
-          await updateVenta(first.id, payload);
-        }
-        if (idsToDelete.length > 0) {
-          await deleteVentas(idsToDelete);
-        }
-        if (Object.keys(addByReceta).length > 0) {
-          const rows = Object.entries(addByReceta).map(([receta_id, { cantidad, receta, precio }]) => {
-            const cantNum = Math.max(0.1, toCantidadNumber(cantidad));
-            const pBase = precio ?? receta?.precio_venta ?? 0;
-            const p = preciosAjustados[`add-${receta_id}`] ?? pBase;
-            const subtotal = p * cantNum;
-            return {
-              receta_id,
-              cantidad: cantNum,
-              precio_unitario: p,
-              subtotal,
-              descuento: 0,
-              total_final: subtotal,
-              fecha: fechaEdit,
-              transaccion_id: transaccionId,
-              cliente_id: editForm.cliente_id || null,
-              medio_pago: editForm.medio_pago,
-              estado_pago: editForm.estado_pago,
-            };
-          });
-          await insertVentas(rows);
-        }
-      } catch (ventaErr) {
-        if (stockDeltas.length > 0) {
-          const undo = stockDeltas.map(({ receta_id, delta }) => ({ receta_id, delta: -delta }));
-          try {
-            if (actualizarStockBatch) await actualizarStockBatch(undo);
-            else for (const { receta_id, delta } of undo) await actualizarStock(receta_id, delta);
-          } catch (rollbackErr) {
-            reportError(rollbackErr, { action: "rollbackStockAfterGuardarEdicionFail" });
-          }
-        }
-        throw ventaErr;
-      }
-      showToast("✅ Venta actualizada");
-      setManualScreenOpen(false);
-      setEditGrupo(null);
-      setEditCantidades({});
-      setEditItemsToAdd([]);
-      setEditRemovedRecetas([]);
-      setEditPrecios({});
-      setEditTotalOverride("");
-      onRefresh();
-    } catch (err) {
-      reportError(err, { action: "guardarEdicion", grupo: editGrupo?.key });
-      showToast("⚠️ Error al actualizar venta");
-    } finally {
-      setEditSaving(false);
     }
   };
 
@@ -592,68 +271,105 @@ function Ventas({
       showToast("Agregá productos al carrito primero.");
       return;
     }
-    const sinStock = cartItems.filter(
-      ({ receta, cantidad }) =>
-        ((stock || {})[receta.id] ?? 0) < (toCantidadNumber(cantidad) || 0),
-    );
-    if (sinStock.length > 0 && !(await confirm(`Stock insuficiente en ${sinStock.map((s) => s.receta.nombre).join(", ")}. ¿Registrar venta igual?`)))
+
+    const hoyVenta = hoyLocalISO();
+    const fechaFinal = fechaEntrega || hoyVenta;
+    const esPedido = fechaFinal > hoyVenta;
+
+    if (esPedido && !clienteSel) {
+      showToast("Para pedidos es obligatorio elegir un cliente");
       return;
+    }
+
+    if (!esPedido) {
+      const sinStock = cartItems.filter(
+        ({ receta, cantidad }) =>
+          ((stock || {})[receta.id] ?? 0) < (toCantidadNumber(cantidad) || 0),
+      );
+      if (sinStock.length > 0 && !(await confirm(`Stock insuficiente en ${sinStock.map((s) => s.receta.nombre).join(", ")}. ¿Registrar venta igual?`)))
+        return;
+    }
+
     setSaving(true);
     try {
-      const hoyVenta = hoyLocalISO();
       const totalCarrito = cartItems.reduce((s, it) => {
         const cant = toCantidadNumber(it.cantidad) || 0;
         return s + (it.precio_unitario || 0) * cant;
       }, 0);
-      const override = parseFloat(String(chargeTotalOverride || "").replace(",", "."));
-      const usarOverride = !Number.isNaN(override) && override >= 0 && override !== totalCarrito && totalCarrito > 0;
-      if (totalCarrito === 0 && !Number.isNaN(override) && override > 0) {
-        showToast("Para usar un total final distinto, asigná precios mayores a 0 en el carrito.");
-        setSaving(false);
-        return;
-      }
-      let transaccionId = generateTransaccionId();
-      const rows = cartItems.map(({ receta, cantidad, precio_unitario }) => {
-        const cantNum = toCantidadNumber(cantidad) || 0;
-        const precio = precio_unitario || 0;
-        const subtotal = precio * cantNum;
-        return {
-          receta_id: receta.id,
-          cantidad: cantNum,
-          precio_unitario: precio,
-          subtotal,
-          descuento: 0,
-          total_final: subtotal,
-          fecha: hoyVenta,
-          transaccion_id: transaccionId,
-          cliente_id: clienteSel || null,
-          medio_pago: medioPago,
-          estado_pago: estadoPago,
-        };
-      });
-      if (usarOverride) {
-        const factor = override / totalCarrito;
-        let acumulado = 0;
-        for (let i = 0; i < rows.length; i++) {
-          const nuevoSubtotal = i === rows.length - 1 ? override - acumulado : Math.round(rows[i].subtotal * factor);
-          rows[i].precio_unitario = rows[i].cantidad > 0 ? nuevoSubtotal / rows[i].cantidad : rows[i].precio_unitario;
-          rows[i].subtotal = nuevoSubtotal;
-          rows[i].total_final = nuevoSubtotal;
-          acumulado += nuevoSubtotal;
-        }
-      }
-      if (typeof navigator !== "undefined" && !navigator.onLine) {
-        await saveVentaPendiente(rows);
-        showToast(`✅ Venta guardada offline: ${fmt(usarOverride ? override : totalCarrito)}. Se sincronizará cuando vuelva la conexión.`);
+
+      if (esPedido) {
+        const pedidoId = generateTransaccionId();
+        const seniaNum = parseFloat(String(senia || "").replace(",", ".")) || 0;
+        const rows = cartItems.map(({ receta, cantidad, precio_unitario }, index) => {
+          const cantNum = toCantidadNumber(cantidad) || 0;
+          const precio = precio_unitario || 0;
+          return {
+            pedido_id: pedidoId,
+            cliente_id: clienteSel,
+            receta_id: receta.id,
+            cantidad: cantNum,
+            precio_unitario: precio,
+            senia: index === 0 ? seniaNum : 0,
+            hora_entrega: index === 0 ? (horaEntrega || null) : null,
+            notas: index === 0 ? (notas || null) : null,
+            estado: "pendiente",
+            fecha_entrega: fechaFinal,
+          };
+        });
+        await insertPedidos(rows, { skipToast: true });
+        const fechaDisplay = new Date(fechaFinal).toLocaleDateString("es-AR");
+        showToast(`✅ Pedido guardado para ${fechaDisplay}: ${fmt(totalCarrito)}`);
       } else {
-        await registrarVentaEnSupabase(rows, transaccionId);
-        showToast(`✅ Venta registrada: ${fmt(usarOverride ? override : totalCarrito)}`);
+        const override = parseFloat(String(chargeTotalOverride || "").replace(",", "."));
+        const usarOverride = !Number.isNaN(override) && override >= 0 && override !== totalCarrito && totalCarrito > 0;
+        if (totalCarrito === 0 && !Number.isNaN(override) && override > 0) {
+          showToast("Para usar un total final distinto, asigná precios mayores a 0 en el carrito.");
+          setSaving(false);
+          return;
+        }
+        let transaccionId = generateTransaccionId();
+        const rows = cartItems.map(({ receta, cantidad, precio_unitario }) => {
+          const cantNum = toCantidadNumber(cantidad) || 0;
+          const precio = precio_unitario || 0;
+          const subtotal = precio * cantNum;
+          return {
+            receta_id: receta.id,
+            cantidad: cantNum,
+            precio_unitario: precio,
+            subtotal,
+            descuento: 0,
+            total_final: subtotal,
+            fecha: fechaFinal,
+            transaccion_id: transaccionId,
+            cliente_id: clienteSel || null,
+            medio_pago: medioPago,
+            estado_pago: estadoPago,
+          };
+        });
+        if (usarOverride) {
+          const factor = override / totalCarrito;
+          let acumulado = 0;
+          for (let i = 0; i < rows.length; i++) {
+            const nuevoSubtotal = i === rows.length - 1 ? override - acumulado : Math.round(rows[i].subtotal * factor);
+            rows[i].precio_unitario = rows[i].cantidad > 0 ? nuevoSubtotal / rows[i].cantidad : rows[i].precio_unitario;
+            rows[i].subtotal = nuevoSubtotal;
+            rows[i].total_final = nuevoSubtotal;
+            acumulado += nuevoSubtotal;
+          }
+        }
+        if (typeof navigator !== "undefined" && !navigator.onLine) {
+          await saveVentaPendiente(rows);
+          showToast(`✅ Venta guardada offline: ${fmt(usarOverride ? override : totalCarrito)}. Se sincronizará cuando vuelva la conexión.`);
+        } else {
+          await registrarVentaEnSupabase(rows, transaccionId);
+          showToast(`✅ Venta registrada: ${fmt(usarOverride ? override : totalCarrito)}`);
+        }
       }
       resetNuevaVenta();
       onRefresh();
     } catch (err) {
-      reportError(err, { action: "registrarVentaCarrito" });
-      showToast("⚠️ Error al registrar venta");
+      reportError(err, { action: esPedido ? "registrarPedido" : "registrarVentaCarrito" });
+      showToast(esPedido ? "⚠️ Error al guardar pedido" : "⚠️ Error al registrar venta");
     } finally {
       setSaving(false);
     }
@@ -703,7 +419,7 @@ function Ventas({
       <VentasManualScreen
         open={manualScreenOpen}
         onClose={closeManualScreen}
-        mode={editGrupo ? "edit" : "new"}
+        mode={edit.editGrupo ? "edit" : "new"}
         cartItems={cartItems}
         cartTotal={cartTotal}
         updateCartQuantity={updateCartQuantity}
@@ -712,27 +428,27 @@ function Ventas({
         setCartQuantity={setCartQuantity}
         recetas={recetas}
         stock={stock}
-        addToCart={editGrupo ? addToCartForEdit : addToCart}
+        addToCart={edit.editGrupo ? edit.addToCartForEdit : addToCart}
         onVoz={abrirVoz}
         onCobrar={() => {
           if (cartItems.length === 0) return;
           openChargeModal();
         }}
-        editCartItems={editCartItems}
-        editCartTotal={editCartTotal}
-        editUpdateQuantity={editUpdateQuantity}
-        editRemoveItem={editRemoveItem}
-        editSetQuantity={editSetQuantity}
-        editUpdatePrice={editUpdatePrice}
-        editForm={editForm}
-        setEditForm={setEditForm}
+        editCartItems={edit.editCartItems}
+        editCartTotal={edit.editCartTotal}
+        editUpdateQuantity={edit.editUpdateQuantity}
+        editRemoveItem={edit.editRemoveItem}
+        editSetQuantity={edit.editSetQuantity}
+        editUpdatePrice={edit.editUpdatePrice}
+        editForm={edit.editForm}
+        setEditForm={edit.setEditForm}
         clientes={clientes}
         insertCliente={insertCliente}
         showToast={showToast}
-        onGuardar={guardarEdicion}
-        editSaving={editSaving}
-        editTotalOverride={editTotalOverride}
-        setEditTotalOverride={setEditTotalOverride}
+        onGuardar={edit.guardarEdicion}
+        editSaving={edit.editSaving}
+        editTotalOverride={edit.editTotalOverride}
+        setEditTotalOverride={edit.setEditTotalOverride}
       />
 
       <VentasChargeModal
@@ -753,6 +469,14 @@ function Ventas({
         clientes={clientes}
         insertCliente={insertCliente}
         showToast={showToast}
+        fechaEntrega={fechaEntrega}
+        setFechaEntrega={setFechaEntrega}
+        senia={senia}
+        setSenia={setSenia}
+        horaEntrega={horaEntrega}
+        setHoraEntrega={setHoraEntrega}
+        notas={notas}
+        setNotas={setNotas}
       />
     </div>
   );

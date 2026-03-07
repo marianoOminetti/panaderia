@@ -15,4 +15,5 @@ export const MORE_MENU_ITEMS = [
   { id: "clientes", icon: "👥", label: "Clientes", sub: "Contactos y ventas" },
   { id: "insumos", icon: "📦", label: "Insumos", sub: "Materias primas y stock" },
   { id: "recetas", icon: "📋", label: "Recetas", sub: "Productos y costos" },
+  { id: "gastos", icon: "💸", label: "Gastos fijos", sub: "Alquiler, servicios, sueldos" },
 ];

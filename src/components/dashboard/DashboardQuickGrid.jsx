@@ -3,7 +3,6 @@ function QuickAction({
   label,
   sub,
   tab,
-  alert,
   onNavigate,
   onClick,
 }) {
@@ -23,22 +22,15 @@ function QuickAction({
         <span className="dashboard-quick-label">{label}</span>
         <span className="dashboard-quick-sub">{sub}</span>
       </div>
-      {alert && (
-        <span className="dashboard-quick-badge">{alert}</span>
-      )}
     </button>
   );
 }
 
 function DashboardQuickGrid({
-  stockBajo,
-  recetasMargenBajo,
-  clientesCount,
   insumosCount,
-  recetasCount,
   onNavigate,
   onOpenNuevaVenta,
-  onOpenCargarStock,
+  onOpenNuevoPedido,
 }) {
   return (
     <div className="card">
@@ -48,37 +40,23 @@ function DashboardQuickGrid({
       <div className="dashboard-quick-grid">
         <QuickAction
           icon="💰"
-          label="Registrar venta"
-          sub="Manual o por voz"
+          label="Venta"
+          sub="Registrar venta"
           tab="ventas"
           onNavigate={onNavigate}
           onClick={onOpenNuevaVenta}
         />
         <QuickAction
-          icon="📥"
-          label="Cargar stock"
-          sub={
-            stockBajo.length > 0
-              ? `${stockBajo.length} sin stock`
-              : "Por voz o manual"
-          }
-          tab="stock"
-          alert={stockBajo.length > 0 ? stockBajo.length : null}
-          onNavigate={onNavigate}
-          onClick={onOpenCargarStock}
+          icon="📋"
+          label="Pedido"
+          sub="Pedido futuro"
+          onClick={onOpenNuevoPedido}
         />
         <QuickAction
-          icon="📆"
-          label="Plan y pedidos"
-          sub="Semana y pedidos futuros"
-          tab="plan"
-          onNavigate={onNavigate}
-        />
-        <QuickAction
-          icon="👥"
-          label="Clientes"
-          sub={`${clientesCount} registrados`}
-          tab="clientes"
+          icon="💸"
+          label="Gasto"
+          sub="Agregar gasto"
+          tab="gastos"
           onNavigate={onNavigate}
         />
         <QuickAction
@@ -86,18 +64,6 @@ function DashboardQuickGrid({
           label="Insumos"
           sub={`${insumosCount} productos`}
           tab="insumos"
-          onNavigate={onNavigate}
-        />
-        <QuickAction
-          icon="📋"
-          label="Recetas"
-          sub={`${recetasCount} recetas`}
-          tab="recetas"
-          alert={
-            recetasMargenBajo.length > 0
-              ? recetasMargenBajo.length
-              : null
-          }
           onNavigate={onNavigate}
         />
       </div>

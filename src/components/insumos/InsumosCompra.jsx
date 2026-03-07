@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { CATEGORIAS, CAT_COLORS } from "../../config/appConfig";
 import { fmtPrecio, fmtStock } from "../../lib/format";
+import { QuantityControl } from "../ui";
 
 function InsumosCompra({
   compraCart,
@@ -180,90 +181,37 @@ function InsumosCompra({
                       >
                         <span style={{ fontSize: 18 }}>🌿</span>
                         <span className="insumo-nombre">{ins.nombre}</span>
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 6,
-                          }}
-                        >
-                          <button
-                            type="button"
-                            onClick={() =>
-                              actualizarCantidadCarrito(ins.id, -1)
-                            }
-                            style={{
-                              width: 28,
-                              height: 28,
-                              borderRadius: "50%",
-                              border: "1px solid var(--border)",
-                              background: "var(--cream)",
-                              cursor: "pointer",
-                              fontSize: 16,
-                            }}
-                            disabled={compraSaving}
-                          >
-                            −
-                          </button>
-                          <span
-                            style={{
-                              minWidth: 20,
-                              textAlign: "center",
-                              fontSize: 14,
-                            }}
-                          >
-                            {item.presentaciones || 0}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              actualizarCantidadCarrito(ins.id, 1)
-                            }
-                            style={{
-                              width: 28,
-                              height: 28,
-                              borderRadius: "50%",
-                              border: "1px solid var(--border)",
-                              background: "var(--cream)",
-                              cursor: "pointer",
-                              fontSize: 16,
-                            }}
-                            disabled={compraSaving}
-                          >
-                            +
-                          </button>
-                        </div>
-                        <span style={{ fontSize: 13, color: "var(--text-muted)" }}>$</span>
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={displayPrecio}
-                          onChange={(e) =>
-                            actualizarPrecioCarrito(ins.id, e.target.value)
-                          }
-                          style={{
-                            width: 90,
-                            padding: "6px 8px",
-                            borderRadius: 8,
-                            border: "1px solid var(--border)",
-                            fontSize: 13,
-                          }}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => eliminarDeCarrito(ins.id)}
-                          style={{
-                            background: "none",
-                            border: "none",
-                            color: "var(--danger)",
-                            fontSize: 18,
-                            cursor: "pointer",
-                          }}
-                          disabled={compraSaving}
-                        >
-                          ×
-                        </button>
+<QuantityControl
+                                          value={item.presentaciones || 0}
+                                          onChange={(v) => actualizarCantidadCarrito(ins.id, v - (item.presentaciones || 0))}
+                                          min={1}
+                                          disabled={compraSaving}
+                                          size="sm"
+                                          showInput={false}
+                                          allowDecimals={false}
+                                        />
+                                        <div className="form-money-wrapper" style={{ width: 100 }}>
+                                          <span className="form-money-symbol">$</span>
+                                          <input
+                                            type="text"
+                                            inputMode="decimal"
+                                            className="form-input form-money-input"
+                                            aria-label="Precio de la presentación"
+                                            value={displayPrecio}
+                                            onChange={(e) =>
+                                              actualizarPrecioCarrito(ins.id, e.target.value)
+                                            }
+                                            style={{ padding: "6px 8px 6px 24px", fontSize: 13 }}
+                                          />
+                                        </div>
+<button
+                                          type="button"
+                                          className="btn-remove"
+                                          onClick={() => eliminarDeCarrito(ins.id)}
+                                          disabled={compraSaving}
+                                        >
+                                          ×
+                                        </button>
                       </div>
                       <div
                         style={{

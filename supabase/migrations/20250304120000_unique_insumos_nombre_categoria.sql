@@ -56,7 +56,16 @@ BEGIN
 END
 $$;
 
-ALTER TABLE insumos
-  ADD CONSTRAINT insumos_nombre_categoria_unique
-  UNIQUE (nombre, categoria);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'insumos_nombre_categoria_unique'
+    AND conrelid = 'insumos'::regclass
+  ) THEN
+    ALTER TABLE insumos
+      ADD CONSTRAINT insumos_nombre_categoria_unique
+      UNIQUE (nombre, categoria);
+  END IF;
+END $$;
 

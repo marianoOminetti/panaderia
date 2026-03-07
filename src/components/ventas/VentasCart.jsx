@@ -1,4 +1,5 @@
 import { fmtMonedaDecimal, fmtDecimal, toCantidadNumber } from "../../lib/format";
+import { QuantityControl } from "../ui";
 
 /** Key estable por ítem: en modo edición permite varias líneas de la misma receta. */
 function getItemKey(item) {
@@ -96,108 +97,35 @@ export default function VentasCart({
                     </div>
                   ) : (
                     <>
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 6,
-                        }}
-                      >
-                        <button
-                          type="button"
-                          onClick={() =>
-                            updateCartQuantity(itemKey, -1)
+                      <QuantityControl
+                        value={displayQty}
+                        onChange={(v) => {
+                          if (setCartQuantity) {
+                            setCartQuantity(itemKey, v);
+                          } else {
+                            updateCartQuantity(itemKey, v - cantNum);
                           }
-                          style={{
-                            width: 28,
-                            height: 28,
-                            borderRadius: 999,
-                            border: "1px solid var(--border)",
-                            background: "var(--cream)",
-                            fontSize: 18,
-                            cursor: "pointer",
-                          }}
-                        >
-                          −
-                        </button>
-                        <input
-                          type="text"
-                          inputMode={quantityIntegerOnly ? "numeric" : "decimal"}
-                          className="form-input"
-                          value={displayQty}
-                          onChange={(e) => {
-                            if (!setCartQuantity) return;
-                            const raw = e.target.value.trim();
-                            if (quantityIntegerOnly) {
-                              const n = parseInt(raw, 10);
-                              setCartQuantity(
-                                itemKey,
-                                Number.isNaN(n) || n < 1 ? 1 : n
-                              );
-                            } else {
-                              setCartQuantity(itemKey, raw === "" ? "" : raw);
-                            }
-                          }}
-                          style={{
-                            minWidth: 36,
-                            maxWidth: 60,
-                            textAlign: "center",
-                            padding: "3px 4px",
-                            fontSize: 13,
-                          }}
-                        />
-                        <button
-                          type="button"
-                          onClick={() =>
-                            updateCartQuantity(itemKey, 1)
-                          }
-                          style={{
-                            width: 28,
-                            height: 28,
-                            borderRadius: 999,
-                            border: "1px solid var(--border)",
-                            background: "var(--cream)",
-                            fontSize: 18,
-                            cursor: "pointer",
-                          }}
-                        >
-                          +
-                        </button>
-                      </div>
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 4,
-                          flex: "1 1 200px",
-                          minWidth: 0,
                         }}
-                      >
+                        onChangeRaw={setCartQuantity ? (v) => setCartQuantity(itemKey, v) : undefined}
+                        min={quantityIntegerOnly ? 1 : 0.1}
+                        step={quantityIntegerOnly ? 1 : "auto"}
+                        size="sm"
+                        showInput={true}
+                        allowDecimals={!quantityIntegerOnly}
+                      />
+                      <div className="cart-price-row">
                         {priceReadOnly ? (
-                          <span
-                            style={{
-                              fontSize: 12,
-                              color: "var(--text-muted)",
-                              whiteSpace: "nowrap",
-                            }}
-                          >
+                          <span className="cart-price-label">
                             {fmtMonedaDecimal(item.precio_unitario || 0)} c/u
                           </span>
                         ) : (
-                          <>
-                            <span
-                              style={{
-                                fontSize: 12,
-                                color: "var(--text-muted)",
-                                flexShrink: 0,
-                              }}
-                            >
-                              $
-                            </span>
+                          <div className="form-money-wrapper" style={{ maxWidth: 120 }}>
+                            <span className="form-money-symbol">$</span>
                             <input
                               type="text"
                               inputMode="decimal"
-                              className="form-input"
+                              className="form-input form-money-input"
+                              aria-label="Precio unitario"
                               value={
                                 item.precio_unitario === ""
                                   ? ""
@@ -208,25 +136,11 @@ export default function VentasCart({
                               onChange={(e) =>
                                 updateCartPrice(itemKey, e.target.value)
                               }
-                              style={{
-                                minWidth: 72,
-                                width: "100%",
-                                maxWidth: 140,
-                                padding: "5px 7px",
-                                fontSize: 14,
-                                boxSizing: "border-box",
-                              }}
+                              style={{ padding: "5px 7px 5px 22px", fontSize: 13 }}
                             />
-                          </>
+                          </div>
                         )}
-                        <div
-                          style={{
-                            minWidth: 80,
-                            flexShrink: 0,
-                            textAlign: "right",
-                            fontWeight: 500,
-                          }}
-                        >
+                        <div className="cart-subtotal">
                           {fmtMonedaDecimal(
                             (item.precio_unitario || 0) *
                               (typeof item.cantidad === "number"
@@ -237,15 +151,8 @@ export default function VentasCart({
                         {canRemove && (
                           <button
                             type="button"
+                            className="btn-remove"
                             onClick={() => removeFromCart(itemKey)}
-                            style={{
-                              marginLeft: 4,
-                              background: "none",
-                              border: "none",
-                              color: "var(--danger)",
-                              cursor: "pointer",
-                              fontSize: 18,
-                            }}
                             title="Quitar"
                           >
                             ✕

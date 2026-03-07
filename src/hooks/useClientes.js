@@ -67,14 +67,14 @@ export function useClientes({ onRefresh, showToast } = {}) {
   }, []);
 
   const insertPedidos = useCallback(
-    async (rows) => {
+    async (rows, options = {}) => {
       const { error } = await supabase.from("pedidos").insert(rows);
       if (error) {
         console.error("[clientes/insertPedidos]", error);
         throw error;
       }
-      showToast?.("✅ Pedido guardado");
-      await onRefresh?.();
+      if (!options.skipToast) showToast?.("✅ Pedido guardado");
+      if (!options.skipRefresh) await onRefresh?.();
     },
     [onRefresh, showToast],
   );

@@ -31,6 +31,7 @@ export default function App() {
   const [stockProductionPreloadReceta, setStockProductionPreloadReceta] = useState(null);
   const [ventasPreloadGrupoKey, setVentasPreloadGrupoKey] = useState(null);
   const [ventasNuevaFlag, setVentasNuevaFlag] = useState(false);
+  const [ventasPedidoFlag, setVentasPedidoFlag] = useState(false);
   const [stockOpenManual, setStockOpenManual] = useState(false);
   const [toast, setToast] = useState(null);
   const [confirmState, setConfirmState] = useState(null);
@@ -197,12 +198,14 @@ export default function App() {
           setVentasNuevaFlag(true);
           setTab("ventas");
         }}
-        onOpenCargarStock={() => {
-          setStockOpenManual(true);
-          setTab("stock");
-        }}
         ventasNuevaFlag={ventasNuevaFlag}
         onConsumedVentasNueva={() => setVentasNuevaFlag(false)}
+        onOpenNuevoPedido={() => {
+          setVentasPedidoFlag(true);
+          setTab("ventas");
+        }}
+        ventasPedidoFlag={ventasPedidoFlag}
+        onConsumedVentasPedido={() => setVentasPedidoFlag(false)}
         stockOpenManual={stockOpenManual}
         onConsumedStockOpenManual={() => setStockOpenManual(false)}
         loading={loading}

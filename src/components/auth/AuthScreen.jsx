@@ -27,7 +27,10 @@ export default function AuthScreen({ signIn }) {
       <div className="auth-card">
         <h1 className="auth-title">🌾 Gluten Free</h1>
         <form className="auth-form" onSubmit={handleSubmit}>
+          <label htmlFor="auth-email" className="sr-only">Email</label>
           <input
+            id="auth-email"
+            className="form-input"
             type="email"
             placeholder="Email"
             value={email}
@@ -35,7 +38,10 @@ export default function AuthScreen({ signIn }) {
             required
             autoComplete="email"
           />
+          <label htmlFor="auth-password" className="sr-only">Contraseña</label>
           <input
+            id="auth-password"
+            className="form-input"
             type="password"
             placeholder="Contraseña"
             value={password}
@@ -43,7 +49,7 @@ export default function AuthScreen({ signIn }) {
             required
             autoComplete="current-password"
           />
-          <button type="submit" className="auth-btn auth-btn-primary" disabled={loading}>
+          <button type="submit" className="btn-primary" disabled={loading}>
             {loading ? "..." : "Entrar"}
           </button>
         </form>

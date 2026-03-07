@@ -34,61 +34,47 @@ function PlanSemanalTable({
             <p>No hay recetas todavía.</p>
           </div>
         ) : (
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-              gap: 10,
-            }}
-          >
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {recetas.map((r) => (
               <button
                 key={r.id}
                 type="button"
                 onClick={() => addToPlanCart(r, 1)}
-                className="producto-card"
+                className="producto-row"
                 style={{
                   display: "flex",
-                  flexDirection: "column",
-                  alignItems: "flex-start",
-                  padding: 10,
-                  borderRadius: 12,
+                  alignItems: "center",
+                  gap: 10,
+                  padding: "8px 12px",
+                  borderRadius: 8,
                   border: "1px solid var(--border)",
                   background: "var(--surface)",
                   cursor: "pointer",
-                  transition:
-                    "transform 0.08s ease, box-shadow 0.08s ease",
-                }}
-                onMouseDown={(e) => {
-                  e.currentTarget.style.transform = "scale(0.97)";
-                }}
-                onMouseUp={(e) => {
-                  e.currentTarget.style.transform = "scale(1)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = "scale(1)";
+                  transition: "background 0.1s ease",
+                  textAlign: "left",
                 }}
               >
-                <span style={{ fontSize: 26, marginBottom: 4 }}>
-                  {r.emoji}
-                </span>
+                <span style={{ fontSize: 20, flexShrink: 0 }}>{r.emoji}</span>
                 <span
                   style={{
+                    flex: 1,
                     fontSize: 14,
                     fontWeight: 500,
-                    textAlign: "left",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
                   }}
                 >
                   {r.nombre}
                 </span>
                 <span
                   style={{
-                    fontSize: 12,
+                    fontSize: 11,
                     color: "var(--text-muted)",
-                    marginTop: 2,
+                    flexShrink: 0,
                   }}
                 >
-                  Tocá para sumar
+                  Tocá +
                 </span>
               </button>
             ))}
