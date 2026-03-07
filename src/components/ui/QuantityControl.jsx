@@ -50,7 +50,7 @@ export default function QuantityControl({
   };
 
   const handleInputChange = (e) => {
-    let v = e.target.value.replace(/[^0-9.,\-]/g, "").replace(/,/g, ".");
+    let v = e.target.value.replace(/[^0-9.,-]/g, "").replace(/,/g, ".");
     if (!allowDecimals) {
       v = v.replace(/\./g, "");
     }

@@ -1,7 +1,7 @@
 /**
  * Detalle del mes: proyección, pico, cliente, productos sin venta, tops. Con navegación.
  */
-import { fmt, pctFmt } from "../../lib/format";
+import { fmt } from "../../lib/format";
 import AnalyticsNavPeriodo from "./AnalyticsNavPeriodo";
 
 export default function AnalyticsDetalleMes({
