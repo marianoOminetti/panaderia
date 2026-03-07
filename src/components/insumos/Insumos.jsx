@@ -62,8 +62,6 @@ function Insumos({
     setPrecioDecisionModal,
     compraResultado,
     setCompraResultado,
-    compraListening,
-    compraTranscript,
     agregarAlCarritoCompra,
     actualizarCantidadCarrito,
     eliminarDeCarritoCompra,
@@ -71,8 +69,6 @@ function Insumos({
     totalCompra,
     confirmarCompra,
     aplicarDecisionesPrecio,
-    iniciarRecCompra,
-    detenerRecCompra,
   } = useInsumosCompra({
     insumos,
     recetas,
@@ -121,8 +117,6 @@ function Insumos({
         <InsumosCompra
           compraCart={compraCart}
           compraSaving={compraSaving}
-          compraListening={compraListening}
-          compraTranscript={compraTranscript}
           insumos={insumos}
           insumoStock={insumoStock}
           totalCompra={totalCompra}
@@ -131,8 +125,6 @@ function Insumos({
             if (compraSaving) return;
             setCompraScreenOpen(false);
           }}
-          onHablar={iniciarRecCompra}
-          onDetener={detenerRecCompra}
           agregarAlCarrito={agregarAlCarritoCompra}
           actualizarCantidadCarrito={actualizarCantidadCarrito}
           actualizarPrecioCarrito={actualizarPrecioCarrito}

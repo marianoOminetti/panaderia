@@ -310,19 +310,6 @@ body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--cream); c
 .qr-text { color: var(--purple-light); font-size: 14px; }
 .qr-btn { background: var(--purple); color: white; border: none; border-radius: 12px; padding: 14px 32px; font-size: 16px; font-weight: 500; cursor: pointer; margin-top: 16px; font-family: 'Plus Jakarta Sans', sans-serif; }
 
-/* Voice input */
-.voice-row { display: flex; gap: 12px; align-items: stretch; margin-bottom: 16px; }
-.voice-area { flex: 1; background: var(--purple-dark); border-radius: 20px; padding: 24px 20px; text-align: center; }
-.voice-icon { font-size: 40px; margin-bottom: 8px; }
-.voice-text { color: var(--purple-light); font-size: 13px; }
-.voice-btn { background: var(--purple); color: white; border: none; border-radius: 12px; padding: 14px 24px; font-size: 15px; font-weight: 500; cursor: pointer; font-family: 'Plus Jakarta Sans', sans-serif; white-space: nowrap; }
-.voice-btn.listening { background: var(--green); animation: pulse 1.5s ease infinite; }
-@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.85; } }
-.voice-transcript { font-size: 12px; color: var(--text-muted); margin-top: 8px; font-style: italic; max-height: 40px; overflow: hidden; text-overflow: ellipsis; }
-.voice-parsed-list { margin: 12px 0; text-align: left; }
-.voice-parsed-item { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border); }
-.voice-parsed-item:last-child { border-bottom: none; }
-
 /* Analytics */
 .analytics-section { display: flex; flex-direction: column; gap: 12px; }
 .analytics-kpi-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 4px; }

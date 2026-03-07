@@ -6,15 +6,11 @@ import { QuantityControl } from "../ui";
 function InsumosCompra({
   compraCart,
   compraSaving,
-  compraListening,
-  compraTranscript,
   insumos,
   insumoStock,
   totalCompra,
   precioPorU,
   onBack,
-  onHablar,
-  onDetener,
   agregarAlCarrito,
   actualizarCantidadCarrito,
   actualizarPrecioCarrito,
@@ -88,14 +84,6 @@ function InsumosCompra({
           <div style={{ display: "flex", gap: 6 }}>
             <button
               type="button"
-              className="btn-secondary"
-              onClick={compraListening ? onDetener : onHablar}
-              disabled={compraSaving}
-            >
-              🎙️ Voz
-            </button>
-            <button
-              type="button"
               className="btn-primary"
               onClick={confirmarCompra}
               disabled={compraSaving || compraCart.length === 0}
@@ -106,15 +94,6 @@ function InsumosCompra({
         </div>
       </div>
       <div className="screen-content">
-        {compraTranscript && (
-          <p
-            className="voice-transcript"
-            style={{ marginBottom: 8, fontSize: 12 }}
-          >
-            &quot;{compraTranscript}&quot;
-          </p>
-        )}
-
         <div className="card" style={{ marginBottom: 16 }}>
           <div className="card-header">
             <span className="card-title">Carrito de compra</span>

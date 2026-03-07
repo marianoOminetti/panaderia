@@ -1,13 +1,12 @@
 /**
  * Pantalla Ventas: orquesta nueva venta (carrito useVentasCart), cobro (useVentasChargeModal), lista (VentasList),
- * edición de ventas (useVentasEdit), venta manual (VentasManualScreen) y venta por voz (useVentasVoz).
+ * edición de ventas (useVentasEdit) y venta manual (VentasManualScreen).
  */
 import { useState, useEffect } from "react";
 import { fmt, toCantidadNumber } from "../../lib/format";
 import { generateTransaccionId } from "../../lib/ventas";
 import { useVentas } from "../../hooks/useVentas";
 import { useClientes } from "../../hooks/useClientes";
-import { useVentasVoz } from "../../hooks/useVentasVoz";
 import { useVentasCart } from "../../hooks/useVentasCart";
 import { useVentasChargeModal } from "../../hooks/useVentasChargeModal";
 import { useVentasEdit } from "../../hooks/useVentasEdit";
@@ -18,7 +17,6 @@ import { agruparVentas, gruposConDeuda as getGruposConDeuda, totalDebeEnGrupo } 
 import { notifyEvent } from "../../lib/notifyEvent";
 import VentasList from "./VentasList";
 import VentasChargeModal from "./VentasChargeModal";
-import VentasVoiceModal from "./VentasVoiceModal";
 import VentasManualScreen from "./VentasManualScreen";
 
 function Ventas({
@@ -83,20 +81,6 @@ function Ventas({
     hoy,
     onCloseEdit: () => setManualScreenOpen(false),
   });
-
-  const {
-    voiceModal,
-    setVoiceModal,
-    transcript,
-    parsedVentas,
-    listening,
-    savingVoice,
-    iniciarRec,
-    detenerVoz,
-    registrarVentasVoz,
-    abrirVoz,
-    SpeechRecognitionAPI,
-  } = useVentasVoz({ recetas, setCartItems, showToast });
 
   const ventasHoy = (ventas || []).filter((v) => v.fecha === hoy);
   const ingresoHoy = ventasHoy.reduce(
@@ -241,7 +225,6 @@ function Ventas({
     if (!ventasNuevaFlag) return;
     setManualScreenOpen(true);
     closeChargeModal();
-    setVoiceModal(false);
     onConsumedVentasNueva?.();
   }, [ventasNuevaFlag]); // eslint-disable-line react-hooks/exhaustive-deps -- callback estable desde App
 
@@ -253,7 +236,6 @@ function Ventas({
     setFechaEntrega(manianaISO);
     setManualScreenOpen(true);
     closeChargeModal();
-    setVoiceModal(false);
     onConsumedVentasPedido?.();
   }, [ventasPedidoFlag]); // eslint-disable-line react-hooks/exhaustive-deps -- callback estable desde App
 
@@ -392,20 +374,7 @@ function Ventas({
         deletingId={deletingId}
       />
 
-      <VentasVoiceModal
-        open={voiceModal}
-        onClose={() => setVoiceModal(false)}
-        transcript={transcript}
-        parsedVentas={parsedVentas}
-        listening={listening}
-        savingVoice={savingVoice}
-        onDetener={detenerVoz}
-        onIniciarRec={iniciarRec}
-        onAgregarMasVoz={() => SpeechRecognitionAPI && iniciarRec(true)}
-        onAgregarAlCarrito={registrarVentasVoz}
-      />
-
-      {!manualScreenOpen && !voiceModal && (
+      {!manualScreenOpen && (
         <button
           className="fab fab-receta"
           onClick={() => setManualScreenOpen(true)}
@@ -429,7 +398,6 @@ function Ventas({
         recetas={recetas}
         stock={stock}
         addToCart={edit.editGrupo ? edit.addToCartForEdit : addToCart}
-        onVoz={abrirVoz}
         onCobrar={() => {
           if (cartItems.length === 0) return;
           openChargeModal();

@@ -1,6 +1,6 @@
 /**
- * Pantalla Stock: orquesta lista, carrito de producción (useStockCart) y flujo de voz (useStockVoz).
- * Mantiene ejecutarCargaVoz aquí para compartir entre carrito y voz; métricas y prioridades se calculan en el componente.
+ * Pantalla Stock: orquesta lista, carrito de producción (useStockCart) y carga de stock.
+ * Mantiene ejecutarCargaStock aquí; métricas y prioridades se calculan en el componente.
  */
 import { useState, useRef, useEffect, useCallback } from "react";
 import {
@@ -14,9 +14,7 @@ import {
 } from "../../lib/stockMetrics";
 import { getItemsExplotados, getInsumosEnCeroParaRecetas } from "../../lib/stockPlan";
 import { useStockCart } from "../../hooks/useStockCart";
-import { useStockVoz } from "../../hooks/useStockVoz";
 import StockList from "./StockList";
-import StockVoiceModal from "./StockVoiceModal";
 import StockProductionModal from "./StockProductionModal";
 
 function Stock({
@@ -45,7 +43,7 @@ function Stock({
   const { stockCart, setStockCart, addToStockCart, totalCartUnidades } =
     useStockCart();
 
-  const ejecutarCargaVoz = useCallback(
+  const ejecutarCargaStock = useCallback(
     async (items) => {
       if (!items.length) return;
       const total = items.reduce((s, v) => s + v.cantidad, 0);
@@ -122,16 +120,6 @@ function Stock({
     ]
   );
 
-  const voz = useStockVoz({
-    recetas,
-    recetaIngredientes,
-    insumos,
-    insumoComposicion,
-    insumoStock,
-    ejecutarCargaVoz,
-    showToast,
-  });
-
   useEffect(() => {
     if (!stockProductionPreloadReceta) {
       preloadConsumedRef.current = null;
@@ -148,7 +136,6 @@ function Stock({
   useEffect(() => {
     if (!stockOpenManual) return;
     setManualScreenOpen(true);
-    voz.setVoiceModal(false);
     onConsumedStockOpenManual?.();
   }, [stockOpenManual]); // eslint-disable-line react-hooks/exhaustive-deps -- onConsumedStockOpenManual estable desde App
 
@@ -204,7 +191,7 @@ function Stock({
     );
     setManualSaving(true);
     try {
-      await ejecutarCargaVoz(items);
+      await ejecutarCargaStock(items);
       setStockCart([]);
       if (insumosEnCero.length > 0) {
         showToast(
@@ -298,22 +285,7 @@ function Stock({
         pedidosPendientesSemana={pedidosPendientesSemana}
       />
 
-      {voz.voiceModal && (
-        <StockVoiceModal
-          transcript={voz.transcript}
-          parsedStock={voz.parsedStock}
-          listening={voz.listening}
-          savingVoice={voz.savingVoice}
-          onBack={voz.onBack}
-          onDetener={voz.detenerRecStock}
-          onHablar={() => voz.iniciarRecStock(false)}
-          onAgregarMas={() => voz.iniciarRecStock(true)}
-          onCargar={voz.cargarStockVoz}
-          onCancelar={voz.onCancelar}
-        />
-      )}
-
-      {manualScreenOpen && !voz.voiceModal && (
+      {manualScreenOpen && (
         <StockProductionModal
           recetasOrdenadasPorStock={recetasOrdenadasPorStock}
           stock={stock}
@@ -322,13 +294,12 @@ function Stock({
           totalCartUnidades={totalCartUnidades}
           manualSaving={manualSaving}
           onBack={() => setManualScreenOpen(false)}
-          onVoz={voz.iniciarVozStock}
           onCargar={cargarStockCarrito}
           onVaciarCarrito={() => setStockCart([])}
         />
       )}
 
-      {!manualScreenOpen && !voz.voiceModal && (
+      {!manualScreenOpen && (
         <button
           className="fab fab-receta"
           onClick={() => setManualScreenOpen(true)}

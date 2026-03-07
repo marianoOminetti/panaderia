@@ -18,7 +18,6 @@ export default function VentasManualScreen({
   recetas,
   stock,
   addToCart,
-  onVoz,
   onCobrar,
   // Editar venta
   editCartItems,
@@ -105,11 +104,6 @@ export default function VentasManualScreen({
             {fmtMonedaDecimal(total)}
           </div>
           <div style={{ display: "flex", gap: 6 }}>
-            {!isEdit && (
-              <button type="button" className="btn-secondary" onClick={onVoz}>
-                🎙️ Voz
-              </button>
-            )}
             {isEdit ? (
               <button
                 type="button"

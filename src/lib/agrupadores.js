@@ -18,7 +18,7 @@ export function agregarItemsPorReceta(items) {
   return Object.values(porReceta);
 }
 
-/** Agrupa ventas por transaccion_id (1 venta por voz) o individuales */
+/** Agrupa ventas por transaccion_id o individuales */
 export function agruparVentas(ventas) {
   const porTransaccion = {};
   const sueltas = [];

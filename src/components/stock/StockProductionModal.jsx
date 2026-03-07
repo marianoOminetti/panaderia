@@ -1,5 +1,5 @@
 /**
- * Modal "Cargar producción": búsqueda de recetas, carrito (stockCart/addToStockCart), acciones Volver/Voz/Cargar.
+ * Modal "Cargar producción": búsqueda de recetas, carrito (stockCart/addToStockCart), acciones Volver/Cargar.
  * Estado del carrito y ejecutarCarga en Stock.jsx; este componente es presentacional + handlers pasados por props.
  */
 import { fmtStock } from "../../lib/format";
@@ -14,7 +14,6 @@ function StockProductionModal({
   totalCartUnidades,
   manualSaving,
   onBack,
-  onVoz,
   onCargar,
   onVaciarCarrito,
 }) {
@@ -59,13 +58,6 @@ function StockProductionModal({
             +{totalCartUnidades} u
           </div>
           <div style={{ display: "flex", gap: 6 }}>
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={onVoz}
-            >
-              🎙️ Voz
-            </button>
             <button
               type="button"
               className="btn-primary"

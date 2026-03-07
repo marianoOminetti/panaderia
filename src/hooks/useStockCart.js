@@ -3,7 +3,7 @@ import { useState, useCallback, useMemo } from "react";
 /**
  * Estado y handlers del carrito de carga de stock (producción manual).
  * Usado por Stock.jsx. Solo maneja ítems y cantidades; el guardado (cargarStockCarrito)
- * y la lógica de ejecutarCargaVoz siguen en Stock para compartir con el flujo de voz.
+ * y la lógica de ejecutarCargaStock siguen en Stock.
  * @returns {{ stockCart, setStockCart, addToStockCart, totalCartUnidades }}
  */
 export function useStockCart() {

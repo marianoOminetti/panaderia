@@ -1,10 +1,9 @@
-import { useState, useRef, useCallback } from "react";
-import { parsearVozAComprasInsumos } from "../lib/voiceInsumos";
+import { useState, useCallback } from "react";
 import { reportError } from "../utils/errorReport";
 import { costoReceta } from "../lib/costos";
 
 /**
- * Estado y lógica del flujo "Compra de stock" en Insumos: carrito, voz, modales de precio y resultado.
+ * Estado y lógica del flujo "Compra de stock" en Insumos: carrito, modales de precio y resultado.
  * Recibe dependencias del padre (insumos, recetas, mutaciones) y devuelve estado + handlers.
  */
 export function useInsumosCompra({
@@ -23,10 +22,6 @@ export function useInsumosCompra({
   const [compraSaving, setCompraSaving] = useState(false);
   const [precioDecisionModal, setPrecioDecisionModal] = useState(null);
   const [compraResultado, setCompraResultado] = useState(null);
-  const [compraListening, setCompraListening] = useState(false);
-  const [compraTranscript, setCompraTranscript] = useState("");
-  const compraRecRef = useRef(null);
-  const compraTranscriptRef = useRef("");
 
   const agregarAlCarritoCompra = useCallback((insumo) => {
     if (!insumo) return;
@@ -385,114 +380,6 @@ export function useInsumosCompra({
     registrarCompraSoloStock,
   ]);
 
-  const iniciarRecCompra = useCallback(() => {
-    if (compraListening) return;
-    const API =
-      typeof window !== "undefined" &&
-      (window.SpeechRecognition || window.webkitSpeechRecognition);
-    if (!API) {
-      showToast(
-        "⚠️ Tu navegador no soporta reconocimiento de voz"
-      );
-      return;
-    }
-    setCompraTranscript("");
-    compraTranscriptRef.current = "";
-    try {
-      const rec = new API();
-      compraRecRef.current = rec;
-      rec.lang = "es-AR";
-      rec.continuous = true;
-      rec.interimResults = true;
-      rec.onresult = (e) => {
-        for (let i = e.resultIndex; i < e.results.length; i++) {
-          const res = e.results[i];
-          if (res.isFinal) {
-            compraTranscriptRef.current +=
-              (compraTranscriptRef.current ? " " : "") +
-              res[0].transcript;
-            setCompraTranscript(compraTranscriptRef.current);
-          }
-        }
-      };
-      rec.onend = () => {
-        setCompraListening(false);
-        compraRecRef.current = null;
-        const texto = compraTranscriptRef.current;
-        if (!texto) return;
-        const items = parsearVozAComprasInsumos(texto, insumos);
-        if (!items.length) {
-          showToast(
-            "No se detectaron insumos. Probá con nombres más específicos."
-          );
-          return;
-        }
-        setCompraCart((prev) => {
-          const merged = [...prev];
-          for (const it of items) {
-            const ins = it.insumo;
-            const idx = merged.findIndex(
-              (m) => m.insumo.id === ins.id
-            );
-            if (idx >= 0) {
-              const base = merged[idx];
-              const presBase = base.presentaciones || 0;
-              merged[idx] = {
-                ...base,
-                presentaciones:
-                  presBase + (it.presentaciones || 0),
-                precioPresentacion:
-                  it.precioPresentacion != null
-                    ? it.precioPresentacion
-                    : base.precioPresentacion,
-              };
-            } else {
-              merged.push({
-                insumo: ins,
-                presentaciones: it.presentaciones || 1,
-                precioPresentacion:
-                  it.precioPresentacion != null
-                    ? it.precioPresentacion
-                    : typeof ins.precio === "number"
-                    ? ins.precio
-                    : Number(ins.precio) || 0,
-                precioOriginal:
-                  typeof ins.precio === "number"
-                    ? ins.precio
-                    : Number(ins.precio) || 0,
-              });
-            }
-          }
-          return merged;
-        });
-        showToast(
-          `✅ Compra por voz: ${items.length} insumo(s) agregados`
-        );
-      };
-      rec.start();
-      setCompraListening(true);
-    } catch {
-      setCompraListening(false);
-      compraRecRef.current = null;
-      showToast("⚠️ No se pudo iniciar el reconocimiento de voz");
-    }
-  }, [compraListening, insumos, showToast]);
-
-  const detenerRecCompra = useCallback(() => {
-    try {
-      compraRecRef.current?.abort?.();
-    } catch {
-      // ignore
-    }
-    try {
-      compraRecRef.current?.stop?.();
-    } catch {
-      // ignore
-    }
-    compraRecRef.current = null;
-    setCompraListening(false);
-  }, []);
-
   return {
     compraScreenOpen,
     setCompraScreenOpen,
@@ -502,8 +389,6 @@ export function useInsumosCompra({
     setPrecioDecisionModal,
     compraResultado,
     setCompraResultado,
-    compraListening,
-    compraTranscript,
     agregarAlCarritoCompra,
     actualizarCantidadCarrito,
     eliminarDeCarritoCompra,
@@ -511,7 +396,5 @@ export function useInsumosCompra({
     totalCompra,
     confirmarCompra,
     aplicarDecisionesPrecio,
-    iniciarRecCompra,
-    detenerRecCompra,
   };
 }
