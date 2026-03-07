@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useMemo, useEffect } from "react";
 import TicketPreview from "./TicketPreview";
 import { generateTicketImage, shareViaWhatsApp } from "../../lib/shareTicket";
 
@@ -6,6 +6,20 @@ export default function ShareTicketModal({ type, data, onClose }) {
   const ticketRef = useRef(null);
   const [sharing, setSharing] = useState(false);
   const [result, setResult] = useState(null);
+
+  const [cliente, setCliente] = useState(data?.cliente ?? "");
+
+  useEffect(() => {
+    setCliente(data?.cliente ?? "");
+  }, [data]);
+
+  const editedData = useMemo(
+    () => ({
+      ...data,
+      cliente: cliente.trim() || data?.cliente,
+    }),
+    [data, cliente]
+  );
 
   const handleShare = async () => {
     if (!ticketRef.current) return;
@@ -63,7 +77,14 @@ export default function ShareTicketModal({ type, data, onClose }) {
             overflow: "auto",
           }}
         >
-          <TicketPreview ref={ticketRef} type={type} data={data} />
+          <TicketPreview
+            ref={ticketRef}
+            type={type}
+            data={editedData}
+            editableCliente
+            clienteValue={cliente}
+            onClienteChange={setCliente}
+          />
         </div>
 
         {result && (

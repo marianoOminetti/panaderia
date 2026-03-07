@@ -16,10 +16,6 @@ const ticketStyles = {
     borderBottom: "2px dashed #e0e0e0",
     marginBottom: 16,
   },
-  logo: {
-    fontSize: 32,
-    marginBottom: 4,
-  },
   title: {
     fontSize: 18,
     fontWeight: 700,
@@ -98,21 +94,18 @@ const ticketStyles = {
     color: "#666",
     marginBottom: 4,
   },
-  badge: {
-    display: "inline-block",
-    padding: "3px 10px",
-    borderRadius: 999,
-    fontSize: 11,
-    fontWeight: 600,
-    textTransform: "uppercase",
-  },
-  badgePagado: {
-    backgroundColor: "rgba(74,124,89,0.15)",
-    color: "#4a7c59",
-  },
-  badgeDebe: {
-    backgroundColor: "rgba(214,69,69,0.15)",
-    color: "#d64545",
+  clienteInput: {
+    fontSize: 12,
+    color: "#666",
+    fontWeight: 500,
+    border: "none",
+    borderBottom: "1px solid transparent",
+    background: "none",
+    padding: 0,
+    textAlign: "right",
+    outline: "none",
+    minWidth: 80,
+    fontFamily: "inherit",
   },
   pedidoInfo: {
     backgroundColor: "#f8f9fa",
@@ -144,7 +137,10 @@ const ticketStyles = {
   },
 };
 
-const TicketPreview = forwardRef(function TicketPreview({ type, data }, ref) {
+const TicketPreview = forwardRef(function TicketPreview(
+  { type, data, editableCliente, clienteValue, onClienteChange },
+  ref
+) {
   const isVenta = type === "venta";
   const isPedido = type === "pedido";
 
@@ -176,13 +172,6 @@ const TicketPreview = forwardRef(function TicketPreview({ type, data }, ref) {
     }
   };
 
-  const medioLabel = (medio) => {
-    if (medio === "transferencia") return "Transferencia";
-    if (medio === "debito") return "Débito";
-    if (medio === "credito") return "Crédito";
-    return "Efectivo";
-  };
-
   const estadoLabel = (estado) => {
     if (estado === "en_preparacion") return "En preparación";
     if (estado === "listo") return "Listo";
@@ -193,8 +182,7 @@ const TicketPreview = forwardRef(function TicketPreview({ type, data }, ref) {
   return (
     <div ref={ref} style={ticketStyles.container}>
       <div style={ticketStyles.header}>
-        <div style={ticketStyles.logo}>🥐</div>
-        <h2 style={ticketStyles.title}>PANADERÍA SG</h2>
+        <h2 style={ticketStyles.title}>Gluten Free</h2>
         <div style={ticketStyles.subtitle}>
           {isVenta && (
             <>
@@ -279,37 +267,22 @@ const TicketPreview = forwardRef(function TicketPreview({ type, data }, ref) {
       )}
 
       <div style={ticketStyles.footer}>
-        {data.cliente && (
+        {(editableCliente || data.cliente) && (
           <div style={ticketStyles.footerRow}>
             <span>Cliente</span>
-            <span style={{ fontWeight: 500 }}>{data.cliente}</span>
+            {editableCliente && onClienteChange ? (
+              <input
+                type="text"
+                value={clienteValue ?? data?.cliente ?? ""}
+                onChange={(e) => onClienteChange(e.target.value)}
+                placeholder="Nombre"
+                style={ticketStyles.clienteInput}
+                onClick={(e) => e.stopPropagation()}
+              />
+            ) : (
+              <span style={{ fontWeight: 500 }}>{data.cliente}</span>
+            )}
           </div>
-        )}
-        {isVenta && (
-          <>
-            <div style={ticketStyles.footerRow}>
-              <span>Medio de pago</span>
-              <span>{medioLabel(data.medio_pago)}</span>
-            </div>
-            <div
-              style={{
-                ...ticketStyles.footerRow,
-                marginTop: 8,
-                justifyContent: "flex-end",
-              }}
-            >
-              <span
-                style={{
-                  ...ticketStyles.badge,
-                  ...(data.estado_pago === "debe"
-                    ? ticketStyles.badgeDebe
-                    : ticketStyles.badgePagado),
-                }}
-              >
-                {data.estado_pago === "debe" ? "DEBE" : "PAGADO"}
-              </span>
-            </div>
-          </>
         )}
       </div>
     </div>

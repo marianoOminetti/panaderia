@@ -30,7 +30,7 @@ export async function shareViaWhatsApp(imageBlob, filename = "ticket.png") {
     try {
       await navigator.share({
         files: [file],
-        title: "Ticket Panadería SG",
+        title: "Ticket Gluten Free",
       });
       return { success: true, method: "share" };
     } catch (err) {
