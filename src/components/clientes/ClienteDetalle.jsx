@@ -199,6 +199,7 @@ function ClienteDetalle({
           savingEntrega={savingEntrega}
           actualizarEstadoPedido={actualizarEstadoPedido}
           marcarPedidoEntregado={marcarPedidoEntregado}
+          clienteNombre={cliente.nombre}
         />
 
         <ClienteDetalleVentas

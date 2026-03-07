@@ -7,6 +7,7 @@ import { fmt } from "../../lib/format";
 import { agruparVentas, totalDebeEnGrupo } from "../../lib/agrupadores";
 import { useFilterVentasGrupos } from "../../hooks/useFilterVentasGrupos";
 import VentasListFilters from "./VentasListFilters";
+import ShareTicketModal from "../shared/ShareTicketModal";
 
 function formatRelDia(d, hoyDate) {
   if (!d || Number.isNaN(d.getTime())) return "";
@@ -70,7 +71,38 @@ export default function VentasList({
   const hoyDate = new Date(hoy);
   const grupos = agruparVentas(ventas || []);
   const [search, setSearch] = useState("");
+  const [shareGrupo, setShareGrupo] = useState(null);
   const filteredGrupos = useFilterVentasGrupos(grupos, recetas, clientes, search);
+
+  const buildShareData = (grupo) => {
+    const ejemplo = grupo.rawItems?.[0] || grupo.items[0];
+    const cliente = (clientes || []).find((c) => c.id === grupo.cliente_id);
+    const items = grupo.items.map((v) => {
+      const r = (recetas || []).find((r2) => r2.id === v.receta_id);
+      return {
+        receta_id: v.receta_id,
+        receta: r ? { nombre: r.nombre, emoji: r.emoji } : null,
+        cantidad: v.cantidad,
+        precio_unitario: v.precio_unitario,
+      };
+    });
+    const subtotal = items.reduce(
+      (sum, it) => sum + (it.precio_unitario || 0) * (it.cantidad || 0),
+      0
+    );
+    const descuento = subtotal - grupo.total;
+    return {
+      fecha: ejemplo?.fecha,
+      created_at: ejemplo?.created_at,
+      cliente: cliente?.nombre || "Consumidor final",
+      medio_pago: ejemplo?.medio_pago || "efectivo",
+      estado_pago: ejemplo?.estado_pago || "pagado",
+      subtotal,
+      descuento: descuento > 0 ? descuento : 0,
+      total: grupo.total,
+      items,
+    };
+  };
 
   return (
     <>
@@ -291,6 +323,17 @@ export default function VentasList({
                 </div>
                 <div className="venta-grupo-actions">
                   <button
+                    type="button"
+                    className="btn-venta-action"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      setShareGrupo(grupo);
+                    }}
+                  >
+                    📤
+                  </button>
+                  <button
                     className="btn-venta-action"
                     onClick={(e) => {
                       e.stopPropagation();
@@ -330,6 +373,14 @@ export default function VentasList({
           })
           )}
         </>
+      )}
+
+      {shareGrupo && (
+        <ShareTicketModal
+          type="venta"
+          data={buildShareData(shareGrupo)}
+          onClose={() => setShareGrupo(null)}
+        />
       )}
     </>
   );

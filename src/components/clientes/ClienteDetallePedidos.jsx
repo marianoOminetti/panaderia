@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { fmt } from "../../lib/format";
 import { hoyLocalISO } from "../../lib/dates";
 import { FormInput, FormMoneyInput, SearchableSelect, DatePicker } from "../ui";
+import ShareTicketModal from "../shared/ShareTicketModal";
 
 function ClienteDetallePedidos({
   pedidosClienteAgrupados,
@@ -11,7 +13,9 @@ function ClienteDetallePedidos({
   savingEntrega,
   actualizarEstadoPedido,
   marcarPedidoEntregado,
+  clienteNombre,
 }) {
+  const [sharePedido, setSharePedido] = useState(null);
   const {
     fechaEntrega,
     setFechaEntrega,
@@ -36,6 +40,25 @@ function ClienteDetallePedidos({
   const pendientes = pedidosClienteAgrupados.filter((g) => {
     if (!g.fecha_entrega) return g.estado !== "entregado";
     return g.fecha_entrega >= hoyStr && g.estado !== "entregado";
+  });
+
+  const buildShareData = (g) => ({
+    fecha_entrega: g.fecha_entrega,
+    hora_entrega: g.hora_entrega,
+    estado: g.estado,
+    cliente: clienteNombre || "Cliente",
+    senia: g.senia || 0,
+    total: g.total || 0,
+    notas: g.notas,
+    items: (g.items || []).map((it) => {
+      const r = recetas.find((rec) => rec.id === it.receta_id);
+      return {
+        receta_id: it.receta_id,
+        receta: r ? { nombre: r.nombre, emoji: r.emoji } : null,
+        cantidad: it.cantidad,
+        precio_unitario: it.precio_unitario,
+      };
+    }),
   });
   const formatFecha = (value) => {
     if (!value) return "Sin fecha";
@@ -283,24 +306,46 @@ function ClienteDetallePedidos({
                       </option>
                       <option value="listo">Listo</option>
                     </select>
-                    <button
-                      type="button"
-                      className="btn-secondary"
-                      style={{
-                        marginTop: 6,
-                        fontSize: 11,
-                        padding: "4px 8px",
-                      }}
-                      onClick={() => marcarPedidoEntregado(g)}
-                      disabled={savingEntrega}
-                    >
-                      Marcar entregado
-                    </button>
+                    <div style={{ display: "flex", gap: 4, marginTop: 6 }}>
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        style={{
+                          fontSize: 11,
+                          padding: "4px 8px",
+                          flex: 1,
+                        }}
+                        onClick={() => marcarPedidoEntregado(g)}
+                        disabled={savingEntrega}
+                      >
+                        Marcar entregado
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        style={{
+                          fontSize: 11,
+                          padding: "4px 8px",
+                        }}
+                        onClick={() => setSharePedido(g)}
+                        title="Compartir"
+                      >
+                        📤
+                      </button>
+                    </div>
                   </div>
                 </div>
               );
             })}
         </div>
+      )}
+
+      {sharePedido && (
+        <ShareTicketModal
+          type="pedido"
+          data={buildShareData(sharePedido)}
+          onClose={() => setSharePedido(null)}
+        />
       )}
     </div>
   );
