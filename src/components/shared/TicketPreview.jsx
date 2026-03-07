@@ -107,6 +107,19 @@ const ticketStyles = {
     minWidth: 80,
     fontFamily: "inherit",
   },
+  priceInput: {
+    fontSize: 14,
+    color: "#1a1a1a",
+    fontWeight: 500,
+    border: "none",
+    borderBottom: "1px solid transparent",
+    background: "none",
+    padding: 0,
+    textAlign: "right",
+    outline: "none",
+    width: 72,
+    fontFamily: "inherit",
+  },
   pedidoInfo: {
     backgroundColor: "#f8f9fa",
     borderRadius: 8,
@@ -138,7 +151,16 @@ const ticketStyles = {
 };
 
 const TicketPreview = forwardRef(function TicketPreview(
-  { type, data, editableCliente, clienteValue, onClienteChange },
+  {
+    type,
+    data,
+    editableCliente,
+    clienteValue,
+    onClienteChange,
+    editablePrices,
+    onLineTotalChange,
+    capturing,
+  },
   ref
 ) {
   const isVenta = type === "venta";
@@ -213,22 +235,37 @@ const TicketPreview = forwardRef(function TicketPreview(
       )}
 
       <div style={ticketStyles.section}>
-        {(data.items || []).map((item, idx) => (
-          <div key={item.receta_id || idx} style={ticketStyles.item}>
-            <div style={ticketStyles.itemLeft}>
-              <span style={ticketStyles.emoji}>
-                {item.receta?.emoji || "🍞"}
-              </span>
-              <span style={ticketStyles.itemName}>
-                {item.receta?.nombre || item.nombre || "Producto"}
-                <span style={ticketStyles.itemQty}> x{item.cantidad}</span>
-              </span>
+        {(data.items || []).map((item, idx) => {
+          const lineTotal =
+            item._lineTotal ??
+            (item.precio_unitario || 0) * (item.cantidad || 0);
+          return (
+            <div key={item.receta_id || idx} style={ticketStyles.item}>
+              <div style={ticketStyles.itemLeft}>
+                <span style={ticketStyles.emoji}>
+                  {item.receta?.emoji || "🍞"}
+                </span>
+                <span style={ticketStyles.itemName}>
+                  {item.receta?.nombre || item.nombre || "Producto"}
+                  <span style={ticketStyles.itemQty}> x{item.cantidad}</span>
+                </span>
+              </div>
+              {editablePrices && onLineTotalChange && !capturing ? (
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={lineTotal ? String(lineTotal) : ""}
+                  onChange={(e) => onLineTotalChange(idx, e.target.value)}
+                  placeholder="0"
+                  style={{ ...ticketStyles.itemPrice, ...ticketStyles.priceInput }}
+                  onClick={(e) => e.stopPropagation()}
+                />
+              ) : (
+                <span style={ticketStyles.itemPrice}>{fmt(lineTotal)}</span>
+              )}
             </div>
-            <span style={ticketStyles.itemPrice}>
-              {fmt((item.precio_unitario || 0) * (item.cantidad || 0))}
-            </span>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <div style={ticketStyles.totals}>
@@ -270,7 +307,7 @@ const TicketPreview = forwardRef(function TicketPreview(
         {(editableCliente || data.cliente) && (
           <div style={ticketStyles.footerRow}>
             <span>Cliente</span>
-            {editableCliente && onClienteChange ? (
+            {editableCliente && onClienteChange && !capturing ? (
               <input
                 type="text"
                 value={clienteValue ?? data?.cliente ?? ""}
@@ -280,7 +317,9 @@ const TicketPreview = forwardRef(function TicketPreview(
                 onClick={(e) => e.stopPropagation()}
               />
             ) : (
-              <span style={{ fontWeight: 500 }}>{data.cliente}</span>
+              <span style={{ fontWeight: 500 }}>
+                {clienteValue ?? data?.cliente ?? ""}
+              </span>
             )}
           </div>
         )}

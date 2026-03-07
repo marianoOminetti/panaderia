@@ -8,18 +8,34 @@ export default function ShareTicketModal({ type, data, onClose }) {
   const [result, setResult] = useState(null);
 
   const [cliente, setCliente] = useState(data?.cliente ?? "");
+  const [lineTotals, setLineTotals] = useState({});
 
   useEffect(() => {
     setCliente(data?.cliente ?? "");
+    setLineTotals({});
   }, [data]);
 
-  const editedData = useMemo(
-    () => ({
+  const editedData = useMemo(() => {
+    const items = (data?.items || []).map((it, i) => {
+      const computed = (it.precio_unitario || 0) * (it.cantidad || 0);
+      const lineTotal = lineTotals[i] ?? computed;
+      return { ...it, _lineTotal: lineTotal };
+    });
+    const total = items.reduce((s, it) => s + (it._lineTotal || 0), 0);
+    return {
       ...data,
+      items,
+      total,
       cliente: cliente.trim() || data?.cliente,
-    }),
-    [data, cliente]
-  );
+    };
+  }, [data, cliente, lineTotals]);
+
+  const handleLineTotalChange = (index, value) => {
+    const num = parseFloat(String(value).replace(",", ".")) || 0;
+    setLineTotals((prev) => ({ ...prev, [index]: num }));
+  };
+
+  const [capturing, setCapturing] = useState(false);
 
   const handleShare = async () => {
     if (!ticketRef.current) return;
@@ -28,7 +44,10 @@ export default function ShareTicketModal({ type, data, onClose }) {
     setResult(null);
 
     try {
+      setCapturing(true);
+      await new Promise((r) => setTimeout(r, 100));
       const blob = await generateTicketImage(ticketRef.current);
+      setCapturing(false);
       const filename =
         type === "venta"
           ? `ticket-venta-${Date.now()}.png`
@@ -51,6 +70,7 @@ export default function ShareTicketModal({ type, data, onClose }) {
         message: "Error al generar la imagen",
       });
     } finally {
+      setCapturing(false);
       setSharing(false);
     }
   };
@@ -84,6 +104,9 @@ export default function ShareTicketModal({ type, data, onClose }) {
             editableCliente
             clienteValue={cliente}
             onClienteChange={setCliente}
+            editablePrices
+            onLineTotalChange={handleLineTotalChange}
+            capturing={capturing}
           />
         </div>
 
