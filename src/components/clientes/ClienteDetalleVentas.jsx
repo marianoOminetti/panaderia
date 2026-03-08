@@ -1,14 +1,9 @@
 import { fmt } from "../../lib/format";
+import { agruparVentas } from "../../lib/agrupadores";
 
 function ClienteDetalleVentas({ ventasCliente, recetas }) {
-  const vs = [...(ventasCliente || [])].sort((a, b) =>
-    (a.fecha || "") > (b.fecha || "")
-      ? -1
-      : (a.fecha || "") < (b.fecha || "")
-      ? 1
-      : 0,
-  );
-  if (vs.length === 0) {
+  const grupos = agruparVentas(ventasCliente || []);
+  if (grupos.length === 0) {
     return (
       <div className="card">
         <div className="card-header">
@@ -31,35 +26,42 @@ function ClienteDetalleVentas({ ventasCliente, recetas }) {
       <div className="card-header">
         <span className="card-title">Historial de compras</span>
       </div>
-      {vs.map((v) => {
-        const receta = recetas.find((r) => r.id === v.receta_id);
-        const totalLinea =
-          v.total_final != null
-            ? v.total_final
-            : (v.precio_unitario || 0) * (v.cantidad || 0);
-        let fechaLabel = v.fecha;
+      {grupos.map((grupo) => {
+        const raw = grupo.rawItems?.[0] || grupo.items?.[0];
+        let fechaLabel = raw?.fecha;
         try {
-          if (v.fecha) {
-            fechaLabel = new Date(v.fecha).toLocaleDateString("es-AR");
+          if (raw?.fecha) {
+            fechaLabel = new Date(raw.fecha).toLocaleDateString("es-AR");
           }
         } catch {
           // ignore parse errors
         }
         return (
-          <div key={v.id} className="venta-item">
-            <div className="insumo-info" style={{ flex: 1 }}>
-              <div className="insumo-nombre">
-                {receta?.nombre || "Producto"}
-              </div>
-              <div className="insumo-detalle">
-                {fechaLabel} · {v.cantidad} u
-              </div>
+          <div key={grupo.key} className="venta-transaction">
+            <div
+              style={{
+                fontSize: 12,
+                color: "var(--text-muted)",
+                marginBottom: 8,
+              }}
+            >
+              {fechaLabel}
             </div>
-            <div className="insumo-precio">
-              <div className="insumo-precio-value">
-                {fmt(totalLinea)}
-              </div>
-            </div>
+            {(grupo.rawItems || []).map((item) => {
+              const receta = recetas?.find((r) => r.id === item.receta_id);
+              return (
+                <div
+                  key={item.id}
+                  className="venta-item venta-item-simple"
+                >
+                  <span className="venta-emoji">{receta?.emoji || "🍞"}</span>
+                  <span className="venta-nombre-simple">
+                    {(receta?.nombre || "Producto").toLowerCase()} x{item.cantidad}
+                  </span>
+                </div>
+              );
+            })}
+            <div className="venta-grupo-total">Total: {fmt(grupo.total)}</div>
           </div>
         );
       })}

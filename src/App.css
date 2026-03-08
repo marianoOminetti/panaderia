@@ -35,6 +35,11 @@ body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--cream); c
   position: sticky;
   top: 0;
   z-index: 100;
+  transform: translateY(0);
+  transition: transform 0.25s ease-out;
+}
+.header.header--hidden {
+  transform: translateY(-100%);
 }
 .header-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
 .header h1 { font-family: 'Outfit', sans-serif; font-size: 22px; font-weight: 600; color: white; letter-spacing: -0.5px; }
@@ -47,7 +52,7 @@ body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--cream); c
   position: fixed;
   bottom: 0;
   left: 50%;
-  transform: translateX(-50%);
+  transform: translateX(-50%) translateY(0);
   width: 100%;
   max-width: 430px;
   background: var(--purple-dark);
@@ -55,6 +60,10 @@ body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--cream); c
   border-top: 1px solid rgba(196,176,224,0.3);
   z-index: 100;
   padding-bottom: env(safe-area-inset-bottom, 0px);
+  transition: transform 0.25s ease-out;
+}
+.nav.nav--hidden {
+  transform: translateX(-50%) translateY(100%);
 }
 .nav-btn { flex: 1; padding: 10px 4px 12px; display: flex; flex-direction: column; align-items: center; gap: 3px; background: none; border: none; cursor: pointer; color: rgba(255,255,255,0.7); transition: color 0.2s; }
 .nav-btn.active { color: var(--purple-light); }
@@ -293,6 +302,8 @@ body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--cream); c
 .venta-grupo-cliente { font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 8px; }
 .venta-card { margin-bottom: 12px; }
 .venta-card:last-child { margin-bottom: 0; }
+.venta-transaction { padding: 12px 0; border-bottom: 1px solid var(--border); }
+.venta-transaction:last-child { border-bottom: none; }
 .venta-grupo-total { font-family: 'Outfit', sans-serif; font-size: 15px; color: var(--purple-dark); font-weight: 600; text-align: right; margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border); }
 .venta-grupo-actions { display: flex; gap: 8px; margin-top: 8px; justify-content: flex-end; }
 .btn-venta-action { font-size: 12px; padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--cream); color: var(--text-muted); cursor: pointer; }

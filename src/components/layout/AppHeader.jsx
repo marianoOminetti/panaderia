@@ -4,9 +4,9 @@
  */
 import { getErrorLog } from "../../utils/errorReport";
 
-export default function AppHeader({ setErrorLogOpen, signOut, showToast, onGoHome }) {
+export default function AppHeader({ visible = true, setErrorLogOpen, signOut, showToast, onGoHome }) {
   return (
-    <div className="header">
+    <div className={`header ${visible ? "" : "header--hidden"}`} aria-hidden={!visible}>
       <div className="header-top">
         <button
           type="button"

@@ -3,6 +3,7 @@
  * useClientes para CRUD; estado local para búsqueda y cliente seleccionado.
  */
 import { useState } from "react";
+import { agruparVentas } from "../../lib/agrupadores";
 import { useClientes } from "../../hooks/useClientes";
 import ClientesList from "./ClientesList";
 import ClienteDetalle from "./ClienteDetalle";
@@ -43,6 +44,7 @@ export default function Clientes({
   const clientesConGasto = clientes
     .map((c) => {
       const vs = getVentasDeCliente(c.id);
+      const grupos = agruparVentas(vs);
       const total = vs.reduce((s, v) => {
         const linea =
           v.total_final != null
@@ -51,7 +53,7 @@ export default function Clientes({
         return s + linea;
       }, 0);
       const unidades = vs.reduce((s, v) => s + v.cantidad, 0);
-      return { ...c, total, unidades, ventas: vs.length };
+      return { ...c, total, unidades, ventas: grupos.length };
     })
     .sort((a, b) => b.total - a.total);
 

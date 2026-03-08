@@ -12,6 +12,7 @@ import { useVentas } from "./hooks/useVentas";
 import { usePlanResumen } from "./hooks/usePlanResumen";
 import { useSyncVentasPendientes } from "./hooks/useSyncVentasPendientes";
 import { usePushSubscription } from "./hooks/usePushSubscription";
+import { useScrollToHide } from "./hooks/useScrollToHide";
 import { MORE_MENU_ITEMS } from "./config/nav";
 import Toast from "./components/ui/Toast";
 import ConfirmDialog from "./components/ui/ConfirmDialog";
@@ -158,6 +159,7 @@ export default function App() {
 
   const isMoreSection = ["analytics", "plan", "clientes", "insumos", "recetas"].includes(tab);
   const sinStockCount = recetas.filter((r) => (stock[r.id] ?? 0) <= 0).length;
+  const { headerVisible, navVisible } = useScrollToHide();
 
   if (!SUPABASE_CONFIG_OK) return <ConfigMissing />;
   if (authLoading) {
@@ -177,7 +179,7 @@ export default function App() {
 
   return (
     <div className="app">
-      <AppHeader setErrorLogOpen={setErrorLogOpen} signOut={signOut} showToast={showToast} onGoHome={() => setTab("dashboard")} />
+      <AppHeader visible={headerVisible} setErrorLogOpen={setErrorLogOpen} signOut={signOut} showToast={showToast} onGoHome={() => setTab("dashboard")} />
       {errorLogOpen && <ErrorLogOverlay onClose={() => setErrorLogOpen(false)} />}
       <AppContent
         tab={tab}
@@ -235,6 +237,7 @@ export default function App() {
         setPlanSemanalVersion={setPlanSemanalVersion}
       />
       <AppNav
+        visible={navVisible}
         tab={tab}
         setTab={setTab}
         isMoreSection={isMoreSection}

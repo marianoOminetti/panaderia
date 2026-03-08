@@ -56,6 +56,23 @@ export function useClientes({ onRefresh, showToast } = {}) {
     }
   }, []);
 
+  /** Eliminación lógica: marca cliente como eliminado sin borrar ventas ni pedidos. */
+  const softDeleteCliente = useCallback(
+    async (id) => {
+      const { error } = await supabase
+        .from("clientes")
+        .update({ eliminado: true })
+        .eq("id", id);
+      if (error) {
+        console.error("[clientes/softDeleteCliente]", error);
+        throw error;
+      }
+      showToast?.("Cliente dado de baja");
+      await onRefresh?.();
+    },
+    [onRefresh, showToast],
+  );
+
   /** Borra ventas por ids (para rollback cuando falla updatePedidoEntregado tras insertVentas). */
   const deleteVentasByIds = useCallback(async (ids) => {
     if (!ids?.length) return;
@@ -128,6 +145,7 @@ export function useClientes({ onRefresh, showToast } = {}) {
     updateVentasClienteId,
     updatePedidosClienteId,
     deleteCliente,
+    softDeleteCliente,
     deleteVentasByIds,
     insertPedidos,
     updatePedidoEstado,

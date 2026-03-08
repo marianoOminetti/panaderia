@@ -87,12 +87,27 @@ export function useAnalyticsData({
       if (anterior == null || Number.isNaN(anterior)) {
         return { dir: "flat", label: "—" };
       }
+      if (actual == null || Number.isNaN(actual)) {
+        return { dir: "flat", label: "—" };
+      }
       const diff = actual - anterior;
-      const pct = anterior !== 0 ? diff / anterior : 0;
       const dir = diff > 0 ? "up" : diff < 0 ? "down" : "flat";
-      if (isPercent) {
+
+      // Cuando el valor anterior es negativo (ej. ganancia pasó de pérdida a ganancia),
+      // (actual - anterior) / anterior da un % negativo engañoso. Tratamos esos casos.
+      if (anterior < 0 && actual >= 0) {
+        return { dir: "up", label: actual > 0 ? "de pérdida a ganancia" : "a cero" };
+      }
+      if (anterior > 0 && actual < 0) {
+        return { dir: "down", label: "a pérdida" };
+      }
+      if (anterior < 0 && actual < 0) {
+        // Ambos negativos: % sobre el valor absoluto del anterior
+        const pct = diff / Math.abs(anterior);
         return { dir, label: pctFmt(pct) };
       }
+
+      const pct = anterior !== 0 ? diff / anterior : 0;
       return { dir, label: pctFmt(pct) };
     };
 
@@ -471,10 +486,15 @@ export function useAnalyticsData({
 
     const totalDiasMes = endOfMonth.getDate();
     const { mes: gastosMes } = calcularGastosTotales(gastosFijos, startOfMonth);
-    const gananciaMesNeta = gananciaMesBruta - (gastosMes || 0);
-
     const diasTranscurridos =
       offsetMeses === 0 ? hoy.getDate() : totalDiasMes;
+    // Gastos prorrateados al período transcurrido para que acumulado y proyección sean coherentes
+    const gastosProrrateados =
+      proyeccionAplicable && diasTranscurridos > 0
+        ? (gastosMes || 0) * (diasTranscurridos / totalDiasMes)
+        : (gastosMes || 0);
+    const gananciaMesNeta = gananciaMesBruta - gastosProrrateados;
+
     const factorProy =
       proyeccionAplicable && diasTranscurridos > 0
         ? totalDiasMes / diasTranscurridos

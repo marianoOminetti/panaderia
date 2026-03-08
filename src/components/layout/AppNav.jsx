@@ -4,9 +4,9 @@
  */
 import { NAV_TABS } from "../../config/nav";
 
-export default function AppNav({ tab, setTab, isMoreSection, sinStockCount }) {
+export default function AppNav({ visible = true, tab, setTab, isMoreSection, sinStockCount }) {
   return (
-    <nav className="nav">
+    <nav className={`nav ${visible ? "" : "nav--hidden"}`} aria-hidden={!visible}>
       {NAV_TABS.map((t) => {
         const isActive = t.id === "more" ? isMoreSection : tab === t.id;
         return (

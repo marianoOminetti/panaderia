@@ -180,7 +180,7 @@ export function useAppData({ showToast } = {}) {
     setRecetas(recRes.data || []);
     setVentas(venRes.data || []);
     setRecetaIngredientes(riRes.data || []);
-    setClientes(cliRes.data || []);
+    setClientes((cliRes.data || []).filter((c) => c.eliminado !== true));
     if (pedRes && pedRes.data) setPedidos(pedRes.data || []);
     else setPedidos([]);
 

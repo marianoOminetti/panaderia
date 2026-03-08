@@ -5,7 +5,7 @@
 import { useState } from "react";
 import { fmt } from "../../lib/format";
 import { hoyLocalISO } from "../../lib/dates";
-import { agruparPedidos } from "../../lib/agrupadores";
+import { agruparPedidos, agruparVentas } from "../../lib/agrupadores";
 import { reportError } from "../../utils/errorReport";
 import { useClientes } from "../../hooks/useClientes";
 import { usePedidoForm } from "../../hooks/usePedidoForm";
@@ -29,6 +29,7 @@ function ClienteDetalle({
     insertVentas,
     updatePedidoEntregado,
     deleteVentasByIds,
+    softDeleteCliente,
   } = useClientes({ onRefresh, showToast });
 
   const [nuevoPedidoAbierto, setNuevoPedidoAbierto] = useState(false);
@@ -128,6 +129,25 @@ function ClienteDetalle({
     (pedidos || []).filter((p) => p.cliente_id === cliente.id),
   );
 
+  const handleEliminarCliente = async () => {
+    const ok = await confirm(
+      "¿Dar de baja este cliente? No se borran ventas ni pedidos; solo dejará de aparecer en la lista.",
+      { destructive: true },
+    );
+    if (!ok) return;
+    try {
+      await softDeleteCliente(cliente.id);
+      onClose();
+    } catch (err) {
+      reportError(err, { action: "softDeleteCliente", clienteId: cliente.id });
+      const msg =
+        err?.message && /eliminado|column/i.test(String(err.message))
+          ? "No se pudo dar de baja. Verificá que la migración de clientes esté aplicada."
+          : "⚠️ No se pudo dar de baja el cliente";
+      showToast(msg);
+    }
+  };
+
   return (
     <div className="screen-overlay">
       <div className="screen-header">
@@ -147,6 +167,15 @@ function ClienteDetalle({
         <div className="card" style={{ marginBottom: 16 }}>
           <div className="card-header">
             <span className="card-title">Resumen</span>
+            <button
+              type="button"
+              className="edit-btn"
+              onClick={handleEliminarCliente}
+              style={{ fontSize: 13, fontWeight: 500, color: "var(--danger)" }}
+              aria-label="Dar de baja cliente"
+            >
+              Dar de baja
+            </button>
           </div>
           <p
             style={{
@@ -159,6 +188,7 @@ function ClienteDetalle({
           </p>
           {(() => {
             const vs = getVentasDeCliente(cliente.id);
+            const grupos = agruparVentas(vs);
             const total = vs.reduce((s, v) => {
               const linea =
                 v.total_final != null
@@ -175,7 +205,7 @@ function ClienteDetalle({
                     marginBottom: 6,
                   }}
                 >
-                  <strong>Compras:</strong> {vs.length}
+                  <strong>Compras:</strong> {grupos.length}
                 </p>
                 <p
                   style={{

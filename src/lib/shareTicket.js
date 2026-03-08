@@ -23,13 +23,24 @@ export async function generateTicketImage(element) {
   });
 }
 
-export async function shareViaWhatsApp(imageBlob, filename = "ticket.png") {
-  const file = new File([imageBlob], filename, { type: "image/png" });
+const MENSAJE_TRANSFERENCIA = `---
+Alias: micaela.mirable.mp
+Nombre: Micaela Mirabile
+CUIT: 27-38528995-8`;
 
-  if (navigator.canShare?.({ files: [file] })) {
+export async function shareViaWhatsApp(
+  imageBlob,
+  filename = "ticket.png",
+  messageText = ""
+) {
+  const file = new File([imageBlob], filename, { type: "image/png" });
+  const text = messageText ? `${messageText}\n\n${MENSAJE_TRANSFERENCIA}` : MENSAJE_TRANSFERENCIA;
+
+  if (navigator.canShare?.({ files: [file], text })) {
     try {
       await navigator.share({
         files: [file],
+        text,
         title: "Ticket Gluten Free",
       });
       return { success: true, method: "share" };
