@@ -23,14 +23,10 @@ export async function generateTicketImage(element) {
   });
 }
 
-const MENSAJE_TRANSFERENCIA = `¡Hola! 😁 Te comparto mis datos para que puedas *enviarme pesos a través de Mercado Pago*👇 
-
-Alias: micaela.mirabile.mp
-CVU: 0000003100045676260750
-Nombre: Micaela Mirabile
-
-
----`;
+const MENSAJE_TRANSFERENCIA = `---
+ALIAS: MICAELA.MIRABILE.MP
+NOMBRE: MICAELA MIRABILE
+BANCO: MERCADO PAGO`;
 
 export async function shareViaWhatsApp(
   imageBlob,
