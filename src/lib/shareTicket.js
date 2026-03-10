@@ -24,9 +24,10 @@ export async function generateTicketImage(element) {
 }
 
 const MENSAJE_TRANSFERENCIA = `---
-Alias: micaela.mirabile.mp
-Nombre: Micaela Mirabile
-CUIT: 27 - 38528995 - 8`;
+ALIAS: MICAELA.MIRABILE.MP
+BANCO: MERCADO PAGO
+NOMBRE: MICAELA MIRABILE
+CUIT: 27/38528995/8`;
 
 export async function shareViaWhatsApp(
   imageBlob,
