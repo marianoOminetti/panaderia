@@ -23,7 +23,6 @@ function ClienteDetalle({
   onRefresh,
 }) {
   const {
-    insertPedidos,
     updatePedidoEstado,
     insertVentas,
     updatePedidoEntregado,

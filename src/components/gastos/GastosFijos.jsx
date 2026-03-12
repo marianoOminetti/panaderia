@@ -43,7 +43,6 @@ export default function GastosFijos({ gastos, onRefresh, showToast }) {
 
   const {
     saveGastoFijo,
-    toggleActivo: toggleActivoMutation,
     deleteGastoFijo,
   } = useGastosFijosMutations({ onRefresh, showToast });
 
