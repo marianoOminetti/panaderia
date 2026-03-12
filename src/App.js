@@ -13,7 +13,7 @@ import { usePlanResumen } from "./hooks/usePlanResumen";
 import { useSyncVentasPendientes } from "./hooks/useSyncVentasPendientes";
 import { usePushSubscription } from "./hooks/usePushSubscription";
 import { useScrollToHide } from "./hooks/useScrollToHide";
-import { MORE_MENU_ITEMS } from "./config/nav";
+import { MORE_MENU_ITEMS, NAV_TABS } from "./config/nav";
 import Toast from "./components/ui/Toast";
 import ConfirmDialog from "./components/ui/ConfirmDialog";
 import ConfigMissing from "./components/auth/ConfigMissing";
@@ -28,7 +28,23 @@ export default function App() {
   // --- Auth ---
   const { session, authLoading, signIn, signOut } = useAuth();
   // --- Navegación y deep links ---
-  const [tab, setTab] = useState("dashboard");
+  const [tab, setTab] = useState(() => {
+    if (typeof window === "undefined") return "dashboard";
+    const allTabIds = new Set([
+      ...NAV_TABS.map((t) => t.id),
+      ...MORE_MENU_ITEMS.map((m) => m.id),
+    ]);
+    const rawHash = window.location.hash || "";
+    const hash = rawHash.startsWith("#") ? rawHash.slice(1) : rawHash;
+    if (hash && allTabIds.has(hash)) return hash;
+    try {
+      const stored = window.localStorage.getItem("app.currentTab");
+      if (stored && allTabIds.has(stored)) return stored;
+    } catch {
+      // ignore storage errors
+    }
+    return "dashboard";
+  });
   const [stockProductionPreloadReceta, setStockProductionPreloadReceta] = useState(null);
   const [ventasPreloadGrupoKey, setVentasPreloadGrupoKey] = useState(null);
   const [ventasNuevaFlag, setVentasNuevaFlag] = useState(false);
@@ -151,6 +167,48 @@ export default function App() {
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
     };
+  }, []);
+
+  // Persistir tab actual en hash + localStorage
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const allTabIds = new Set([
+      ...NAV_TABS.map((t) => t.id),
+      ...MORE_MENU_ITEMS.map((m) => m.id),
+    ]);
+    if (!allTabIds.has(tab)) return;
+    const desiredHash = `#${tab}`;
+    if (window.location.hash !== desiredHash) {
+      window.location.hash = tab;
+    }
+    try {
+      window.localStorage.setItem("app.currentTab", tab);
+    } catch {
+      // ignore storage errors
+    }
+  }, [tab]);
+
+  // Soporte para back/forward del navegador via hashchange
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const allTabIds = new Set([
+      ...NAV_TABS.map((t) => t.id),
+      ...MORE_MENU_ITEMS.map((m) => m.id),
+    ]);
+    const handleHashChange = () => {
+      const rawHash = window.location.hash || "";
+      const next = rawHash.startsWith("#") ? rawHash.slice(1) : rawHash;
+      if (next && allTabIds.has(next)) {
+        setTab(next);
+        try {
+          window.localStorage.setItem("app.currentTab", next);
+        } catch {
+          // ignore storage errors
+        }
+      }
+    };
+    window.addEventListener("hashchange", handleHashChange);
+    return () => window.removeEventListener("hashchange", handleHashChange);
   }, []);
 
   useEffect(() => {

@@ -16,4 +16,5 @@ export const MORE_MENU_ITEMS = [
   { id: "insumos", icon: "📦", label: "Insumos", sub: "Materias primas y stock" },
   { id: "recetas", icon: "📋", label: "Recetas", sub: "Productos y costos" },
   { id: "gastos", icon: "💸", label: "Gastos fijos", sub: "Alquiler, servicios, sueldos" },
+  { id: "pedidos", icon: "📦", label: "Pedidos", sub: "Gestión de pedidos" },
 ];

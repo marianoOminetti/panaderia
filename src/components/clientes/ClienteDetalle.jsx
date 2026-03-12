@@ -1,6 +1,6 @@
 /**
  * Detalle de un cliente: pedidos (ClienteDetallePedidos) y ventas (ClienteDetalleVentas), alta de pedido y acciones.
- * Usa usePedidoForm para formulario de nuevo pedido, useClientes para operaciones de estado.
+ * Usa useClientes para operaciones de estado.
  */
 import { useState } from "react";
 import { fmt } from "../../lib/format";
@@ -8,7 +8,6 @@ import { hoyLocalISO } from "../../lib/dates";
 import { agruparPedidos, agruparVentas } from "../../lib/agrupadores";
 import { reportError } from "../../utils/errorReport";
 import { useClientes } from "../../hooks/useClientes";
-import { usePedidoForm } from "../../hooks/usePedidoForm";
 import ClienteDetallePedidos from "./ClienteDetallePedidos";
 import ClienteDetalleVentas from "./ClienteDetalleVentas";
 
@@ -32,16 +31,7 @@ function ClienteDetalle({
     softDeleteCliente,
   } = useClientes({ onRefresh, showToast });
 
-  const [nuevoPedidoAbierto, setNuevoPedidoAbierto] = useState(false);
   const [savingEntrega, setSavingEntrega] = useState(false);
-
-  const pedidoForm = usePedidoForm({
-    recetas,
-    clienteId: cliente?.id,
-    insertPedidos,
-    showToast,
-    onSuccess: () => setNuevoPedidoAbierto(false),
-  });
 
   if (!cliente) return null;
 
@@ -155,8 +145,6 @@ function ClienteDetalle({
           className="screen-back"
           onClick={() => {
             onClose();
-            setNuevoPedidoAbierto(false);
-            pedidoForm.reset();
           }}
         >
           ← Volver
@@ -223,9 +211,6 @@ function ClienteDetalle({
         <ClienteDetallePedidos
           pedidosClienteAgrupados={pedidosClienteAgrupados}
           recetas={recetas}
-          nuevoPedidoAbierto={nuevoPedidoAbierto}
-          setNuevoPedidoAbierto={setNuevoPedidoAbierto}
-          pedidoForm={pedidoForm}
           savingEntrega={savingEntrega}
           actualizarEstadoPedido={actualizarEstadoPedido}
           marcarPedidoEntregado={marcarPedidoEntregado}

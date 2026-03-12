@@ -59,6 +59,7 @@ function Ventas({
   const [senia, setSenia] = useState("");
   const [horaEntrega, setHoraEntrega] = useState("");
   const [notas, setNotas] = useState("");
+  const [isPedidoFlow, setIsPedidoFlow] = useState(false);
   const {
     chargeModalOpen,
     chargeTotalOverride,
@@ -137,6 +138,7 @@ function Ventas({
     setHoraEntrega("");
     setNotas("");
     closeChargeModal();
+    setIsPedidoFlow(false);
   };
 
   const eliminarVenta = async (grupo) => {
@@ -225,6 +227,7 @@ function Ventas({
     if (!ventasNuevaFlag) return;
     setManualScreenOpen(true);
     closeChargeModal();
+    setIsPedidoFlow(false);
     onConsumedVentasNueva?.();
   }, [ventasNuevaFlag]); // eslint-disable-line react-hooks/exhaustive-deps -- callback estable desde App
 
@@ -236,8 +239,9 @@ function Ventas({
     setFechaEntrega(manianaISO);
     setManualScreenOpen(true);
     closeChargeModal();
+    setIsPedidoFlow(true);
     onConsumedVentasPedido?.();
-  }, [ventasPedidoFlag]); // eslint-disable-line react-hooks/exhaustive-deps -- callback estable desde App
+  }, [ventasPedidoFlag]);
 
   const closeManualScreen = () => {
     if (edit.editGrupo) {
@@ -389,6 +393,7 @@ function Ventas({
         open={manualScreenOpen}
         onClose={closeManualScreen}
         mode={edit.editGrupo ? "edit" : "new"}
+        isPedidoFlow={isPedidoFlow}
         cartItems={cartItems}
         cartTotal={cartTotal}
         updateCartQuantity={updateCartQuantity}

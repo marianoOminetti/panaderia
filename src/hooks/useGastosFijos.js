@@ -18,14 +18,14 @@ export function useGastosFijos({ onRefresh, showToast } = {}) {
           console.error("[gastos_fijos/saveGastoFijo update]", error);
           throw error;
         }
-        showToast?.("✅ Gasto fijo actualizado");
+      showToast?.("✅ Gasto actualizado");
       } else {
         const { error } = await supabase.from("gastos_fijos").insert(payload);
         if (error) {
           console.error("[gastos_fijos/saveGastoFijo insert]", error);
           throw error;
         }
-        showToast?.("✅ Gasto fijo agregado");
+      showToast?.("✅ Gasto agregado");
       }
       await onRefresh?.();
     },
@@ -48,16 +48,34 @@ export function useGastosFijos({ onRefresh, showToast } = {}) {
   );
 
   const deleteGastoFijo = useCallback(
-    async (g) => {
-      const { error } = await supabase
-        .from("gastos_fijos")
-        .delete()
-        .eq("id", g.id);
-      if (error) {
-        console.error("[gastos_fijos/deleteGastoFijo]", error);
-        throw error;
+    async (g, options) => {
+      const mode = options?.mode || "solo-futuro";
+      if (mode === "historico") {
+        const { error } = await supabase
+          .from("gastos_fijos")
+          .delete()
+          .eq("id", g.id);
+        if (error) {
+          console.error("[gastos_fijos/deleteGastoFijo hard]", error);
+          throw error;
+        }
+        showToast?.("🗑️ Gasto eliminado de la base");
+      } else {
+        const { error } = await supabase
+          .from("gastos_fijos")
+          .update({
+            activo: false,
+            // Al eliminar solo hacia adelante, cerramos siempre la vigencia hoy
+            // para que pase a gastos pasados.
+            fecha_fin_vigencia: new Date().toISOString().slice(0, 10),
+          })
+          .eq("id", g.id);
+        if (error) {
+          console.error("[gastos_fijos/deleteGastoFijo soft]", error);
+          throw error;
+        }
+        showToast?.("🗑️ Gasto movido a gastos pasados");
       }
-      showToast?.("🗑️ Gasto fijo eliminado");
       await onRefresh?.();
     },
     [onRefresh, showToast],

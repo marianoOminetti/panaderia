@@ -3,38 +3,17 @@ import { fmt } from "../../lib/format";
 import { hoyLocalISO } from "../../lib/dates";
 import { FormInput, FormMoneyInput, SearchableSelect, DatePicker } from "../ui";
 import ShareTicketModal from "../shared/ShareTicketModal";
+import { getPedidoEstadoLabel } from "../../lib/pedidos";
 
 function ClienteDetallePedidos({
   pedidosClienteAgrupados,
   recetas,
-  nuevoPedidoAbierto,
-  setNuevoPedidoAbierto,
-  pedidoForm,
   savingEntrega,
   actualizarEstadoPedido,
   marcarPedidoEntregado,
   clienteNombre,
 }) {
   const [sharePedido, setSharePedido] = useState(null);
-  const {
-    fechaEntrega,
-    setFechaEntrega,
-    recetaSel,
-    setRecetaSel,
-    cantidad,
-    setCantidad,
-    precio,
-    setPrecio,
-    items,
-    senia,
-    setSenia,
-    estado,
-    setEstado,
-    saving,
-    addItem,
-    quitarItem,
-    guardar,
-  } = pedidoForm;
 
   const hoyStr = hoyLocalISO();
   const pendientes = pedidosClienteAgrupados.filter((g) => {
@@ -68,25 +47,12 @@ function ClienteDetallePedidos({
       return value;
     }
   };
-  const estadoLabel = (estadoVal) => {
-    if (estadoVal === "en_preparacion") return "En preparación";
-    if (estadoVal === "listo") return "Listo";
-    if (estadoVal === "entregado") return "Entregado";
-    return "Pendiente";
-  };
 
-  if (!nuevoPedidoAbierto && pendientes.length === 0) {
+  if (pendientes.length === 0) {
     return (
       <div className="card" style={{ marginBottom: 16 }}>
         <div className="card-header">
           <span className="card-title">Pedidos futuros</span>
-          <button
-            type="button"
-            className="card-link"
-            onClick={() => setNuevoPedidoAbierto((prev) => !prev)}
-          >
-            {nuevoPedidoAbierto ? "Cerrar" : "+ Nuevo pedido"}
-          </button>
         </div>
         <p
           style={{
@@ -105,125 +71,7 @@ function ClienteDetallePedidos({
     <div className="card" style={{ marginBottom: 16 }}>
       <div className="card-header">
         <span className="card-title">Pedidos futuros</span>
-        <button
-          type="button"
-          className="card-link"
-          onClick={() => setNuevoPedidoAbierto((prev) => !prev)}
-        >
-          {nuevoPedidoAbierto ? "Cerrar" : "+ Nuevo pedido"}
-        </button>
       </div>
-      {nuevoPedidoAbierto && (
-        <div
-          style={{
-            padding: "12px 16px",
-            borderTop:
-              pendientes.length > 0
-                ? "1px solid var(--border)"
-                : "none",
-          }}
-        >
-          <DatePicker
-            label="Fecha de entrega"
-            value={fechaEntrega}
-            onChange={setFechaEntrega}
-          />
-          <div className="form-row">
-            <div className="form-group" style={{ flex: 2 }}>
-              <label className="form-label">Producto</label>
-              <SearchableSelect
-                options={[
-                  { value: "", label: "Elegí un producto" },
-                  ...recetas.map((r) => ({
-                    value: r.id,
-                    label: `${r.emoji || ""} ${r.nombre}`.trim(),
-                  })),
-                ]}
-                value={recetaSel}
-                onChange={setRecetaSel}
-                placeholder="Buscar producto..."
-              />
-            </div>
-            <FormInput
-              label="Cantidad"
-              type="number"
-              min={1}
-              value={cantidad}
-              onChange={(v) => setCantidad(Number(v) || 1)}
-              style={{ flex: 1 }}
-            />
-          </div>
-          <FormMoneyInput
-            label="Precio acordado por unidad (opcional)"
-            value={precio}
-            onChange={setPrecio}
-            placeholder="Precio de lista"
-          />
-          <button
-            type="button"
-            className="btn-secondary"
-            onClick={addItem}
-            style={{ marginBottom: 8 }}
-          >
-            Agregar ítem
-          </button>
-          {items.length > 0 && (
-            <div className="pedido-items-preview">
-              {items.map((it) => (
-                <div key={it.receta.id} className="pedido-item-row">
-                  <span>
-                    {it.cantidad}x {it.receta.nombre}
-                  </span>
-                  <span>
-                    {fmt((it.precio_unitario || 0) * (it.cantidad || 0))}
-                  </span>
-                  <button
-                    type="button"
-                    className="btn-remove"
-                    onClick={() => quitarItem(it.receta.id)}
-                    style={{ color: "var(--text-muted)" }}
-                  >
-                    ✕
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-          <div className="form-row">
-            <FormMoneyInput
-              label="Seña / adelanto"
-              value={senia}
-              onChange={setSenia}
-              placeholder="0"
-            />
-            <div className="form-group">
-              <label className="form-label">Estado inicial</label>
-              <SearchableSelect
-                options={[
-                  { value: "pendiente", label: "Pendiente" },
-                  { value: "en_preparacion", label: "En preparación" },
-                  { value: "listo", label: "Listo" },
-                ]}
-                value={estado}
-                onChange={setEstado}
-                placeholder="Estado"
-              />
-            </div>
-          </div>
-          <button
-            type="button"
-            className="btn-primary"
-            onClick={() => guardar()}
-            disabled={
-              saving ||
-              items.length === 0 ||
-              !fechaEntrega
-            }
-          >
-            {saving ? "Guardando…" : "Guardar pedido"}
-          </button>
-        </div>
-      )}
       {pedidosClienteAgrupados.filter((g) => {
         if (!g.fecha_entrega) return g.estado !== "entregado";
         return g.fecha_entrega >= hoyStr && g.estado !== "entregado";
@@ -251,7 +99,7 @@ function ClienteDetallePedidos({
                   >
                     <div className="insumo-nombre">
                       {formatFecha(g.fecha_entrega)} ·{" "}
-                      {estadoLabel(g.estado)}
+                      {getPedidoEstadoLabel(g.estado)}
                     </div>
                     <div
                       className="insumo-detalle"
@@ -299,12 +147,20 @@ function ClienteDetallePedidos({
                         fontSize: 11,
                         padding: "4px 6px",
                       }}
+                      disabled={g.estado === "entregado"}
                     >
-                      <option value="pendiente">Pendiente</option>
-                      <option value="en_preparacion">
-                        En preparación
+                      <option value="pendiente">
+                        {getPedidoEstadoLabel("pendiente")}
                       </option>
-                      <option value="listo">Listo</option>
+                      <option value="en_preparacion">
+                        {getPedidoEstadoLabel("en_preparacion")}
+                      </option>
+                      <option value="listo">
+                        {getPedidoEstadoLabel("listo")}
+                      </option>
+                      <option value="entregado">
+                        {getPedidoEstadoLabel("entregado")}
+                      </option>
                     </select>
                     <div style={{ display: "flex", gap: 4, marginTop: 6 }}>
                       <button

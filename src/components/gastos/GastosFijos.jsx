@@ -2,6 +2,7 @@
  * Pantalla Gastos: lista, resumen (diario/semanal/variable+puntual) y formulario.
  * Soporta tipo fijo, variable y puntual.
  */
+import { useState } from "react";
 import { fmt } from "../../lib/format";
 import { reportError } from "../../utils/errorReport";
 import { calcularGastosTotales } from "../../lib/gastosFijos";
@@ -23,11 +24,6 @@ const FRECUENCIAS = [
   { value: "mensual", label: "Mensual" },
 ];
 
-const ESTADOS = [
-  { value: "activo", label: "Activo" },
-  { value: "inactivo", label: "Inactivo" },
-];
-
 const formatFecha = (fecha) => {
   if (!fecha) return "";
   const d = new Date(fecha);
@@ -41,6 +37,10 @@ const formatFecha = (fecha) => {
 };
 
 export default function GastosFijos({ gastos, onRefresh, showToast }) {
+  const [deleteModal, setDeleteModal] = useState(null);
+  const [deleteMode, setDeleteMode] = useState("solo-futuro");
+  const [deleteDesde, setDeleteDesde] = useState("");
+
   const {
     saveGastoFijo,
     toggleActivo: toggleActivoMutation,
@@ -74,12 +74,22 @@ export default function GastosFijos({ gastos, onRefresh, showToast }) {
     }
   };
 
-  const eliminar = async (g) => {
-    if (!window.confirm(`¿Eliminar el gasto "${g.nombre}"?`)) return;
+  const eliminar = (g) => {
+    setDeleteModal(g);
+    setDeleteMode("solo-futuro");
+    setDeleteDesde("");
+  };
+
+  const confirmarEliminacion = async () => {
+    if (!deleteModal) return;
     try {
-      await deleteGastoFijo(g);
+      await deleteGastoFijo(deleteModal, {
+        mode: deleteMode,
+        desde: deleteDesde || null,
+      });
+      setDeleteModal(null);
     } catch (err) {
-      reportError(err, { action: "deleteGastoFijo", id: g.id });
+      reportError(err, { action: "deleteGastoFijo", id: deleteModal.id });
       showToast("⚠️ Error al eliminar gasto");
     }
   };
@@ -93,10 +103,31 @@ export default function GastosFijos({ gastos, onRefresh, showToast }) {
           : g.frecuencia === "semanal"
             ? "Semanal"
             : "Mensual";
-      return `${fmt(g.monto)} · ${freqLabel} · ${g.activo ? "Activo" : "Inactivo"}`;
+      const inicio = g.fecha_inicio_vigencia
+        ? formatFecha(g.fecha_inicio_vigencia)
+        : null;
+      const fin = g.fecha_fin_vigencia ? formatFecha(g.fecha_fin_vigencia) : null;
+      const vigencia =
+        inicio && fin
+          ? ` · Vigente ${inicio} a ${fin}`
+          : inicio
+            ? ` · Vigente desde ${inicio}`
+            : "";
+      return `${fmt(g.monto)} · ${freqLabel}${vigencia}`;
     }
-    return `${fmt(g.monto)} · ${formatFecha(g.fecha)} · ${g.activo ? "Activo" : "Inactivo"}`;
+    return `${fmt(g.monto)} · ${formatFecha(g.fecha)}`;
   };
+
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+  const gastosVigentes = gastosOrdenados.filter((g) => {
+    if (!g.fecha_fin_vigencia) return true;
+    const fin = new Date(g.fecha_fin_vigencia);
+    if (Number.isNaN(fin.getTime())) return true;
+    // Si el gasto termina hoy (fin === hoy), ya lo consideramos pasado.
+    return fin.getTime() > hoy.getTime();
+  });
+  const gastosHistoricos = gastosOrdenados.filter((g) => !gastosVigentes.includes(g));
 
   return (
     <div className="content">
@@ -134,13 +165,13 @@ export default function GastosFijos({ gastos, onRefresh, showToast }) {
             + Agregar
           </button>
         </div>
-        {gastosOrdenados.length === 0 ? (
+        {gastosVigentes.length === 0 ? (
           <div className="empty">
             <div className="empty-icon">💸</div>
             <p>No configuraste gastos todavía.</p>
           </div>
         ) : (
-          gastosOrdenados.map((g) => (
+          gastosVigentes.map((g) => (
             <div
               key={g.id}
               className="insumo-item"
@@ -173,19 +204,6 @@ export default function GastosFijos({ gastos, onRefresh, showToast }) {
                 <button
                   type="button"
                   className="edit-btn"
-                  onClick={() => toggleActivo(g)}
-                  style={{
-                    borderColor: g.activo
-                      ? "var(--danger)"
-                      : "var(--green)",
-                    color: g.activo ? "var(--danger)" : "var(--green)",
-                  }}
-                >
-                  {g.activo ? "Desactivar" : "Activar"}
-                </button>
-                <button
-                  type="button"
-                  className="edit-btn"
                   onClick={() => eliminar(g)}
                   style={{ color: "var(--danger)" }}
                 >
@@ -196,6 +214,47 @@ export default function GastosFijos({ gastos, onRefresh, showToast }) {
           ))
         )}
       </div>
+
+      {gastosHistoricos.length > 0 && (
+        <div className="card" style={{ marginTop: 16 }}>
+          <div className="card-header">
+            <span className="card-title">Lista de gastos pasados</span>
+          </div>
+          {gastosHistoricos.map((g) => (
+            <div
+              key={g.id}
+              className="insumo-item"
+              style={{ padding: "10px 0" }}
+            >
+              <div className="insumo-info" style={{ flex: 1 }}>
+                <div className="insumo-nombre">
+                  {g.nombre}
+                  <span
+                    style={{
+                      marginLeft: 8,
+                      fontSize: 12,
+                      opacity: 0.8,
+                      fontWeight: "normal",
+                    }}
+                  >
+                    ({TIPO_LABEL[(g.tipo || "fijo").toLowerCase()] || g.tipo})
+                  </span>
+                </div>
+                <div className="insumo-detalle">{renderDetalle(g)}</div>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <button
+                  type="button"
+                  className="edit-btn"
+                  onClick={() => formState.openEdit(g)}
+                >
+                  Editar
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       <button className="fab" onClick={formState.openNew}>
         +
@@ -216,57 +275,105 @@ export default function GastosFijos({ gastos, onRefresh, showToast }) {
             </span>
           </div>
           <div className="screen-content">
-            <div className="form-group">
-              <label className="form-label">Tipo</label>
-              <SearchableSelect
-                options={TIPOS_GASTO}
-                value={formState.form.tipo}
-                onChange={(v) => formState.setForm((f) => ({ ...f, tipo: v }))}
-                placeholder="Seleccionar tipo"
-              />
-            </div>
-            <FormInput
-              label="Nombre"
-              value={formState.form.nombre}
-              onChange={(v) => formState.setForm((f) => ({ ...f, nombre: v }))}
-              placeholder="Ej: Alquiler, Luz, Arreglo horno"
-              required
-            />
-            <div className="form-row">
-              <FormMoneyInput
-                label="Monto"
-                value={formState.form.monto}
-                onChange={(v) => formState.setForm((f) => ({ ...f, monto: v }))}
-                placeholder="300000"
-                required
-              />
-              {formState.form.tipo === "fijo" ? (
+            <div className="card" style={{ marginBottom: 16 }}>
+              <div className="card-header">
+                <span className="card-title">Datos del gasto</span>
+              </div>
+              <div className="card-content">
                 <div className="form-group">
-                  <label className="form-label">Frecuencia</label>
+                  <label className="form-label">Tipo</label>
                   <SearchableSelect
-                    options={FRECUENCIAS}
-                    value={formState.form.frecuencia}
-                    onChange={(v) => formState.setForm((f) => ({ ...f, frecuencia: v }))}
-                    placeholder="Frecuencia"
+                    options={TIPOS_GASTO}
+                    value={formState.form.tipo}
+                    onChange={(v) =>
+                      formState.setForm((f) => ({ ...f, tipo: v }))
+                    }
+                    placeholder="Seleccionar tipo"
                   />
                 </div>
-              ) : (
-                <DatePicker
-                  label="Fecha"
-                  value={formState.form.fecha}
-                  onChange={(v) => formState.setForm((f) => ({ ...f, fecha: v }))}
+                <FormInput
+                  label="Nombre"
+                  value={formState.form.nombre}
+                  onChange={(v) =>
+                    formState.setForm((f) => ({ ...f, nombre: v }))
+                  }
+                  placeholder="Ej: Alquiler, Luz, Arreglo horno"
+                  required
                 />
-              )}
+                  <FormMoneyInput
+                    label="Monto"
+                    value={formState.form.monto}
+                    onChange={(v) =>
+                      formState.setForm((f) => ({ ...f, monto: v }))
+                    }
+                    placeholder="300000"
+                    required
+                  />
+              </div>
             </div>
-            <div className="form-group">
-              <label className="form-label">Estado</label>
-              <SearchableSelect
-                options={ESTADOS}
-                value={formState.form.activo ? "activo" : "inactivo"}
-                onChange={(v) => formState.setForm((f) => ({ ...f, activo: v === "activo" }))}
-                placeholder="Estado"
-              />
-            </div>
+
+            {formState.form.tipo === "fijo" && (
+              <div className="card" style={{ marginBottom: 16 }}>
+                <div className="card-header">
+                  <span className="card-title">Configuración del gasto fijo</span>
+                </div>
+                <div className="card-content">
+                  <p className="analytics-kpi-sub" style={{ marginBottom: 12 }}>
+                    Definí cómo se distribuye y desde cuándo aplica este gasto
+                    recurrente.
+                  </p>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label className="form-label">Frecuencia</label>
+                      <SearchableSelect
+                        options={FRECUENCIAS}
+                        value={formState.form.frecuencia}
+                        onChange={(v) =>
+                          formState.setForm((f) => ({ ...f, frecuencia: v }))
+                        }
+                        placeholder="Frecuencia"
+                      />
+                    </div>
+                  </div>
+                  <DatePicker
+                    label="Inicio vigencia"
+                    value={formState.form.fechaInicioVigencia}
+                    onChange={(v) =>
+                      formState.setForm((f) => ({
+                        ...f,
+                        fechaInicioVigencia: v,
+                      }))
+                    }
+                  />
+                  <DatePicker
+                    label="Fin vigencia (opcional)"
+                    value={formState.form.fechaFinVigencia}
+                    onChange={(v) =>
+                      formState.setForm((f) => ({ ...f, fechaFinVigencia: v }))
+                    }
+                  />
+                </div>
+              </div>
+            )}
+
+            {(formState.form.tipo === "variable" ||
+              formState.form.tipo === "puntual") && (
+              <div className="card" style={{ marginBottom: 16 }}>
+                <div className="card-header">
+                  <span className="card-title">Fecha del gasto</span>
+                </div>
+                <div className="card-content">
+                  <DatePicker
+                    label="Fecha"
+                    value={formState.form.fecha}
+                    onChange={(v) =>
+                      formState.setForm((f) => ({ ...f, fecha: v }))
+                    }
+                  />
+                </div>
+              </div>
+            )}
+
             <button
               className="btn-primary"
               onClick={formState.save}
@@ -278,6 +385,93 @@ export default function GastosFijos({ gastos, onRefresh, showToast }) {
               className="btn-secondary"
               onClick={formState.closeModal}
               disabled={formState.saving}
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {deleteModal && (
+        <div className="screen-overlay">
+          <div className="screen-header">
+            <button
+              className="screen-back"
+              onClick={() => setDeleteModal(null)}
+            >
+              ← Volver
+            </button>
+            <span className="screen-title">Eliminar gasto</span>
+          </div>
+          <div className="screen-content">
+            <p className="page-subtitle">
+              Elegí cómo querés que afecte a tus períodos al eliminar el gasto
+              <strong> {deleteModal.nombre}</strong>.
+            </p>
+            <div className="card" style={{ marginBottom: 16 }}>
+              <div className="card-content">
+                <div className="form-group">
+                  <label className="form-label">
+                    <input
+                      type="radio"
+                      name="delete-mode"
+                      value="solo-futuro"
+                      checked={deleteMode === "solo-futuro"}
+                      onChange={() => setDeleteMode("solo-futuro")}
+                      style={{ marginRight: 8 }}
+                    />
+                    Eliminar solo desde hoy en adelante
+                  </label>
+                  <p className="analytics-kpi-sub">
+                    Los períodos históricos quedan como estaban. Este gasto deja
+                    de contarse desde hoy y en los días futuros.
+                  </p>
+                </div>
+                <div className="form-group" style={{ marginTop: 12 }}>
+                  <label className="form-label">
+                    <input
+                      type="radio"
+                      name="delete-mode"
+                      value="historico"
+                      checked={deleteMode === "historico"}
+                      onChange={() => setDeleteMode("historico")}
+                      style={{ marginRight: 8 }}
+                    />
+                    Eliminar también de períodos anteriores
+                  </label>
+                  <p className="analytics-kpi-sub">
+                    Recalcularemos los períodos pasados donde estaba este gasto.
+                  </p>
+                  {deleteMode === "historico" && (
+                    <div style={{ marginTop: 8 }}>
+                      <DatePicker
+                        label="Eliminar histórico desde"
+                        value={deleteDesde}
+                        onChange={setDeleteDesde}
+                      />
+                      <p
+                        className="analytics-kpi-sub"
+                        style={{ marginTop: 4, color: "var(--danger)" }}
+                      >
+                        ⚠ Esta acción va a cambiar tus números históricos para
+                        esos períodos.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+            <button
+              className="btn-primary"
+              style={{ backgroundColor: "var(--danger)", borderColor: "var(--danger)" }}
+              onClick={confirmarEliminacion}
+            >
+              Confirmar eliminación
+            </button>
+            <button
+              className="btn-secondary"
+              onClick={() => setDeleteModal(null)}
+              style={{ marginTop: 8 }}
             >
               Cancelar
             </button>

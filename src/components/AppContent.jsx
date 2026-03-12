@@ -13,6 +13,7 @@ import Clientes from "./clientes/Clientes";
 import Analytics from "./analytics/Analytics";
 import Recetas from "./recetas/Recetas";
 import MoreMenuScreen from "./menu/MoreMenuScreen";
+import Pedidos from "./pedidos/Pedidos";
 
 export default function AppContent({
   tab,
@@ -148,6 +149,20 @@ export default function AppContent({
           onConsumedVentasNueva={onConsumedVentasNueva}
           ventasPedidoFlag={ventasPedidoFlag}
           onConsumedVentasPedido={onConsumedVentasPedido}
+        />
+      )}
+      {/* --- Pedidos (MAS) --- */}
+      {tab === "pedidos" && (
+        <Pedidos
+          recetas={recetas}
+          pedidos={pedidos}
+          clientes={clientes}
+          stock={stock}
+          actualizarStock={actualizarStock}
+          onRefresh={loadData}
+          showToast={showToast}
+          confirm={confirm}
+          onOpenNuevoPedido={onOpenNuevoPedido}
         />
       )}
       {/* --- Stock --- */}

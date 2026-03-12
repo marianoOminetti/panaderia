@@ -8,6 +8,7 @@ export default function VentasManualScreen({
   open,
   onClose,
   mode = "new",
+  isPedidoFlow = false,
   // Nueva venta
   cartItems,
   cartTotal,
@@ -67,7 +68,7 @@ export default function VentasManualScreen({
         </button>
         <div style={{ flex: 1, marginLeft: 8 }}>
           <div className="screen-title">
-            {isEdit ? "Editar venta" : "Nueva venta"}
+            {isEdit ? "Editar venta" : isPedidoFlow ? "Nuevo pedido" : "Nueva venta"}
           </div>
           <div
             style={{
@@ -75,58 +76,15 @@ export default function VentasManualScreen({
               color: "var(--text-muted)",
             }}
           >
-            {isEdit ? "Ajustá cantidades o agregá productos" : "Calculadora de venta"}
-          </div>
-        </div>
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "flex-end",
-            gap: 6,
-          }}
-        >
-          <div
-            style={{
-              fontSize: 11,
-              color: "var(--text-muted)",
-            }}
-          >
-            Total
-          </div>
-          <div
-            style={{
-              fontFamily: "'Outfit', sans-serif",
-              fontSize: 20,
-              color: "var(--purple-dark)",
-            }}
-          >
-            {fmtMonedaDecimal(total)}
-          </div>
-          <div style={{ display: "flex", gap: 6 }}>
-            {isEdit ? (
-              <button
-                type="button"
-                className="btn-primary"
-                onClick={onGuardar}
-                disabled={editSaving || !hasItems}
-              >
-                {editSaving ? "Guardando…" : "Guardar"}
-              </button>
-            ) : (
-              <button
-                type="button"
-                className="btn-primary"
-                onClick={onCobrar}
-                disabled={!hasItems}
-              >
-                ✓ Cobrar
-              </button>
-            )}
+            {isEdit
+              ? "Ajustá cantidades o agregá productos"
+              : isPedidoFlow
+                ? "Calculadora de pedido"
+                : "Calculadora de venta"}
           </div>
         </div>
       </div>
-      <div className="screen-content">
+      <div className="screen-content" style={{ paddingBottom: 120 }}>
         {isEdit && (
           <div className="card" style={{ marginBottom: 16 }}>
             <SelectorCliente
@@ -246,6 +204,73 @@ export default function VentasManualScreen({
               );
             })}
           </div>
+        </div>
+      </div>
+      <div
+        style={{
+          position: "fixed",
+          left: "50%",
+          bottom: 0,
+          transform: "translateX(-50%)",
+          width: "100%",
+          maxWidth: 430,
+          padding: "12px 16px",
+          paddingBottom: "calc(12px + env(safe-area-inset-bottom, 0px))",
+          background: "var(--surface)",
+          borderTop: "1px solid var(--border)",
+          boxShadow: "0 -4px 18px rgba(123,91,168,0.12)",
+          zIndex: 210,
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
+          }}
+        >
+          <div>
+            <div
+              style={{
+                fontSize: 11,
+                color: "var(--text-muted)",
+                marginBottom: 4,
+              }}
+            >
+              Total carrito
+            </div>
+            <div
+              style={{
+                fontFamily: "'Outfit', sans-serif",
+                fontSize: 20,
+                color: "var(--purple-dark)",
+              }}
+            >
+              {fmtMonedaDecimal(total)}
+            </div>
+          </div>
+          {isEdit ? (
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={onGuardar}
+              disabled={editSaving || !hasItems}
+              style={{ width: 180 }}
+            >
+              {editSaving ? "Guardando…" : "Guardar"}
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={onCobrar}
+              disabled={!hasItems}
+              style={{ width: 180 }}
+            >
+              Ir a cobro
+            </button>
+          )}
         </div>
       </div>
     </div>

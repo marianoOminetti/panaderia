@@ -1,15 +1,49 @@
+const parseFecha = (val) => {
+  if (!val) return null;
+  if (val instanceof Date && !Number.isNaN(val.getTime())) return val;
+  const str = String(val);
+  const parts = str.split("T")[0].split("-");
+  if (parts.length === 3) {
+    const [y, m, day] = parts.map((x) => parseInt(x, 10));
+    if (!Number.isNaN(y) && !Number.isNaN(m) && !Number.isNaN(day)) {
+      return new Date(y, m - 1, day);
+    }
+  }
+  const dt = new Date(str);
+  return Number.isNaN(dt.getTime()) ? null : dt;
+};
+
+/**
+ * Indica si un gasto fijo estaba vigente en la fecha dada (para cálculos por período).
+ * Usa fecha_inicio_vigencia y fecha_fin_vigencia. Si no existen, se considera vigente.
+ * Fin de vigencia es exclusivo: si fin = dia, el gasto ya no cuenta ese día (alineado con "Lista de gastos pasados").
+ */
+function vigenteEnFecha(g, fechaRef) {
+  const d =
+    fechaRef instanceof Date ? fechaRef : new Date(fechaRef);
+  const dia = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
+  const inicio = parseFecha(g.fecha_inicio_vigencia);
+  const fin = parseFecha(g.fecha_fin_vigencia);
+  if (inicio && inicio.getTime() > dia.getTime()) return false;
+  if (fin && fin.getTime() <= dia.getTime()) return false;
+  return true;
+}
+
 /**
  * Normaliza gastos fijos a valores diarios y semanales.
  * Solo procesa tipo 'fijo' (o sin tipo, para datos viejos).
- * Usado por GastosFijos para retrocompatibilidad.
+ * Si se pasa fechaRef, solo se incluyen gastos vigentes en esa fecha (por inicio/fin vigencia).
+ * No se usa activo/inactivo: si es pasado, cuenta si estaba vigente en esa fecha.
+ * @param {Array} gastos
+ * @param {Date} [fechaRef] - Fecha de referencia para filtrar por vigencia; si no se pasa, se usan todos los fijos (sin filtro por vigencia).
  */
-export function calcularGastosFijosNormalizados(gastos) {
+export function calcularGastosFijosNormalizados(gastos, fechaRef) {
   let dia = 0;
   let semana = 0;
   for (const g of gastos || []) {
-    if (g.activo === false) continue;
     const tipo = (g.tipo || "fijo").toLowerCase();
     if (tipo !== "fijo") continue;
+    if (fechaRef != null && !vigenteEnFecha(g, fechaRef)) continue;
     const monto = Number(g.monto) || 0;
     if (!monto) continue;
     const freq = (g.frecuencia || "").toLowerCase();
@@ -44,21 +78,6 @@ const endOfWeek = (start) => {
   return d;
 };
 
-const parseFecha = (val) => {
-  if (!val) return null;
-  if (val instanceof Date && !Number.isNaN(val.getTime())) return val;
-  const str = String(val);
-  const parts = str.split("T")[0].split("-");
-  if (parts.length === 3) {
-    const [y, m, day] = parts.map((x) => parseInt(x, 10));
-    if (!Number.isNaN(y) && !Number.isNaN(m) && !Number.isNaN(day)) {
-      return new Date(y, m - 1, day);
-    }
-  }
-  const dt = new Date(str);
-  return Number.isNaN(dt.getTime()) ? null : dt;
-};
-
 const isBetween = (date, from, to) =>
   date && date.getTime() >= from.getTime() && date.getTime() <= to.getTime();
 
@@ -73,7 +92,7 @@ const isBetween = (date, from, to) =>
 export function calcularGastosTotales(gastos, fechaRef = new Date()) {
   const ref = fechaRef instanceof Date ? fechaRef : new Date(fechaRef);
   const { dia: diaFijos, semana: semanaFijos } =
-    calcularGastosFijosNormalizados(gastos);
+    calcularGastosFijosNormalizados(gastos, ref);
 
   const weekStart = startOfWeek(ref);
   const weekEnd = endOfWeek(weekStart);
@@ -91,7 +110,6 @@ export function calcularGastosTotales(gastos, fechaRef = new Date()) {
   let varPuntSemana = 0;
   let varPuntMes = 0;
   for (const g of gastos || []) {
-    if (g.activo === false) continue;
     const tipo = (g.tipo || "fijo").toLowerCase();
     if (tipo !== "variable" && tipo !== "puntual") continue;
     const monto = Number(g.monto) || 0;

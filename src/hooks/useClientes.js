@@ -140,6 +140,22 @@ export function useClientes({ onRefresh, showToast } = {}) {
     [onRefresh, showToast],
   );
 
+  const deletePedidosByPedidoId = useCallback(
+    async (pedido_id) => {
+      const { error } = await supabase
+        .from("pedidos")
+        .delete()
+        .eq("pedido_id", pedido_id);
+      if (error) {
+        console.error("[clientes/deletePedidosByPedidoId]", error);
+        throw error;
+      }
+      showToast?.("🗑️ Pedido cancelado");
+      await onRefresh?.();
+    },
+    [onRefresh, showToast],
+  );
+
   return {
     insertCliente,
     updateVentasClienteId,
@@ -151,5 +167,6 @@ export function useClientes({ onRefresh, showToast } = {}) {
     updatePedidoEstado,
     insertVentas,
     updatePedidoEntregado,
+    deletePedidosByPedidoId,
   };
 }

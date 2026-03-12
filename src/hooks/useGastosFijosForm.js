@@ -7,7 +7,8 @@ const INITIAL_FORM = {
   tipo: "fijo",
   frecuencia: "mensual",
   fecha: "",
-  activo: true,
+  fechaInicioVigencia: "",
+  fechaFinVigencia: "",
 };
 
 /**
@@ -37,7 +38,12 @@ export function useGastosFijosForm({ showToast, saveGastoFijo }) {
       tipo: g.tipo || "fijo",
       frecuencia: g.frecuencia || "mensual",
       fecha: g.fecha ? String(g.fecha).slice(0, 10) : "",
-      activo: g.activo !== false,
+      fechaInicioVigencia: g.fecha_inicio_vigencia
+        ? String(g.fecha_inicio_vigencia).slice(0, 10)
+        : "",
+      fechaFinVigencia: g.fecha_fin_vigencia
+        ? String(g.fecha_fin_vigencia).slice(0, 10)
+        : "",
     });
     setModal(true);
   }, []);
@@ -65,6 +71,28 @@ export function useGastosFijosForm({ showToast, saveGastoFijo }) {
         showToast("⚠️ Frecuencia requerida para gasto fijo");
         return;
       }
+      const inicioStr = (form.fechaInicioVigencia || "").trim();
+      if (!inicioStr) {
+        showToast("⚠️ Fecha de inicio requerida para gasto fijo");
+        return;
+      }
+      const inicio = new Date(inicioStr);
+      if (Number.isNaN(inicio.getTime())) {
+        showToast("⚠️ Fecha de inicio inválida");
+        return;
+      }
+      const finStr = (form.fechaFinVigencia || "").trim();
+      if (finStr) {
+        const fin = new Date(finStr);
+        if (Number.isNaN(fin.getTime())) {
+          showToast("⚠️ Fecha de fin inválida");
+          return;
+        }
+        if (fin.getTime() < inicio.getTime()) {
+          showToast("⚠️ La fecha de fin no puede ser anterior a la de inicio");
+          return;
+        }
+      }
     } else if (tipo === "variable" || tipo === "puntual") {
       const fechaStr = (form.fecha || "").trim();
       if (!fechaStr) {
@@ -85,18 +113,22 @@ export function useGastosFijosForm({ showToast, saveGastoFijo }) {
         nombre: form.nombre.trim(),
         monto,
         frecuencia: form.frecuencia,
-        activo: form.activo,
         tipo: "fijo",
         fecha: null,
+        fecha_inicio_vigencia: form.fechaInicioVigencia.trim().slice(0, 10),
+        fecha_fin_vigencia: form.fechaFinVigencia
+          ? form.fechaFinVigencia.trim().slice(0, 10)
+          : null,
       };
     } else {
       payload = {
         nombre: form.nombre.trim(),
         monto,
         fecha: form.fecha.trim().slice(0, 10),
-        activo: form.activo,
         tipo,
         frecuencia: null,
+        fecha_inicio_vigencia: null,
+        fecha_fin_vigencia: null,
       };
     }
     try {
