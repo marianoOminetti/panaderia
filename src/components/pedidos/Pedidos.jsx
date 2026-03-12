@@ -19,11 +19,7 @@ export default function Pedidos({
 }) {
   const [search, setSearch] = useState("");
 
-  const {
-    updatePedidoEstado,
-    updatePedidoEntregado,
-    deletePedidosByPedidoId,
-  } = useClientes({
+  const { updatePedidoEntregado, deletePedidosByPedidoId } = useClientes({
     onRefresh,
     showToast,
   });

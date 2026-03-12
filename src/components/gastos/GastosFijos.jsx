@@ -65,15 +65,6 @@ export default function GastosFijos({ gastos, onRefresh, showToast }) {
     return fb - fa;
   });
 
-  const toggleActivo = async (g) => {
-    try {
-      await toggleActivoMutation(g);
-    } catch (err) {
-      reportError(err, { action: "toggleGastoFijo", id: g.id });
-      showToast("⚠️ Error al actualizar");
-    }
-  };
-
   const eliminar = (g) => {
     setDeleteModal(g);
     setDeleteMode("solo-futuro");

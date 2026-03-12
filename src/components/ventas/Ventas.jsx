@@ -241,7 +241,7 @@ function Ventas({
     closeChargeModal();
     setIsPedidoFlow(true);
     onConsumedVentasPedido?.();
-  }, [ventasPedidoFlag]);
+  }, [ventasPedidoFlag, closeChargeModal, onConsumedVentasPedido]);
 
   const closeManualScreen = () => {
     if (edit.editGrupo) {

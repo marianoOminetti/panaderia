@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { fmt } from "../../lib/format";
 import { hoyLocalISO } from "../../lib/dates";
-import { FormInput, FormMoneyInput, SearchableSelect, DatePicker } from "../ui";
 import ShareTicketModal from "../shared/ShareTicketModal";
 import { getPedidoEstadoLabel } from "../../lib/pedidos";
 
