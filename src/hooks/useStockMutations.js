@@ -147,44 +147,31 @@ export function useStockMutations({
 
   const registrarMovimientoInsumo = useCallback(
     async (insumo_id, tipo, cantidad, valor) => {
-      const delta = tipo === "ingreso" ? cantidad : -cantidad;
-      let nuevo;
+      const rawCant =
+        typeof cantidad === "number" ? cantidad : parseFloat(cantidad) || 0;
+      const delta = tipo === "ingreso" ? rawCant : -rawCant;
       let previo;
+      let nuevo;
       setInsumoStock((prev) => {
-        const actual = prev[insumo_id] ?? 0;
+        const actualRaw = prev[insumo_id] ?? 0;
+        const actual =
+          typeof actualRaw === "number"
+            ? actualRaw
+            : parseFloat(actualRaw) || 0;
         previo = actual;
         nuevo = Math.max(0, actual + delta);
         return { ...prev, [insumo_id]: nuevo };
       });
-      const { error: errStock } = await supabase
-        .from("insumo_stock")
-        .upsert(
-          { insumo_id, cantidad: nuevo, updated_at: new Date().toISOString() },
-          { onConflict: "insumo_id" },
-        );
-      if (errStock) {
-        setInsumoStock((prev) => ({
-          ...prev,
-          [insumo_id]: previo ?? (prev[insumo_id] ?? 0),
-        }));
-        throw errStock;
-      }
       const { data: mov, error: errMov } = await supabase
         .from("insumo_movimientos")
-        .insert({ insumo_id, tipo, cantidad, valor: valor || null })
+        .insert({ insumo_id, tipo, cantidad: rawCant, valor: valor || null })
         .select("id, insumo_id, tipo, cantidad, valor, created_at")
         .single();
       if (errMov) {
         setInsumoStock((prev) => ({
           ...prev,
-          [insumo_id]: previo ?? (prev[insumo_id] ?? 0) - delta,
+          [insumo_id]: previo ?? (prev[insumo_id] ?? 0),
         }));
-        await supabase
-          .from("insumo_stock")
-          .upsert(
-            { insumo_id, cantidad: previo ?? 0, updated_at: new Date().toISOString() },
-            { onConflict: "insumo_id" },
-          );
         throw errMov;
       }
       if (mov) setInsumoMovimientos?.((prev) => [mov, ...prev]);
