@@ -107,7 +107,7 @@ function StockProductionModal({
                     min={1}
                     disabled={manualSaving}
                     size="sm"
-                    showInput={false}
+                    showInput
                     allowDecimals={false}
                   />
                   <button
@@ -162,7 +162,10 @@ function StockProductionModal({
                 <button
                   key={r.id}
                   type="button"
-                  onClick={() => addToStockCart(r, 1)}
+                  onClick={() => {
+                    addToStockCart(r, 1);
+                    setSearch("");
+                  }}
                   className="producto-row"
                   data-sin-stock={sinStock || undefined}
                   style={{

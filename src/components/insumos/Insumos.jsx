@@ -3,7 +3,7 @@
  * y composición (useInsumosComposicion + InsumosComposicion). CRUD vía useInsumos.
  */
 import { useEffect } from "react";
-import { fmt } from "../../lib/format";
+import { fmt, fmtDecimal } from "../../lib/format";
 import { costoReceta } from "../../lib/costos";
 import { useInsumos } from "../../hooks/useInsumos";
 import { useInsumosCompra } from "../../hooks/useInsumosCompra";
@@ -86,9 +86,17 @@ function Insumos({
   });
 
   const precioPorU = (i) => {
-    const den = i.cantidad_presentacion > 0 ? i.cantidad_presentacion : 1;
-    const p = (i.precio || 0) / den;
-    return i.unidad === "u" ? `${fmt(p)}/u` : `${fmt(p)}/${i.unidad || "g"}`;
+    const precio = Number(i.precio) || 0;
+    const cantidad = Number(i.cantidad_presentacion) || 0;
+    const unidad = i.unidad || "g";
+
+    if (precio > 0 && cantidad > 0) {
+      return `${fmt(precio)} / ${fmtDecimal(cantidad)} ${unidad}`;
+    }
+
+    if (precio > 0) return fmt(precio);
+    if (cantidad > 0) return `${fmtDecimal(cantidad)} ${unidad}`;
+    return "-";
   };
 
   const insumosMap = Object.fromEntries(insumos.map((i) => [i.id, i]));

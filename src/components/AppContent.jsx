@@ -19,6 +19,7 @@ export default function AppContent({
   tab,
   setTab,
   stockProductionPreloadReceta,
+  stockProductionPreloadRecetas,
   onOpenCargarProduccion,
   onConsumedPreloadReceta,
   ventasPreloadGrupoKey,
@@ -148,6 +149,7 @@ export default function AppContent({
           onRefresh={loadData}
           showToast={showToast}
           confirm={confirm}
+          onOpenCargarProduccion={onOpenCargarProduccion}
           ventasPreloadGrupoKey={ventasPreloadGrupoKey}
           onConsumedVentasPreload={onConsumedVentasPreload}
           ventasNuevaFlag={ventasNuevaFlag}
@@ -188,7 +190,7 @@ export default function AppContent({
           showToast={showToast}
           ventas={ventas}
           pedidos={pedidos}
-          stockProductionPreloadReceta={stockProductionPreloadReceta}
+          stockProductionPreloadRecetas={stockProductionPreloadRecetas || (stockProductionPreloadReceta ? [stockProductionPreloadReceta] : null)}
           onConsumedPreloadReceta={onConsumedPreloadReceta}
           stockOpenManual={stockOpenManual}
           onConsumedStockOpenManual={onConsumedStockOpenManual}

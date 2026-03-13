@@ -35,6 +35,7 @@ function Ventas({
   onConsumedVentasNueva,
   ventasPedidoFlag,
   onConsumedVentasPedido,
+  onOpenCargarProduccion,
 }) {
   const { insertVentas, deleteVentas, updateVenta } = useVentas();
   const { insertCliente, insertPedidos } = useClientes({ onRefresh, showToast });
@@ -68,6 +69,7 @@ function Ventas({
     closeChargeModal,
   } = useVentasChargeModal();
   const [deletingId, setDeletingId] = useState(null);
+  const [productosEnCeroAviso, setProductosEnCeroAviso] = useState(null);
   const hoy = hoyLocalISO();
 
   const edit = useVentasEdit({
@@ -98,11 +100,18 @@ function Ventas({
 
   const registrarVentaEnSupabase = async (rows, transaccionId) => {
     const inserted = await insertVentas(rows);
+    const zeros = [];
     if (actualizarStock) {
       try {
         for (const v of rows) {
           const cant = v.cantidad || 0;
-          if (v.receta_id && cant > 0) await actualizarStock(v.receta_id, -cant);
+          if (v.receta_id && cant > 0) {
+            const res = await actualizarStock(v.receta_id, -cant);
+            if (res?.anterior > 0 && res?.nuevo === 0) {
+              const receta = (recetas || []).find((r) => r.id === v.receta_id);
+              if (receta) zeros.push(receta);
+            }
+          }
         }
       } catch (err) {
         const ids = (inserted || []).map((r) => r.id).filter(Boolean);
@@ -125,6 +134,8 @@ function Ventas({
         venta_ids: ventaIds,
       });
     }
+
+    return { inserted, zeros };
   };
 
   const resetNuevaVenta = () => {
@@ -347,8 +358,11 @@ function Ventas({
           await saveVentaPendiente(rows);
           showToast(`✅ Venta guardada offline: ${fmt(usarOverride ? override : totalCarrito)}. Se sincronizará cuando vuelva la conexión.`);
         } else {
-          await registrarVentaEnSupabase(rows, transaccionId);
+          const { zeros } = await registrarVentaEnSupabase(rows, transaccionId);
           showToast(`✅ Venta registrada: ${fmt(usarOverride ? override : totalCarrito)}`);
+          if (zeros && zeros.length > 0) {
+            setProductosEnCeroAviso(zeros);
+          }
         }
       }
       resetNuevaVenta();
@@ -451,6 +465,65 @@ function Ventas({
         notas={notas}
         setNotas={setNotas}
       />
+
+      {productosEnCeroAviso && (
+        <div className="screen-overlay">
+          <div className="screen-header">
+            <button
+              className="screen-back"
+              onClick={() => setProductosEnCeroAviso(null)}
+            >
+              ← Volver
+            </button>
+            <span className="screen-title">Productos en 0</span>
+          </div>
+          <div className="screen-content">
+            <div className="card" style={{ marginBottom: 12 }}>
+              <div className="card-header">
+                <span className="card-title">Se agotó stock</span>
+              </div>
+              <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 8 }}>
+                Esta venta dejó algunos productos en 0. Si vas a producir, podés cargar stock ahora.
+              </p>
+            </div>
+            <div className="card" style={{ marginBottom: 16 }}>
+              <div className="card-header">
+                <span className="card-title">Productos</span>
+              </div>
+              {productosEnCeroAviso.map((r) => (
+                <div
+                  key={r.id}
+                  className="insumo-item"
+                  style={{ padding: "8px 0", borderBottom: "1px solid var(--border)" }}
+                >
+                  <div className="insumo-info" style={{ flex: 1 }}>
+                    <div className="insumo-nombre">
+                      {r.emoji || "🍞"} {r.nombre}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <button
+                className="btn-primary"
+                onClick={() => {
+                  const recs = productosEnCeroAviso;
+                  setProductosEnCeroAviso(null);
+                  if (recs?.length) {
+                    onOpenCargarProduccion?.(recs.length === 1 ? recs[0] : recs);
+                  }
+                }}
+              >
+                Cargar stock
+              </button>
+              <button className="btn-secondary" onClick={() => setProductosEnCeroAviso(null)}>
+                Lo veo después
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

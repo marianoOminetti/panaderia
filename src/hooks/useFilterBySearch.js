@@ -12,11 +12,22 @@ export function useFilterBySearch(items = [], textField = "nombre") {
 
   const filteredItems = useMemo(() => {
     const list = Array.isArray(items) ? items : [];
-    const q = (search || "").trim().toLowerCase();
-    if (!q) return list;
-    return list.filter((item) =>
-      item != null && (String(item[textField] ?? "")).toLowerCase().includes(q)
-    );
+    const rawQuery = (search || "").trim();
+    if (!rawQuery) return list;
+
+    const normalize = (text) =>
+      String(text ?? "")
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "");
+
+    const q = normalize(rawQuery);
+
+    return list.filter((item) => {
+      if (!item) return false;
+      const value = normalize(item[textField]);
+      return value.includes(q);
+    });
   }, [items, search, textField]);
 
   return { search, setSearch, filteredItems };

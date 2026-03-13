@@ -32,7 +32,7 @@ function Stock({
   showToast,
   ventas,
   pedidos,
-  stockProductionPreloadReceta,
+  stockProductionPreloadRecetas,
   onConsumedPreloadReceta,
   stockOpenManual,
   onConsumedStockOpenManual,
@@ -123,17 +123,19 @@ function Stock({
   );
 
   useEffect(() => {
-    if (!stockProductionPreloadReceta) {
+    if (!stockProductionPreloadRecetas || stockProductionPreloadRecetas.length === 0) {
       preloadConsumedRef.current = null;
       return;
     }
-    const id = stockProductionPreloadReceta.id;
-    if (preloadConsumedRef.current === id) return;
-    preloadConsumedRef.current = id;
-    addToStockCart(stockProductionPreloadReceta, 1);
+    const idsKey = stockProductionPreloadRecetas.map((r) => r?.id).filter(Boolean).join(",");
+    if (preloadConsumedRef.current === idsKey) return;
+    preloadConsumedRef.current = idsKey;
+    for (const r of stockProductionPreloadRecetas) {
+      if (r?.id) addToStockCart(r, 1);
+    }
     setManualScreenOpen(true);
     onConsumedPreloadReceta?.();
-  }, [stockProductionPreloadReceta, addToStockCart, onConsumedPreloadReceta]);
+  }, [stockProductionPreloadRecetas, addToStockCart, onConsumedPreloadReceta]);
 
   useEffect(() => {
     if (!stockOpenManual) return;
