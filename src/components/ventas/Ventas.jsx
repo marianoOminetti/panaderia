@@ -107,7 +107,7 @@ function Ventas({
           const cant = v.cantidad || 0;
           if (v.receta_id && cant > 0) {
             const res = await actualizarStock(v.receta_id, -cant);
-            if (res?.anterior > 0 && res?.nuevo === 0) {
+            if (res?.nuevo === 0) {
               const receta = (recetas || []).find((r) => r.id === v.receta_id);
               if (receta) zeros.push(receta);
             }
