@@ -238,12 +238,6 @@ function Insumos({
                   const receta = recetasPorId[recId];
                   if (!receta) continue;
                   const rindeNum = Number(receta.rinde) || 1;
-                  const costoAntes = costoReceta(
-                    recId,
-                    recetaIngredientes || [],
-                    insumosBefore,
-                    recetas || [],
-                  );
                   const costoDespues = costoReceta(
                     recId,
                     recetaIngredientes || [],
