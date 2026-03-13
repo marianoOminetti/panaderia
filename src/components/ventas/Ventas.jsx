@@ -125,7 +125,6 @@ function Ventas({
         throw err;
       }
     }
-    return { inserted, zeros };
 
     // Notificación push (venta): fire-and-forget, solo si estamos online
     if (typeof navigator !== "undefined" && navigator.onLine) {
@@ -135,6 +134,8 @@ function Ventas({
         venta_ids: ventaIds,
       });
     }
+
+    return { inserted, zeros };
   };
 
   const resetNuevaVenta = () => {
