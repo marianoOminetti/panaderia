@@ -223,10 +223,6 @@ function Insumos({
                 const insumosById = Object.fromEntries(
                   (insumos || []).map((i) => [i.id, i]),
                 );
-                const insumosBefore = Object.values(insumosById).map((i) => ({
-                  ...i,
-                  precio: i.id === ins.id ? precioAnterior : i.precio,
-                }));
                 const insumosAfter = Object.values(insumosById).map((i) => ({
                   ...i,
                   precio: i.id === ins.id ? precioNuevo : i.precio,
