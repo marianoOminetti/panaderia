@@ -45,7 +45,7 @@ export default function App() {
     }
     return "dashboard";
   });
-  const [stockProductionPreloadReceta, setStockProductionPreloadReceta] = useState(null);
+  const [stockProductionPreloadRecetas, setStockProductionPreloadRecetas] = useState(null);
   const [ventasPreloadGrupoKey, setVentasPreloadGrupoKey] = useState(null);
   const [ventasNuevaFlag, setVentasNuevaFlag] = useState(false);
   const [ventasPedidoFlag, setVentasPedidoFlag] = useState(false);
@@ -243,12 +243,17 @@ export default function App() {
       <AppContent
         tab={tab}
         setTab={setTab}
-        stockProductionPreloadReceta={stockProductionPreloadReceta}
-        onOpenCargarProduccion={(receta) => {
-          setStockProductionPreloadReceta(receta);
+        stockProductionPreloadRecetas={stockProductionPreloadRecetas}
+        onOpenCargarProduccion={(recetaOrRecetas) => {
+          const list = Array.isArray(recetaOrRecetas)
+            ? recetaOrRecetas
+            : recetaOrRecetas
+              ? [recetaOrRecetas]
+              : null;
+          setStockProductionPreloadRecetas(list);
           setTab("stock");
         }}
-        onConsumedPreloadReceta={() => setStockProductionPreloadReceta(null)}
+        onConsumedPreloadReceta={() => setStockProductionPreloadRecetas(null)}
         ventasPreloadGrupoKey={ventasPreloadGrupoKey}
         onOpenGrupoDeuda={(grupo) => {
           setVentasPreloadGrupoKey(grupo?.key ?? null);

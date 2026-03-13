@@ -152,7 +152,10 @@ export default function VentasManualScreen({
                 <button
                   key={r.id}
                   type="button"
-                  onClick={() => addToCart(r, 1)}
+                  onClick={() => {
+                    addToCart(r, 1);
+                    setSearch("");
+                  }}
                   className="producto-row"
                   style={{
                     display: "flex",

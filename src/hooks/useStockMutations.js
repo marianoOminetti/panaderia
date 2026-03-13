@@ -34,7 +34,7 @@ export function useStockMutations({
         const deltaNum =
           typeof delta === "number" ? delta : parseFloat(delta) || 0;
         anterior = actual;
-        nuevo = actual + deltaNum;
+        nuevo = Math.max(0, actual + deltaNum);
         return { ...prev, [receta_id]: nuevo };
       });
       const { error } = await supabase
@@ -46,14 +46,7 @@ export function useStockMutations({
       if (error) {
         setStock((prevRaw) => {
           const prev = prevRaw || {};
-          const actualRaw = prev[receta_id] ?? 0;
-          const actual =
-            typeof actualRaw === "number"
-              ? actualRaw
-              : parseFloat(actualRaw) || 0;
-          const deltaNum =
-            typeof delta === "number" ? delta : parseFloat(delta) || 0;
-          return { ...prev, [receta_id]: actual - deltaNum };
+          return { ...prev, [receta_id]: anterior ?? (prev[receta_id] ?? 0) };
         });
         throw error;
       }
@@ -79,6 +72,7 @@ export function useStockMutations({
           notifyEvent("stock_zero", { receta_id });
         }
       }
+      return { anterior, nuevo };
     },
     [recetas, setStock, showToast],
   );
@@ -107,7 +101,7 @@ export function useStockMutations({
             : parseFloat(actualRaw) || 0;
         const deltaNum =
           typeof delta === "number" ? delta : parseFloat(delta) || 0;
-        next[receta_id] = actual + deltaNum;
+        next[receta_id] = Math.max(0, actual + deltaNum);
       }
       const rows = deltas.map(({ receta_id }) => ({
         receta_id,
@@ -124,18 +118,7 @@ export function useStockMutations({
       if (error) {
         setStock((prevRaw) => {
           const prev = prevRaw || {};
-          const rollback = { ...prev };
-          for (const { receta_id, delta } of deltas) {
-            const actualRaw = rollback[receta_id] ?? 0;
-            const actual =
-              typeof actualRaw === "number"
-                ? actualRaw
-                : parseFloat(actualRaw) || 0;
-            const deltaNum =
-              typeof delta === "number" ? delta : parseFloat(delta) || 0;
-            rollback[receta_id] = actual - deltaNum;
-          }
-          return rollback;
+          return prev;
         });
         throw error;
       }
@@ -170,7 +153,7 @@ export function useStockMutations({
       setInsumoStock((prev) => {
         const actual = prev[insumo_id] ?? 0;
         previo = actual;
-        nuevo = actual + delta;
+        nuevo = Math.max(0, actual + delta);
         return { ...prev, [insumo_id]: nuevo };
       });
       const { error: errStock } = await supabase
@@ -182,7 +165,7 @@ export function useStockMutations({
       if (errStock) {
         setInsumoStock((prev) => ({
           ...prev,
-          [insumo_id]: (prev[insumo_id] ?? 0) - delta,
+          [insumo_id]: previo ?? (prev[insumo_id] ?? 0),
         }));
         throw errStock;
       }

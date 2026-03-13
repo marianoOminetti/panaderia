@@ -86,7 +86,7 @@ function InsumosList({
                 <div className="insumo-info" style={{ flex: 1 }}>
                   <div className="insumo-nombre">{i.nombre}</div>
                   <div className="insumo-detalle">
-                    {i.presentacion} · <span className="chip">{precioPorU(i)}</span> · Stock:{" "}
+                    <span className="chip">{precioPorU(i)}</span> · Stock:{" "}
                     <span
                       style={{
                         color: stockNegativo ? "var(--danger)" : undefined,
@@ -95,8 +95,6 @@ function InsumosList({
                     >
                       {fmtStock(stock)} {unidad}
                     </span>
-                    {" · "}
-                    <span style={{ textDecoration: "underline" }}>Tocar para ver</span>
                   </div>
                 </div>
                 <div className="insumo-precio" style={{ marginLeft: 8 }}>
