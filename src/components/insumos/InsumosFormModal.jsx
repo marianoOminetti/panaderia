@@ -2,7 +2,7 @@
  * Modal para crear o editar un insumo.
  */
 import { CATEGORIAS } from "../../config/appConfig";
-import { FormInput, FormMoneyInput, SearchableSelect } from "../ui";
+import { FormInput, FormMoneyInput, SearchableCategoria, SearchableSelect } from "../ui";
 
 const UNIDADES = [
   { value: "g", label: "g (gramos)" },
@@ -20,7 +20,12 @@ export default function InsumosFormModal({
   save,
   onClose,
 }) {
-  const categoriasOpts = CATEGORIAS.map((c) => ({ value: c, label: c }));
+  const cantidadNum = Number(form.cantidad_presentacion) || 0;
+  const precioNum = Number(form.precio) || 0;
+  const tieneUnidadValida = !!form.unidad;
+  const puedeCalcularPrecioUnitario = precioNum > 0 && cantidadNum > 0 && tieneUnidadValida;
+  const precioUnitario =
+    puedeCalcularPrecioUnitario && cantidadNum > 0 ? precioNum / cantidadNum : null;
 
   return (
     <div className="screen-overlay">
@@ -43,16 +48,21 @@ export default function InsumosFormModal({
         />
         <div className="form-group">
           <label className="form-label">Categoría</label>
-          <SearchableSelect
-            options={categoriasOpts}
+          <SearchableCategoria
+            categorias={CATEGORIAS}
             value={form.categoria}
-            onChange={(v) => setForm((f) => ({ ...f, categoria: v }))}
+            onChange={(categoria) =>
+              setForm((f) => ({
+                ...f,
+                categoria,
+              }))
+            }
             placeholder="Seleccionar categoría"
           />
         </div>
         <div className="form-row">
           <FormMoneyInput
-            label="Precio"
+            label="Precio de la presentación"
             value={form.precio}
             onChange={(v) => setForm((f) => ({ ...f, precio: v }))}
             placeholder="4500"
@@ -83,6 +93,20 @@ export default function InsumosFormModal({
             />
           </div>
         </div>
+        {precioUnitario != null && (
+          <p
+            className="form-helper"
+            style={{
+              fontSize: 12,
+              color: "var(--text-muted)",
+              marginTop: 4,
+              marginBottom: 12,
+            }}
+          >
+            Precio unitario estimado: <strong>${precioUnitario.toFixed(2)}</strong>{" "}
+            {form.unidad ? `por ${form.unidad}` : ""}
+          </p>
+        )}
         <button
           className="btn-primary"
           onClick={save}

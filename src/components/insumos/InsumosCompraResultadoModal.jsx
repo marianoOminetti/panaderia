@@ -16,15 +16,24 @@ export default function InsumosCompraResultadoModal({
         <button className="screen-back" onClick={onClose}>
           ← Cerrar
         </button>
-        <span className="screen-title">Resumen de actualización</span>
+        <span className="screen-title">Impacto en tus recetas</span>
       </div>
       <div className="screen-content">
         <div className="card" style={{ marginBottom: 16 }}>
           <div className="card-header">
             <span className="card-title">
-              Se actualizaron {compraResultado.preciosActualizados} precios
+              Cambios en costos y márgenes
             </span>
           </div>
+          <p
+            style={{
+              fontSize: 13,
+              color: "var(--text-muted)",
+              marginBottom: 4,
+            }}
+          >
+            Se actualizaron {compraResultado.preciosActualizados} precios de insumos.
+          </p>
           <p
             style={{
               fontSize: 13,

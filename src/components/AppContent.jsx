@@ -30,6 +30,9 @@ export default function AppContent({
   onConsumedVentasNueva,
   stockOpenManual,
   onConsumedStockOpenManual,
+  insumosCompraPreload,
+  onConsumedInsumosCompraPreload,
+  onOpenInsumosCompra,
   loading,
   moreMenuItems,
   insumos,
@@ -112,6 +115,8 @@ export default function AppContent({
           onRefresh={loadData}
           showToast={showToast}
           confirm={confirm}
+          compraPreloadInsumos={insumosCompraPreload}
+          onConsumedCompraPreload={onConsumedInsumosCompraPreload}
           onVerRecetasAfectadas={(ids) => {
             setRecetasFilterIds(ids || []);
             setTab("recetas");
@@ -168,6 +173,7 @@ export default function AppContent({
       {/* --- Stock --- */}
       {tab === "stock" && (
         <Stock
+          onOpenInsumosCompra={onOpenInsumosCompra}
           recetas={recetas}
           stock={stock}
           actualizarStock={actualizarStock}

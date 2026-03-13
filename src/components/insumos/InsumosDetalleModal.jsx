@@ -13,6 +13,7 @@ export default function InsumosDetalleModal({
   deleteInsumoComposicion,
   upsertInsumoComposicion,
   precioPorU,
+  onActualizarPrecioPremezcla,
   onClose,
   onEdit,
   onDelete,
@@ -32,6 +33,16 @@ export default function InsumosDetalleModal({
         <div className="card" style={{ marginBottom: 16 }}>
           <div className="card-header">
             <span className="card-title">Detalle</span>
+            <button
+              className="edit-btn"
+              type="button"
+              onClick={() => {
+                onClose();
+                onEdit(detalleInsumo);
+              }}
+            >
+              ✏️ Editar insumo
+            </button>
           </div>
           <p
             style={{
@@ -87,6 +98,7 @@ export default function InsumosDetalleModal({
           setCompSaving={composicion.setCompSaving}
           onDeleteComposicion={deleteInsumoComposicion}
           onUpsertComposicion={upsertInsumoComposicion}
+          onActualizarPrecioPremezcla={onActualizarPrecioPremezcla}
           confirm={confirm}
           showToast={showToast}
         />
@@ -94,17 +106,6 @@ export default function InsumosDetalleModal({
         <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 12 }}>
           Para registrar compras (ingresos), usá &quot;Registrar compra de stock&quot; arriba.
         </p>
-
-        <button
-          className="btn-secondary"
-          onClick={() => {
-            onClose();
-            onEdit(detalleInsumo);
-          }}
-          style={{ marginBottom: 8 }}
-        >
-          ✏️ Editar insumo
-        </button>
         <button className="btn-danger" onClick={onDelete}>
           Eliminar insumo
         </button>

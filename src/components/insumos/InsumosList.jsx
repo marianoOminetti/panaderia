@@ -40,15 +40,22 @@ function InsumosList({
       </div>
 
       <div className="cat-tabs">
-        {["Todos", ...CATEGORIAS].map((c) => (
-          <button
-            key={c}
-            className={`cat-tab ${catActiva === c ? "active" : ""}`}
-            onClick={() => setCatActiva(c)}
-          >
-            {c}
-          </button>
-        ))}
+        {(() => {
+          const usadas = Array.from(
+            new Set((filtradosOrdenados || []).map((i) => i.categoria).filter(Boolean)),
+          );
+          const extras = usadas.filter((c) => !CATEGORIAS.includes(c));
+          const todas = ["Todos", ...CATEGORIAS, ...extras];
+          return todas.map((c) => (
+            <button
+              key={c}
+              className={`cat-tab ${catActiva === c ? "active" : ""}`}
+              onClick={() => setCatActiva(c)}
+            >
+              {c}
+            </button>
+          ));
+        })()}
       </div>
 
       <div className="card">
