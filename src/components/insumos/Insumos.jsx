@@ -2,7 +2,9 @@
  * Pantalla Insumos: orquesta lista (useInsumosLista + InsumosList), compra (useInsumosCompra + InsumosCompra)
  * y composición (useInsumosComposicion + InsumosComposicion). CRUD vía useInsumos.
  */
+import { useEffect } from "react";
 import { fmt } from "../../lib/format";
+import { costoReceta } from "../../lib/costos";
 import { useInsumos } from "../../hooks/useInsumos";
 import { useInsumosCompra } from "../../hooks/useInsumosCompra";
 import { useInsumosLista } from "../../hooks/useInsumosLista";
@@ -27,6 +29,8 @@ function Insumos({
   showToast,
   confirm,
   onVerRecetasAfectadas,
+  compraPreloadInsumos,
+  onConsumedCompraPreload,
 }) {
   const {
     updateInsumo,
@@ -88,6 +92,22 @@ function Insumos({
   };
 
   const insumosMap = Object.fromEntries(insumos.map((i) => [i.id, i]));
+
+  useEffect(() => {
+    if (!compraPreloadInsumos || !compraPreloadInsumos.length) return;
+    for (const { insumo_id } of compraPreloadInsumos) {
+      const ins = insumosMap[insumo_id];
+      if (ins) agregarAlCarritoCompra(ins);
+    }
+    setCompraScreenOpen(true);
+    onConsumedCompraPreload?.();
+  }, [
+    compraPreloadInsumos,
+    agregarAlCarritoCompra,
+    setCompraScreenOpen,
+    onConsumedCompraPreload,
+    insumosMap,
+  ]);
 
   return (
     <div className="content">
@@ -170,6 +190,107 @@ function Insumos({
           deleteInsumoComposicion={deleteInsumoComposicion}
           upsertInsumoComposicion={upsertInsumoComposicion}
           precioPorU={precioPorU}
+          onActualizarPrecioPremezcla={async (nuevoPrecio) => {
+            const ins = lista.detalleInsumo;
+            if (!ins || !ins.id) return;
+            const precioAnterior = Number(ins.precio) || 0;
+            const precioNuevo = Number(nuevoPrecio) || 0;
+            if (!precioNuevo || Math.abs(precioNuevo - precioAnterior) < 0.01) return;
+            try {
+              await updateInsumo(ins.id, { precio: precioNuevo });
+              try {
+                await insertPrecioHistorial({
+                  insumo_id: ins.id,
+                  precio_anterior: precioAnterior,
+                  precio_nuevo: precioNuevo,
+                  motivo: "premezcla_componentes",
+                });
+              } catch (err) {
+                console.error("[insumos/premezclaPrecioHistorial]", err);
+              }
+              // Recalcular costos de recetas que usan esta premezcla
+              try {
+                const recetasPorId = Object.fromEntries(
+                  (recetas || []).map((r) => [r.id, r]),
+                );
+                const recetasAfectadasIds = new Set(
+                  (recetaIngredientes || [])
+                    .filter((ri) => ri.insumo_id === ins.id)
+                    .map((ri) => ri.receta_id)
+                    .filter(Boolean),
+                );
+
+                const insumosById = Object.fromEntries(
+                  (insumos || []).map((i) => [i.id, i]),
+                );
+                const insumosBefore = Object.values(insumosById).map((i) => ({
+                  ...i,
+                  precio: i.id === ins.id ? precioAnterior : i.precio,
+                }));
+                const insumosAfter = Object.values(insumosById).map((i) => ({
+                  ...i,
+                  precio: i.id === ins.id ? precioNuevo : i.precio,
+                }));
+
+                let recetasOk = 0;
+                const erroresRecetas = [];
+                for (const recId of recetasAfectadasIds) {
+                  const receta = recetasPorId[recId];
+                  if (!receta) continue;
+                  const rindeNum = Number(receta.rinde) || 1;
+                  const costoAntes = costoReceta(
+                    recId,
+                    recetaIngredientes || [],
+                    insumosBefore,
+                    recetas || [],
+                  );
+                  const costoDespues = costoReceta(
+                    recId,
+                    recetaIngredientes || [],
+                    insumosAfter,
+                    recetas || [],
+                  );
+                  const costoUnitDespues = rindeNum > 0 ? costoDespues / rindeNum : 0;
+                  try {
+                    await updateRecetaCostos(recId, {
+                      costo_lote: costoDespues,
+                      costo_unitario: costoUnitDespues,
+                    });
+                    recetasOk += 1;
+                  } catch (err) {
+                    console.error("[insumos/premezclaUpdateRecetaCostos]", err);
+                    erroresRecetas.push(receta.nombre || recId);
+                  }
+                }
+
+                if (recetasOk > 0) {
+                  showToast(
+                    `✅ Precio de premezcla actualizado y costos actualizados en ${recetasOk} receta(s)`,
+                  );
+                } else {
+                  showToast("✅ Precio de premezcla actualizado");
+                }
+                if (erroresRecetas.length > 0) {
+                  showToast(
+                    `⚠️ No se pudo actualizar costo de: ${erroresRecetas
+                      .slice(0, 2)
+                      .join(", ")}${
+                      erroresRecetas.length > 2 ? "…" : ""
+                    }`,
+                  );
+                }
+              } catch (err) {
+                console.error("[insumos/premezclaRecalculoRecetas]", err);
+                showToast(
+                  "✅ Precio de premezcla actualizado (no se pudieron recalcular algunas recetas)",
+                );
+              }
+              onRefresh();
+            } catch (err) {
+              console.error("[insumos/actualizarPrecioPremezcla]", err);
+              showToast("⚠️ No se pudo actualizar el precio de la premezcla");
+            }
+          }}
           onClose={() => lista.setDetalleInsumo(null)}
           onEdit={(ins) => {
             lista.setDetalleInsumo(null);

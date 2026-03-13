@@ -56,9 +56,9 @@ function InsumosCompra({
           ← Volver
         </button>
         <div style={{ flex: 1, marginLeft: 8 }}>
-          <div className="screen-title">Cargar compra</div>
+          <div className="screen-title">Cargar insumo</div>
           <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
-            Registrar compra de stock
+            Registrar compra de insumo
           </div>
         </div>
         <div

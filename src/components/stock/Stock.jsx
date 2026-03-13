@@ -18,6 +18,7 @@ import StockList from "./StockList";
 import StockProductionModal from "./StockProductionModal";
 
 function Stock({
+  onOpenInsumosCompra,
   recetas,
   stock,
   actualizarStock,
@@ -38,6 +39,7 @@ function Stock({
 }) {
   const [manualSaving, setManualSaving] = useState(false);
   const [manualScreenOpen, setManualScreenOpen] = useState(false);
+  const [insumosEnCeroAviso, setInsumosEnCeroAviso] = useState(null);
   const preloadConsumedRef = useRef(null);
 
   const { stockCart, setStockCart, addToStockCart, totalCartUnidades } =
@@ -194,9 +196,7 @@ function Stock({
       await ejecutarCargaStock(items);
       setStockCart([]);
       if (insumosEnCero.length > 0) {
-        showToast(
-          "Stock cargado. Algunos insumos están en 0; registralos en Insumos → Registrar compra si los compraste."
-        );
+        setInsumosEnCeroAviso(insumosEnCero);
       }
     } catch (err) {
       const msg = err?.message ? String(err.message).slice(0, 80) : "";
@@ -297,6 +297,85 @@ function Stock({
           onCargar={cargarStockCarrito}
           onVaciarCarrito={() => setStockCart([])}
         />
+      )}
+
+      {insumosEnCeroAviso && (
+        <div className="screen-overlay">
+          <div className="screen-header">
+            <button
+              className="screen-back"
+              onClick={() => setInsumosEnCeroAviso(null)}
+            >
+              ← Volver
+            </button>
+            <span className="screen-title">Insumos en 0</span>
+          </div>
+          <div className="screen-content">
+            <div className="card" style={{ marginBottom: 12 }}>
+              <div className="card-header">
+                <span className="card-title">
+                  ¿Querés revisar estos insumos?
+                </span>
+              </div>
+              <p
+                style={{
+                  fontSize: 13,
+                  color: "var(--text-muted)",
+                  marginBottom: 8,
+                }}
+              >
+                Al cargar esta producción, algunos insumos quedaron en 0. Si los
+                compraste, registralos en{" "}
+                <strong>Insumos → Registrar compra de stock</strong> para que
+                el stock y los costos queden al día.
+              </p>
+            </div>
+            <div className="card" style={{ marginBottom: 16 }}>
+              <div className="card-header">
+                <span className="card-title">Insumos detectados en 0</span>
+              </div>
+              {insumosEnCeroAviso.map(({ insumo_id, insumo }) => (
+                <div
+                  key={insumo_id}
+                  className="insumo-item"
+                  style={{
+                    padding: "8px 0",
+                    borderBottom: "1px solid var(--border)",
+                  }}
+                >
+                  <div className="insumo-info" style={{ flex: 1 }}>
+                    <div className="insumo-nombre">
+                      {insumo?.nombre || "Insumo"}
+                    </div>
+                    <div className="insumo-detalle">
+                      {insumo?.categoria
+                        ? `${insumo.categoria} · `
+                        : ""}
+                      Unidad: {insumo?.unidad || "g"}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <button
+                className="btn-primary"
+                onClick={() => {
+                  setInsumosEnCeroAviso(null);
+                  onOpenInsumosCompra?.(insumosEnCeroAviso);
+                }}
+              >
+                Cargar insumos
+              </button>
+              <button
+                className="btn-secondary"
+                onClick={() => setInsumosEnCeroAviso(null)}
+              >
+                Lo veo después
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {!manualScreenOpen && (

@@ -50,6 +50,7 @@ export default function App() {
   const [ventasNuevaFlag, setVentasNuevaFlag] = useState(false);
   const [ventasPedidoFlag, setVentasPedidoFlag] = useState(false);
   const [stockOpenManual, setStockOpenManual] = useState(false);
+  const [insumosCompraPreload, setInsumosCompraPreload] = useState(null);
   const [toast, setToast] = useState(null);
   const [confirmState, setConfirmState] = useState(null);
   const [errorLogOpen, setErrorLogOpen] = useState(false);
@@ -268,6 +269,12 @@ export default function App() {
         onConsumedVentasPedido={() => setVentasPedidoFlag(false)}
         stockOpenManual={stockOpenManual}
         onConsumedStockOpenManual={() => setStockOpenManual(false)}
+        insumosCompraPreload={insumosCompraPreload}
+        onConsumedInsumosCompraPreload={() => setInsumosCompraPreload(null)}
+        onOpenInsumosCompra={(insumosEnCero) => {
+          setInsumosCompraPreload(insumosEnCero || null);
+          setTab("insumos");
+        }}
         loading={loading}
         moreMenuItems={MORE_MENU_ITEMS}
         insumos={insumos}

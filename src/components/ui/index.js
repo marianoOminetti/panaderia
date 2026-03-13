@@ -5,6 +5,7 @@ export { default as FormCheckbox } from "./FormCheckbox";
 export { default as QuantityControl } from "./QuantityControl";
 export { default as SearchableSelect } from "./SearchableSelect";
 export { default as SearchableCliente } from "./SearchableCliente";
+export { default as SearchableCategoria } from "./SearchableCategoria";
 export { default as DatePicker } from "./DatePicker";
 export { default as ProductSearchInput } from "./ProductSearchInput";
 export { default as Pagination } from "./Pagination";
