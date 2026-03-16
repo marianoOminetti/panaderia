@@ -187,7 +187,13 @@ export function useInsumosCompra({
     } finally {
       setCompraSaving(false);
     }
-  }, [compraCart, registrarMovimientoInsumo, showToast, onRefresh]);
+  }, [
+    compraCart,
+    registrarMovimientoInsumo,
+    showToast,
+    onRefresh,
+    consumirComponentesDeInsumo,
+  ]);
 
   const confirmarCompra = useCallback(async () => {
     if (!compraCart.length || compraSaving) return;
@@ -385,6 +391,7 @@ export function useInsumosCompra({
     showToast,
     onRefresh,
     registrarCompraSoloStock,
+    consumirComponentesDeInsumo,
   ]);
 
   return {

@@ -299,6 +299,7 @@ export default function App() {
         actualizarStockBatch={actualizarStockBatch}
         registrarMovimientoInsumo={registrarMovimientoInsumo}
         consumirInsumosPorStock={consumirInsumosPorStock}
+        consumirComponentesDeInsumo={consumirComponentesDeInsumo}
         loadData={loadData}
         showToast={showToast}
         confirm={confirm}

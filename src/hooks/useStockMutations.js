@@ -206,48 +206,31 @@ export function useStockMutations({
         (i) => i.receta_id === receta_id && i.insumo_id,
       );
 
-      const composicionPorInsumo = {};
-      for (const c of insumoComposicion || []) {
-        if (!composicionPorInsumo[c.insumo_id]) composicionPorInsumo[c.insumo_id] = [];
-        composicionPorInsumo[c.insumo_id].push(c);
-      }
-
       for (const ing of ings) {
         const insumo = (insumos || []).find((x) => x.id === ing.insumo_id);
         if (!insumo) continue;
-        const cantPorUnidad = (parseFloat(ing.cantidad) || 0) / (receta.rinde || 1);
+
+        const cantPorUnidad =
+          (parseFloat(ing.cantidad) || 0) / (receta.rinde || 1);
         const cantTotalIng = cantPorUnidad * cantidad;
-        const cantGramos = aGramos(cantTotalIng, ing.unidad || "g");
-        const componentes = composicionPorInsumo[ing.insumo_id];
-        if (componentes && componentes.length > 0) {
-          for (const comp of componentes) {
-            const factor = parseFloat(comp.factor) || 0;
-            if (factor <= 0) continue;
-            const insumoHijo = (insumos || []).find(
-              (x) => x.id === comp.insumo_id_componente,
-            );
-            if (!insumoHijo) continue;
-            const cantHijoGramos = cantGramos * factor;
-            const cantHijo = convertirAUnidadInsumo(
-              cantHijoGramos,
-              "g",
-              insumoHijo.unidad || "g",
-            );
-            if (cantHijo > 0)
-              await registrarMovimientoInsumo(comp.insumo_id_componente, "egreso", cantHijo);
-          }
-        } else {
-          const cantEnUnidad = convertirAUnidadInsumo(
-            cantTotalIng,
-            ing.unidad || "g",
-            insumo.unidad || "g",
+
+        const cantEnUnidad = convertirAUnidadInsumo(
+          cantTotalIng,
+          ing.unidad || "g",
+          insumo.unidad || "g",
+        );
+
+        if (cantEnUnidad > 0) {
+          await registrarMovimientoInsumo(
+            ing.insumo_id,
+            "egreso",
+            cantEnUnidad,
+            null,
           );
-          if (cantEnUnidad > 0)
-            await registrarMovimientoInsumo(ing.insumo_id, "egreso", cantEnUnidad);
         }
       }
     },
-    [insumoComposicion, insumos, recetas, recetaIngredientes, registrarMovimientoInsumo],
+    [insumos, recetas, recetaIngredientes, registrarMovimientoInsumo],
   );
 
   /**
