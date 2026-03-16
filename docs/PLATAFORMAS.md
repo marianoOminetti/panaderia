@@ -1,6 +1,6 @@
 # Publicación en iOS y Android
 
-Guía para llevar Panadería SG a App Store (iOS) y Google Play (Android).
+Guía para llevar Gluten Free a App Store (iOS) y Google Play (Android).
 
 > **¿Querés hacerlo gratis?** Mirá [docs/GRATIS.md](GRATIS.md) — PWA instalable sin pagar tiendas.
 
@@ -48,7 +48,7 @@ npm run build:staging  # Staging (usa .env.staging)
 
 ```bash
 npm install @capacitor/core @capacitor/cli @capacitor/ios @capacitor/android
-npx cap init "Panadería SG" "com.panaderiasg.app"
+npx cap init "Gluten Free" "com.panaderiasg.app"
 ```
 
 ### Configuración
@@ -58,7 +58,7 @@ En `capacitor.config.ts` (o `.json`):
 ```json
 {
   "appId": "com.panaderiasg.app",
-  "appName": "Panadería SG",
+  "appName": "Gluten Free",
   "webDir": "build",
   "server": {
     "androidScheme": "https"
@@ -181,7 +181,7 @@ Para que la app funcione como PWA y los links de privacidad funcionen:
 
 1. **Vercel / Netlify / Firebase Hosting**: Conectá el repo y configurá el build con `npm run build`. El output es la carpeta `build/`.
 
-2. **URL de producción**: Usá HTTPS. Ejemplo: `https://app.panaderiasg.com`
+2. **URL de producción**: Usá HTTPS. Ejemplo: `https://app.glutenfree.com`
 
 3. **Actualizar `manifest.json`**: Si cambia el dominio, actualizá `start_url` y la URL de privacidad.
 

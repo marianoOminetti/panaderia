@@ -1,12 +1,12 @@
 {
   "id": "/",
-  "short_name": "Panadería SG",
-  "name": "Panadería SG - Sistema de gestión",
+  "short_name": "Gluten Free",
+  "name": "Gluten Free - Sistema de gestión",
   "icons": [
     {
-      "src": "favicon.ico",
+      "src": "favicon.png",
       "sizes": "64x64 32x32 24x24 16x16",
-      "type": "image/x-icon",
+      "type": "image/png",
       "purpose": "any"
     },
     {
@@ -28,6 +28,6 @@
   "orientation": "portrait",
   "theme_color": "#7B5BA8",
   "background_color": "#F8F5FC",
-  "description": "Sistema de gestión para panadería: ventas, stock, clientes, recetas, insumos",
+  "description": "Gluten Free - Sistema de gestión para panadería sin TACC: ventas, stock, clientes, recetas, insumos",
   "categories": ["business", "productivity"]
 }

@@ -16,10 +16,20 @@ const args = process.argv.slice(2);
 const CLEAR = args.includes("--clear");
 const UPSERT = args.includes("--upsert");
 
-const supabase = createClient(
-  "https://clgxrxlccjjqxzvapfav.supabase.co",
-  process.env.SUPABASE_KEY || "sb_publishable__Kgzp453lSnVoHc7A_ZEhg_CvZ6Mo2D"
-);
+const SUPABASE_URL =
+  process.env.SUPABASE_URL ||
+  process.env.REACT_APP_SUPABASE_URL ||
+  "https://clgxrxlccjjqxzvapfav.supabase.co";
+const SUPABASE_KEY =
+  process.env.SUPABASE_KEY || process.env.REACT_APP_SUPABASE_ANON_KEY;
+
+if (!SUPABASE_KEY) {
+  console.error("❌ Falta la variable de entorno SUPABASE_KEY (ver docs/AMBIENTES.md).");
+  console.error("   O configurá REACT_APP_SUPABASE_ANON_KEY en .env.development.local y ejecutá: npm run import-recetas");
+  process.exit(1);
+}
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // Mapeo: nombre en Excel (parcial) → nombre exacto en insumos
 const INSUMO_ALIASES = {

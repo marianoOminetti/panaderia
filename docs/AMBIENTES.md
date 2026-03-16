@@ -1,6 +1,6 @@
 # Ambientes
 
-Panadería SG usa tres ambientes: **development**, **staging** y **production**.
+Gluten Free usa tres ambientes: **development**, **staging** y **production**.
 
 | Rama Git | Ambiente | Deploy |
 |----------|----------|--------|
