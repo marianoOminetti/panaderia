@@ -99,7 +99,7 @@ export default function App() {
     loadData,
   } = useAppData({ showToast });
 
-  const { actualizarStock, actualizarStockBatch, registrarMovimientoInsumo, consumirInsumosPorStock } =
+  const { actualizarStock, actualizarStockBatch, registrarMovimientoInsumo, consumirInsumosPorStock, consumirComponentesDeInsumo } =
     useStockMutations({
       recetas,
       recetaIngredientes,

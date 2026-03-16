@@ -11,6 +11,7 @@ export function useInsumosCompra({
   recetas,
   recetaIngredientes,
   registrarMovimientoInsumo,
+  consumirComponentesDeInsumo,
   onRefresh,
   showToast,
   updateInsumo,
@@ -167,6 +168,9 @@ export function useInsumosCompra({
           cantidadTotal,
           valorMovimiento
         );
+        if (consumirComponentesDeInsumo) {
+          await consumirComponentesDeInsumo(ins.id, cantidadTotal);
+        }
         okCount += 1;
       }
       showToast("✅ Compra de stock registrada");
@@ -237,6 +241,9 @@ export function useInsumosCompra({
           cantidadTotal,
           valorMovimiento
         );
+        if (consumirComponentesDeInsumo) {
+          await consumirComponentesDeInsumo(ins.id, cantidadTotal);
+        }
       }
 
       const preciosOriginales = {};

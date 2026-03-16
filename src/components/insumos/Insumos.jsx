@@ -23,6 +23,7 @@ function Insumos({
   insumoMovimientos,
   insumoComposicion,
   registrarMovimientoInsumo,
+  consumirComponentesDeInsumo,
   recetas,
   recetaIngredientes,
   onRefresh,
@@ -78,6 +79,7 @@ function Insumos({
     recetas,
     recetaIngredientes,
     registrarMovimientoInsumo,
+    consumirComponentesDeInsumo,
     onRefresh,
     showToast,
     updateInsumo,
@@ -198,6 +200,14 @@ function Insumos({
           deleteInsumoComposicion={deleteInsumoComposicion}
           upsertInsumoComposicion={upsertInsumoComposicion}
           precioPorU={precioPorU}
+          onAjustarStock={(insumo) => {
+            const actual = (insumoStock || {})[insumo.id] ?? 0;
+            if (actual <= 0) {
+              showToast("No hay stock para ajustar a la baja.");
+              return;
+            }
+            lista.openMov(insumo, "ajuste_baja");
+          }}
           onActualizarPrecioPremezcla={async (nuevoPrecio) => {
             const ins = lista.detalleInsumo;
             if (!ins || !ins.id) return;
