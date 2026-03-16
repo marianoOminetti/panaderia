@@ -4,9 +4,9 @@ import { supabase } from "../lib/supabaseClient";
 import { notifyEvent } from "../lib/notifyEvent";
 
 /**
- * Mutaciones de stock y insumos: actualizarStock, actualizarStockBatch, registrarMovimientoInsumo, consumirInsumosPorStock.
+ * Mutaciones de stock y insumos: actualizarStock, actualizarStockBatch, registrarMovimientoInsumo, consumirInsumosPorStock, consumirComponentesDeInsumo.
  * Usado por App.js; recibe datos de recetas, insumos, stock e insumoStock y setters. Persiste en Supabase y notifica.
- * @returns {{ actualizarStock, actualizarStockBatch, registrarMovimientoInsumo, consumirInsumosPorStock }}
+ * @returns {{ actualizarStock, actualizarStockBatch, registrarMovimientoInsumo, consumirInsumosPorStock, consumirComponentesDeInsumo }}
  */
 export function useStockMutations({
   recetas,
@@ -149,7 +149,14 @@ export function useStockMutations({
     async (insumo_id, tipo, cantidad, valor) => {
       const rawCant =
         typeof cantidad === "number" ? cantidad : parseFloat(cantidad) || 0;
-      const delta = tipo === "ingreso" ? rawCant : -rawCant;
+      const delta =
+        tipo === "ingreso"
+          ? rawCant
+          : tipo === "egreso"
+          ? -rawCant
+          : tipo === "ajuste_baja"
+          ? -rawCant
+          : 0;
       let previo;
       let nuevo;
       setInsumoStock((prev) => {
@@ -164,7 +171,12 @@ export function useStockMutations({
       });
       const { data: mov, error: errMov } = await supabase
         .from("insumo_movimientos")
-        .insert({ insumo_id, tipo, cantidad: rawCant, valor: valor || null })
+        .insert({
+          insumo_id,
+          tipo,
+          cantidad: rawCant,
+          valor: tipo === "ajuste_baja" ? null : valor || null,
+        })
         .select("id, insumo_id, tipo, cantidad, valor, created_at")
         .single();
       if (errMov) {
@@ -238,11 +250,57 @@ export function useStockMutations({
     [insumoComposicion, insumos, recetas, recetaIngredientes, registrarMovimientoInsumo],
   );
 
+  /**
+   * Dada una premezcla (insumo con composición) y una cantidad producida,
+   * descuenta los componentes según los factores definidos en insumo_composicion.
+   * La cantidad se interpreta en la unidad del insumo premezcla.
+   */
+  const consumirComponentesDeInsumo = useCallback(
+    async (insumo_id, cantidad) => {
+      const premezcla = (insumos || []).find((i) => i.id === insumo_id);
+      if (!premezcla) return;
+      const comps = (insumoComposicion || []).filter(
+        (c) => c.insumo_id === insumo_id,
+      );
+      if (!comps.length) return;
+
+      const cantGramosPremezcla = aGramos(
+        cantidad,
+        premezcla.unidad || "g",
+      );
+
+      for (const comp of comps) {
+        const factor = parseFloat(comp.factor) || 0;
+        if (factor <= 0) continue;
+        const insumoHijo = (insumos || []).find(
+          (x) => x.id === comp.insumo_id_componente,
+        );
+        if (!insumoHijo) continue;
+        const cantHijoGramos = cantGramosPremezcla * factor;
+        const cantHijo = convertirAUnidadInsumo(
+          cantHijoGramos,
+          "g",
+          insumoHijo.unidad || "g",
+        );
+        if (cantHijo > 0) {
+          await registrarMovimientoInsumo(
+            comp.insumo_id_componente,
+            "egreso",
+            cantHijo,
+            null,
+          );
+        }
+      }
+    },
+    [insumoComposicion, insumos, registrarMovimientoInsumo],
+  );
+
   return {
     actualizarStock,
     actualizarStockBatch,
     registrarMovimientoInsumo,
     consumirInsumosPorStock,
+    consumirComponentesDeInsumo,
   };
 }
 

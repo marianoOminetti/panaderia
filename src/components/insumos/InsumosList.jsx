@@ -114,22 +114,38 @@ function InsumosList({
           {insumoMovimientos.slice(0, 20).map((m) => {
             const ins = insumosMap[m.insumo_id];
             const esEgreso = m.tipo === "egreso";
+            const esAjuste = m.tipo === "ajuste_baja";
             return (
               <div
                 key={m.id}
                 className="insumo-item"
                 style={{
-                  borderLeft: esEgreso ? "4px solid var(--danger)" : "4px solid var(--green)",
+                  borderLeft: esEgreso
+                    ? "4px solid var(--danger)"
+                    : esAjuste
+                    ? "4px solid var(--border)"
+                    : "4px solid var(--green)",
                   paddingLeft: 12,
                 }}
               >
                 <div style={{ flex: 1 }}>
                   <div
                     className="insumo-nombre"
-                    style={{ color: esEgreso ? "var(--danger)" : "inherit" }}
+                    style={{
+                      color: esEgreso
+                        ? "var(--danger)"
+                        : esAjuste
+                        ? "var(--text-muted)"
+                        : "inherit",
+                    }}
                   >
-                    {esEgreso ? "−" : "+"}
-                    {m.cantidad} {ins?.nombre || "?"} {esEgreso ? "(egreso)" : "(ingreso)"}
+                    {esEgreso || esAjuste ? "−" : "+"}
+                    {m.cantidad} {ins?.nombre || "?"}{" "}
+                    {esAjuste
+                      ? "(ajuste)"
+                      : esEgreso
+                      ? "(egreso)"
+                      : "(ingreso)"}
                   </div>
                   <div className="insumo-detalle">
                     {new Date(m.created_at).toLocaleString("es-AR")}
