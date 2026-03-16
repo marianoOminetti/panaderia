@@ -22,7 +22,12 @@ export default function InsumosMovModal({
           ← Volver
         </button>
         <span className="screen-title">
-          {movTipo === "ingreso" ? "📥 Ingreso" : "📤 Egreso"} · {movInsumo.nombre}
+          {movTipo === "ingreso"
+            ? "📥 Ingreso"
+            : movTipo === "egreso"
+            ? "📤 Egreso"
+            : "Ajuste de stock"}{" "}
+          · {movInsumo.nombre}
         </span>
       </div>
       <div className="screen-content">
@@ -35,12 +40,14 @@ export default function InsumosMovModal({
           placeholder="Ej: 500"
           autoFocus
         />
-        <FormMoneyInput
-          label="Valor (opcional)"
-          value={movValor}
-          onChange={setMovValor}
-          placeholder="Costo del movimiento"
-        />
+        {movTipo !== "ajuste_baja" && (
+          <FormMoneyInput
+            label="Valor (opcional)"
+            value={movValor}
+            onChange={setMovValor}
+            placeholder="Costo del movimiento"
+          />
+        )}
         <button
           className="btn-primary"
           onClick={guardarMovimiento}
@@ -53,8 +60,10 @@ export default function InsumosMovModal({
           {movSaving
             ? "Guardando..."
             : movTipo === "ingreso"
-              ? "Registrar ingreso"
-              : "Registrar egreso"}
+            ? "Registrar ingreso"
+            : movTipo === "egreso"
+            ? "Registrar egreso"
+            : "Aplicar ajuste"}
         </button>
         <button className="btn-secondary" onClick={onClose}>
           Cancelar

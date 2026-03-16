@@ -16,6 +16,7 @@ import { getItemsExplotados, getInsumosEnCeroParaRecetas } from "../../lib/stock
 import { useStockCart } from "../../hooks/useStockCart";
 import StockList from "./StockList";
 import StockProductionModal from "./StockProductionModal";
+import StockAdjustModal from "./StockAdjustModal";
 
 function Stock({
   onOpenInsumosCompra,
@@ -40,6 +41,8 @@ function Stock({
   const [manualSaving, setManualSaving] = useState(false);
   const [manualScreenOpen, setManualScreenOpen] = useState(false);
   const [insumosEnCeroAviso, setInsumosEnCeroAviso] = useState(null);
+  const [ajusteProductoSel, setAjusteProductoSel] = useState(null);
+  const [ajusteSaving, setAjusteSaving] = useState(false);
   const preloadConsumedRef = useRef(null);
 
   const { stockCart, setStockCart, addToStockCart, totalCartUnidades } =
@@ -285,6 +288,14 @@ function Stock({
         stock={stock}
         metricasStock={metricasStock}
         pedidosPendientesSemana={pedidosPendientesSemana}
+        onAjustarStock={(receta) => {
+          const actual = (stock || {})[receta.id] ?? 0;
+          if (actual <= 0) {
+            showToast("No hay stock para ajustar a la baja.");
+            return;
+          }
+          setAjusteProductoSel(receta);
+        }}
       />
 
       {manualScreenOpen && (
@@ -389,6 +400,42 @@ function Stock({
           <span>+</span>
           <span>Cargar stock</span>
         </button>
+      )}
+
+      {ajusteProductoSel && (
+        <StockAdjustModal
+          open={Boolean(ajusteProductoSel)}
+          type="producto"
+          item={ajusteProductoSel}
+          currentStock={(stock || {})[ajusteProductoSel.id] ?? 0}
+          unidad="u"
+          saving={ajusteSaving}
+          onClose={() => setAjusteProductoSel(null)}
+          onConfirm={async ({ amount }) => {
+            const receta = ajusteProductoSel;
+            if (!receta || !amount) return;
+            setAjusteSaving(true);
+            try {
+              await actualizarStock(receta.id, -amount);
+              if (onRefresh) onRefresh();
+              showToast(
+                `Stock de producto actualizado. Este ajuste no se registró como venta.`
+              );
+              setAjusteProductoSel(null);
+            } catch (err) {
+              const msg = err?.message
+                ? String(err.message).slice(0, 80)
+                : "";
+              showToast(
+                msg
+                  ? `⚠️ No se pudo guardar el ajuste: ${msg}`
+                  : "⚠️ No se pudo guardar el ajuste. Probá de nuevo."
+              );
+            } finally {
+              setAjusteSaving(false);
+            }
+          }}
+        />
       )}
     </div>
   );
