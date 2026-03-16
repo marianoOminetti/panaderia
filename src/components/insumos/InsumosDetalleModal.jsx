@@ -19,6 +19,7 @@ export default function InsumosDetalleModal({
   onDelete,
   confirm,
   showToast,
+  onAjustarStock,
 }) {
   if (!detalleInsumo) return null;
   return (
@@ -106,6 +107,14 @@ export default function InsumosDetalleModal({
         <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 12 }}>
           Para registrar compras (ingresos), usá &quot;Registrar compra de stock&quot; arriba.
         </p>
+        <button
+          type="button"
+          className="btn-secondary"
+          onClick={() => onAjustarStock?.(detalleInsumo)}
+          style={{ marginBottom: 8 }}
+        >
+          Ajustar stock
+        </button>
         <button className="btn-danger" onClick={onDelete}>
           Eliminar insumo
         </button>

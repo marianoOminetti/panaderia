@@ -99,7 +99,7 @@ export default function App() {
     loadData,
   } = useAppData({ showToast });
 
-  const { actualizarStock, actualizarStockBatch, registrarMovimientoInsumo, consumirInsumosPorStock } =
+  const { actualizarStock, actualizarStockBatch, registrarMovimientoInsumo, consumirInsumosPorStock, consumirComponentesDeInsumo } =
     useStockMutations({
       recetas,
       recetaIngredientes,
@@ -299,6 +299,7 @@ export default function App() {
         actualizarStockBatch={actualizarStockBatch}
         registrarMovimientoInsumo={registrarMovimientoInsumo}
         consumirInsumosPorStock={consumirInsumosPorStock}
+        consumirComponentesDeInsumo={consumirComponentesDeInsumo}
         loadData={loadData}
         showToast={showToast}
         confirm={confirm}

@@ -11,6 +11,7 @@ export function useInsumosCompra({
   recetas,
   recetaIngredientes,
   registrarMovimientoInsumo,
+  consumirComponentesDeInsumo,
   onRefresh,
   showToast,
   updateInsumo,
@@ -167,6 +168,9 @@ export function useInsumosCompra({
           cantidadTotal,
           valorMovimiento
         );
+        if (consumirComponentesDeInsumo) {
+          await consumirComponentesDeInsumo(ins.id, cantidadTotal);
+        }
         okCount += 1;
       }
       showToast("✅ Compra de stock registrada");
@@ -183,7 +187,13 @@ export function useInsumosCompra({
     } finally {
       setCompraSaving(false);
     }
-  }, [compraCart, registrarMovimientoInsumo, showToast, onRefresh]);
+  }, [
+    compraCart,
+    registrarMovimientoInsumo,
+    showToast,
+    onRefresh,
+    consumirComponentesDeInsumo,
+  ]);
 
   const confirmarCompra = useCallback(async () => {
     if (!compraCart.length || compraSaving) return;
@@ -237,6 +247,9 @@ export function useInsumosCompra({
           cantidadTotal,
           valorMovimiento
         );
+        if (consumirComponentesDeInsumo) {
+          await consumirComponentesDeInsumo(ins.id, cantidadTotal);
+        }
       }
 
       const preciosOriginales = {};
@@ -378,6 +391,7 @@ export function useInsumosCompra({
     showToast,
     onRefresh,
     registrarCompraSoloStock,
+    consumirComponentesDeInsumo,
   ]);
 
   return {

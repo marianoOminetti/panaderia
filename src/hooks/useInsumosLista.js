@@ -163,12 +163,18 @@ export function useInsumosLista({
         movInsumo.id,
         movTipo,
         cant,
-        movValor ? parseFloat(movValor) : null
+        movTipo === "ajuste_baja"
+          ? null
+          : movValor
+          ? parseFloat(movValor)
+          : null
       );
       showToast(
         movTipo === "ingreso"
           ? `✅ +${cant} ${movInsumo.nombre}`
-          : `✅ Egreso: -${cant} ${movInsumo.nombre}`
+          : movTipo === "egreso"
+          ? `✅ Egreso: -${cant} ${movInsumo.nombre}`
+          : `✅ Ajuste aplicado: -${cant} ${movInsumo.nombre}`
       );
       setMovModal(false);
       onRefresh();

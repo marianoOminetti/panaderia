@@ -53,6 +53,7 @@ export default function AppContent({
   actualizarStockBatch,
   registrarMovimientoInsumo,
   consumirInsumosPorStock,
+  consumirComponentesDeInsumo,
   loadData,
   showToast,
   confirm,
@@ -110,6 +111,7 @@ export default function AppContent({
           insumoMovimientos={insumoMovimientos}
           insumoComposicion={insumoComposicion}
           registrarMovimientoInsumo={registrarMovimientoInsumo}
+          consumirComponentesDeInsumo={consumirComponentesDeInsumo}
           recetas={recetas}
           recetaIngredientes={recetaIngredientes}
           precioHistorial={precioHistorial}

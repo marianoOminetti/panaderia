@@ -16,6 +16,7 @@ function StockList({
   stock,
   metricasStock,
   pedidosPendientesSemana,
+  onAjustarStock,
 }) {
   const [prioridadesAbierto, setPrioridadesAbierto] = useState(false);
 
@@ -215,6 +216,16 @@ function StockList({
                     Pedidos semana: {pedidosSemana} u
                   </div>
                 )}
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <button
+                  type="button"
+                  className="card-link"
+                  onClick={() => onAjustarStock?.(r)}
+                  title="Ajustar stock"
+                >
+                  Ajustar stock
+                </button>
               </div>
             </div>
           );
