@@ -48,7 +48,7 @@ export function useRecetasForm({ recetaIngredientes = [] }) {
       gramos_por_unidad: r.gramos_por_unidad != null ? String(r.gramos_por_unidad) : ""
     });
     const ings = recetaIngredientes
-      .filter((i) => i.receta_id === r.id)
+      .filter((i) => String(i.receta_id) === String(r.id))
       .map((i) => ({
         insumo_id: i.insumo_id || "",
         receta_id_precursora: i.receta_id_precursora || "",

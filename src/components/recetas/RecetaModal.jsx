@@ -3,7 +3,8 @@
  * Recibe estado y handlers de useRecetasForm; guardado y eliminación los dispara el padre (Recetas.jsx).
  */
 import { fmt, pctFmt, parseDecimal } from "../../lib/format";
-import { costoDesdeIngredientes } from "../../lib/costos";
+import { costoReceta, costoDesdeIngredientes } from "../../lib/costos";
+import { aGramos, convertirAUnidadInsumo } from "../../lib/units";
 import { SearchableSelect, FormInput, FormMoneyInput, FormCheckbox } from "../ui";
 
 const EMOJIS = ["🍞", "🥐", "🍕", "🍫", "🍪", "🥧", "🍰", "🧁", "🫔", "🥬", "🍗", "🍔", "🎂", "🧇", "🥨"];
@@ -25,20 +26,20 @@ export default function RecetaModal({
   insumosOrdenados,
   recetas,
   insumos,
+  recetaIngredientes,
 }) {
-  const costoTotal = costoDesdeIngredientes(ingredientes, insumos, recetas);
+  const costoTotal = costoDesdeIngredientes(ingredientes, insumos, recetas, recetaIngredientes);
   const rindeNum = parseDecimal(form.rinde) ?? 0;
   const costoPorUnidad = rindeNum > 0 ? costoTotal / rindeNum : null;
   const precioVenta = parseDecimal(form.precio_venta) ?? 0;
   const margenVal =
-    rindeNum > 0 && precioVenta > 0 && costoPorUnidad != null && costoPorUnidad >= 0
+    rindeNum > 0 && precioVenta > 0 && costoPorUnidad != null && costoPorUnidad > 0
       ? (precioVenta - costoPorUnidad) / precioVenta
       : null;
   const unidadRinde = form.unidad_rinde || "u";
   const showPanel =
     costoTotal > 0 ||
-    ingredientes.some((i) => i.insumo_id || i.receta_id_precursora || i.costo_fijo) ||
-    precioVenta > 0;
+    ingredientes.some((i) => i.insumo_id || i.receta_id_precursora || (parseDecimal(i.costo_fijo) ?? 0) > 0);
   let margenClass = "";
   if (margenVal != null) {
     if (margenVal < 0.4) margenClass = "rojo";
@@ -46,6 +47,72 @@ export default function RecetaModal({
     else margenClass = "green";
   }
   const margenText = margenVal != null ? pctFmt(margenVal) : "—";
+
+  const cantidadPrecursoraAUnidades = (cantidad, unidad, gramosPorUnidad) => {
+    const u = (unidad || "u").toLowerCase();
+    if (u === "u") return cantidad;
+    const gramos = aGramos(cantidad, unidad);
+    const gPu = parseDecimal(gramosPorUnidad);
+    // Alinear con `src/lib/costos.js`: si falta `gramos_por_unidad` y no está en `u`,
+    // no podemos convertir correctamente (evitamos costos enormes).
+    if (gPu == null || !Number.isFinite(gPu) || gPu <= 0) return null;
+    return gramos / gPu;
+  };
+
+  const costoParcialIngrediente = (ing) => {
+    // Insumo directo
+    if (ing?.insumo_id) {
+      const insumo = insumos.find((x) => String(x.id) === String(ing.insumo_id));
+      if (!insumo) return null;
+      const cant = parseDecimal(ing.cantidad) ?? 0;
+      if (cant <= 0) return null;
+      const cantidadPresentacion = parseDecimal(insumo?.cantidad_presentacion);
+      if (!Number.isFinite(cantidadPresentacion) || cantidadPresentacion <= 0) return null;
+      const precio = parseDecimal(insumo?.precio) ?? 0;
+      if (precio <= 0) return null;
+
+      const cantConvertida = convertirAUnidadInsumo(
+        cant,
+        ing.unidad || "g",
+        insumo.unidad
+      );
+      const precioUnitario = precio / cantidadPresentacion;
+      const total = precioUnitario * cantConvertida;
+      return Number.isFinite(total) ? total : null;
+    }
+
+    // Receta precursora
+    if (ing?.receta_id_precursora) {
+      const prec = recetas.find((r) => String(r.id) === String(ing.receta_id_precursora));
+      if (!prec) return null;
+      const cantRaw = parseDecimal(ing.cantidad) ?? 0;
+      if (cantRaw <= 0) return null;
+      const rindeNum = parseDecimal(prec?.rinde) ?? 1;
+      const rinde = rindeNum > 0 ? rindeNum : 1;
+
+      const cantidadUnidades = cantidadPrecursoraAUnidades(
+        cantRaw,
+        ing.unidad || "u",
+        prec?.gramos_por_unidad
+      );
+      if (cantidadUnidades == null) return null;
+
+      const costoPrecLote = costoReceta(
+        prec.id,
+        recetaIngredientes || [],
+        insumos,
+        recetas
+      );
+      const costoUnitPrec = rinde > 0 ? costoPrecLote / rinde : 0;
+      const total = cantidadUnidades * costoUnitPrec;
+      return Number.isFinite(total) ? total : null;
+    }
+
+    // Costo fijo
+    const costoFijo = parseDecimal(ing?.costo_fijo);
+    if (costoFijo == null || costoFijo <= 0) return null;
+    return costoFijo;
+  };
 
   return (
     <div className="screen-overlay">
@@ -273,6 +340,28 @@ export default function RecetaModal({
                     value={ing.costo_fijo}
                     onChange={(e) => updateIng(i, "costo_fijo", e.target.value)}
                   />
+                )}
+
+                {/* Info rápida: costo individual del ingrediente actual */}
+                {true && (
+                  <div
+                    style={{
+                      fontSize: 12,
+                      color: "var(--text)",
+                      marginTop: 6,
+                      marginBottom: 2,
+                      fontWeight: 800,
+                      background: "rgba(120, 80, 255, 0.16)",
+                      border: "1px solid rgba(120, 80, 255, 0.42)",
+                      borderRadius: 10,
+                      padding: "8px 10px",
+                    }}
+                  >
+                    {(() => {
+                      const costo = costoParcialIngrediente(ing);
+                      return costo != null ? `Costo ingrediente: ${fmt(costo)}` : "Costo ingrediente: —";
+                    })()}
+                  </div>
                 )}
               </div>
             );

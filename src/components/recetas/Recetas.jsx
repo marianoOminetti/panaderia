@@ -9,6 +9,11 @@ import { useRecetasForm } from "../../hooks/useRecetasForm";
 import RecetaModal from "./RecetaModal";
 
 export default function Recetas({ recetas, insumos, recetaIngredientes, showToast, onRefresh, confirm, filterRecetasIds, onClearFilter }) {
+  const recetaIngredientesSafe = Array.isArray(recetaIngredientes) ? recetaIngredientes : [];
+  const insumosSafe = Array.isArray(insumos) ? insumos : [];
+  const recetasSafe = Array.isArray(recetas) ? recetas : [];
+  const filterSet = Array.isArray(filterRecetasIds) && filterRecetasIds.length > 0 ? new Set(filterRecetasIds.map((id) => String(id))) : null;
+
   const {
     updateReceta,
     insertReceta,
@@ -34,29 +39,30 @@ export default function Recetas({ recetas, insumos, recetaIngredientes, showToas
     removeIng,
     updateIng,
     closeModal,
-  } = useRecetasForm({ recetaIngredientes });
+  } = useRecetasForm({ recetaIngredientes: recetaIngredientesSafe });
 
   const aplicaFiltro = Array.isArray(filterRecetasIds) && filterRecetasIds.length > 0;
   const recetasFuente = aplicaFiltro
-    ? recetas.filter((r) => filterRecetasIds.includes(r.id))
-    : recetas;
+    ? recetasSafe.filter((r) => filterSet.has(String(r.id)))
+    : recetasSafe;
 
   const recetasOrdenadas = [...recetasFuente].slice().sort((a, b) =>
     (a.nombre || "").localeCompare(b.nombre || "", "es", { sensitivity: "base" })
   );
-  const insumosOrdenados = [...insumos].slice().sort((a, b) =>
+  const insumosOrdenados = [...insumosSafe].slice().sort((a, b) =>
     (a.nombre || "").localeCompare(b.nombre || "", "es", { sensitivity: "base" })
   );
 
-  const recetasMargenBajo = recetas.filter((r) => {
-    const rindeNum = parseFloat(r.rinde) || 1;
-    const costoLoteCalc = costoReceta(r.id, recetaIngredientes, insumos, recetas);
+  const recetasMargenBajo = recetasFuente.filter((r) => {
+    const rindeNum = parseDecimal(r.rinde) ?? 1;
+    const costoLoteCalc = costoReceta(r.id, recetaIngredientesSafe, insumosSafe, recetasSafe);
     const costoUnitarioCalc = rindeNum > 0 ? costoLoteCalc / rindeNum : null;
-    const costoUnitario = (typeof r.costo_unitario === "number" && r.costo_unitario > 0)
-      ? r.costo_unitario
-      : costoUnitarioCalc;
-    const precio = Number(r.precio_venta) || 0;
-    if (!precio || costoUnitario == null || !isFinite(costoUnitario)) return false;
+    const tieneIngredientes = recetaIngredientesSafe.some((i) => String(i.receta_id) === String(r.id));
+    if (!tieneIngredientes) return false;
+    const costoUnitario = costoUnitarioCalc;
+    const precio = parseDecimal(r.precio_venta) ?? 0;
+    // Alinear criterio con las cards: margin/costo solo si `precio_venta > 0` y hay costo > 0.
+    if (precio <= 0 || costoUnitario == null || !isFinite(costoUnitario) || costoUnitario <= 0) return false;
     const margenVal = (precio - costoUnitario) / precio;
     return margenVal < 0.5;
   });
@@ -67,13 +73,16 @@ export default function Recetas({ recetas, insumos, recetaIngredientes, showToas
       const payload = {
         nombre: `Copia de ${(r.nombre || "").trim()}`.toUpperCase(),
         emoji: r.emoji || "🍞",
-        rinde: parseFloat(r.rinde) || 1,
+        rinde: parseDecimal(r.rinde) ?? 1,
         unidad_rinde: r.unidad_rinde || "u",
-        precio_venta: parseFloat(r.precio_venta) || 0,
+        precio_venta: parseDecimal(r.precio_venta) ?? 0,
         costo_lote: 0,
         costo_unitario: 0,
         es_precursora: !!r.es_precursora,
-        gramos_por_unidad: r.gramos_por_unidad != null && r.gramos_por_unidad > 0 ? parseFloat(r.gramos_por_unidad) : null
+        gramos_por_unidad:
+          r.gramos_por_unidad != null && r.gramos_por_unidad > 0
+            ? parseDecimal(r.gramos_por_unidad)
+            : null
       };
       const newReceta = await insertReceta(payload);
       if (!newReceta?.id) {
@@ -81,7 +90,7 @@ export default function Recetas({ recetas, insumos, recetaIngredientes, showToas
         setSaving(false);
         return;
       }
-        const ingsOrig = recetaIngredientes.filter((i) => i.receta_id === r.id);
+        const ingsOrig = recetaIngredientesSafe.filter((i) => String(i.receta_id) === String(r.id));
       if (ingsOrig.length > 0) {
         const rows = ingsOrig.map((i) => ({
           receta_id: newReceta.id,
@@ -130,7 +139,7 @@ export default function Recetas({ recetas, insumos, recetaIngredientes, showToas
       const v = parseDecimal(form.rinde);
       return (v == null || v <= 0) ? 1 : v;
     })();
-    const costoLote = costoDesdeIngredientes(ingredientes, insumos, recetas);
+    const costoLote = costoDesdeIngredientes(ingredientes, insumos, recetas, recetaIngredientes);
     const costoUnitario = rindeNum > 0 ? costoLote / rindeNum : 0;
     const payload = {
       nombre: (form.nombre || "").trim().toUpperCase(),
@@ -234,14 +243,16 @@ export default function Recetas({ recetas, insumos, recetaIngredientes, showToas
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
             {recetasMargenBajo.slice(0, 6).map((r) => {
-              const rindeNum = parseFloat(r.rinde) || 1;
-              const costoLoteCalc = costoReceta(r.id, recetaIngredientes, insumos, recetas);
+              const rindeNum = parseDecimal(r.rinde) ?? 1;
+              const costoLoteCalc = costoReceta(r.id, recetaIngredientesSafe, insumosSafe, recetasSafe);
               const costoUnitarioCalc = rindeNum > 0 ? costoLoteCalc / rindeNum : null;
-              const costoUnitario = (typeof r.costo_unitario === "number" && r.costo_unitario > 0)
-                ? r.costo_unitario
-                : costoUnitarioCalc;
-              const precio = Number(r.precio_venta) || 0;
-              const margenVal = precio && costoUnitario != null ? (precio - costoUnitario) / precio : null;
+              const tieneIngredientes = recetaIngredientesSafe.some((i) => String(i.receta_id) === String(r.id));
+              const costoUnitario = tieneIngredientes ? costoUnitarioCalc : null;
+              const precio = parseDecimal(r.precio_venta) ?? 0;
+              const margenVal =
+                precio > 0 && costoUnitario != null && costoUnitario > 0
+                  ? (precio - costoUnitario) / precio
+                  : null;
               const margenTxt = margenVal != null ? pctFmt(margenVal) : "—";
               return (
                 <button
@@ -272,22 +283,23 @@ export default function Recetas({ recetas, insumos, recetaIngredientes, showToas
         </div>
       )}
 
-      {recetas.length === 0 ? (
+      {recetasFuente.length === 0 ? (
         <div className="empty"><div className="empty-icon">📋</div><p>No hay recetas todavía.<br />Tocá + para agregar.</p></div>
       ) : recetasOrdenadas.map(r => {
-        const rindeNum = parseFloat(r.rinde) || 1;
-        const costoLoteCalc = costoReceta(r.id, recetaIngredientes, insumos, recetas);
+        const rindeNum = parseDecimal(r.rinde) ?? 1;
+        const costoLoteCalc = costoReceta(r.id, recetaIngredientesSafe, insumosSafe, recetasSafe);
         const costoUnitarioCalc = rindeNum > 0 ? costoLoteCalc / rindeNum : null;
-        // Si en DB está 0 o no definido, usar el calculado desde ingredientes (evita margen 100% falso)
-        const costoUnitario = (typeof r.costo_unitario === "number" && r.costo_unitario > 0)
-          ? r.costo_unitario
-          : costoUnitarioCalc;
-        const margenVal = rindeNum > 0 && r.precio_venta > 0 && costoUnitario != null
-          ? (r.precio_venta - costoUnitario) / r.precio_venta
-          : null;
+        const tieneIngredientes = recetaIngredientesSafe.some((i) => String(i.receta_id) === String(r.id));
+        const costoUnitario = tieneIngredientes ? costoUnitarioCalc : null;
+        const margenVal =
+          rindeNum > 0 &&
+          (parseDecimal(r.precio_venta) ?? 0) > 0 &&
+          costoUnitario != null &&
+          costoUnitario > 0
+            ? ((parseDecimal(r.precio_venta) ?? 0) - costoUnitario) / (parseDecimal(r.precio_venta) ?? 0)
+            : null;
         const margen = margenVal != null ? pctFmt(margenVal) : "—";
         const margenNegativo = margenVal != null && margenVal < 0;
-        const tieneIngredientes = recetaIngredientes.some((i) => i.receta_id === r.id);
         return (
           <div key={r.id} className="receta-card" onClick={() => openEdit(r)} role="button" tabIndex={0} onKeyDown={e => e.key === "Enter" && openEdit(r)}>
             <div className="receta-top">
@@ -305,7 +317,7 @@ export default function Recetas({ recetas, insumos, recetaIngredientes, showToas
               </div>
               <div className="receta-stat">
                 <div className="receta-stat-label">Costo/u</div>
-                <div className="receta-stat-value">{tieneIngredientes && costoUnitario != null ? fmt(costoUnitario) : "—"}</div>
+                <div className="receta-stat-value">{costoUnitario != null ? fmt(costoUnitario) : "—"}</div>
               </div>
               <div className="receta-stat">
                 <div className="receta-stat-label">Margen</div>
@@ -337,8 +349,9 @@ export default function Recetas({ recetas, insumos, recetaIngredientes, showToas
           onEliminar={eliminar}
           recetasOrdenadas={recetasOrdenadas}
           insumosOrdenados={insumosOrdenados}
-          recetas={recetas}
-          insumos={insumos}
+          recetas={recetasSafe}
+          insumos={insumosSafe}
+          recetaIngredientes={recetaIngredientesSafe}
         />
       )}
     </div>
