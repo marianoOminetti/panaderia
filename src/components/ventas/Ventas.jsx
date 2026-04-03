@@ -2,7 +2,7 @@
  * Pantalla Ventas: orquesta nueva venta (carrito useVentasCart), cobro (useVentasChargeModal), lista (VentasList),
  * edición de ventas (useVentasEdit) y venta manual (VentasManualScreen).
  */
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { fmt, toCantidadNumber } from "../../lib/format";
 import { generateTransaccionId } from "../../lib/ventas";
 import { useVentas } from "../../hooks/useVentas";
@@ -14,6 +14,7 @@ import { hoyLocalISO } from "../../lib/dates";
 import { saveVentaPendiente } from "../../lib/offlineVentas";
 import { reportError } from "../../utils/errorReport";
 import { agruparVentas, gruposConDeuda as getGruposConDeuda, totalDebeEnGrupo } from "../../lib/agrupadores";
+import { filtrarVentasPorFechaRango } from "../../lib/ventasFiltroFecha";
 import { notifyEvent } from "../../lib/notifyEvent";
 import VentasList from "./VentasList";
 import VentasChargeModal from "./VentasChargeModal";
@@ -36,6 +37,8 @@ function Ventas({
   ventasPedidoFlag,
   onConsumedVentasPedido,
   onOpenCargarProduccion,
+  ventasFiltroFecha,
+  onClearVentasFiltroFecha,
 }) {
   const { insertVentas, deleteVentas, updateVenta } = useVentas();
   const { insertCliente, insertPedidos } = useClientes({ onRefresh, showToast });
@@ -84,6 +87,33 @@ function Ventas({
     hoy,
     onCloseEdit: () => setManualScreenOpen(false),
   });
+
+  const ventasListado = useMemo(() => {
+    if (
+      !ventasFiltroFecha?.desde ||
+      !ventasFiltroFecha?.hasta
+    ) {
+      return ventas || [];
+    }
+    return filtrarVentasPorFechaRango(
+      ventas,
+      ventasFiltroFecha.desde,
+      ventasFiltroFecha.hasta
+    );
+  }, [ventas, ventasFiltroFecha]);
+
+  const ingresoPeriodoFiltrado = useMemo(
+    () =>
+      ventasListado.reduce(
+        (s, v) =>
+          s +
+          (v.total_final != null
+            ? v.total_final
+            : (v.precio_unitario || 0) * (v.cantidad || 0)),
+        0
+      ),
+    [ventasListado]
+  );
 
   const ventasHoy = (ventas || []).filter((v) => v.fecha === hoy);
   const ingresoHoy = ventasHoy.reduce(
@@ -378,10 +408,45 @@ function Ventas({
   return (
     <div className="content">
       <p className="page-title">Ventas</p>
-      <p className="page-subtitle">Hoy: {fmt(ingresoHoy)}</p>
+      {ventasFiltroFecha?.desde && ventasFiltroFecha?.hasta ? (
+        <>
+          <p className="page-subtitle">
+            {ventasFiltroFecha.label?.trim() || "Período filtrado"}
+          </p>
+          <p className="page-subtitle">Total en período: {fmt(ingresoPeriodoFiltrado)}</p>
+        </>
+      ) : (
+        <p className="page-subtitle">Hoy: {fmt(ingresoHoy)}</p>
+      )}
+
+      {ventasFiltroFecha?.desde && ventasFiltroFecha?.hasta && (
+        <div className="card" style={{ marginBottom: 12 }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+              flexWrap: "wrap",
+            }}
+          >
+            <span style={{ fontSize: 13, lineHeight: 1.4 }}>
+              Fechas: <strong>{ventasFiltroFecha.desde}</strong> —{" "}
+              <strong>{ventasFiltroFecha.hasta}</strong>
+            </span>
+            <button
+              type="button"
+              className="card-link"
+              onClick={() => onClearVentasFiltroFecha?.()}
+            >
+              Quitar filtro
+            </button>
+          </div>
+        </div>
+      )}
 
       <VentasList
-        ventas={ventas}
+        ventas={ventasListado}
         hoy={hoy}
         recetas={recetas}
         clientes={clientes}

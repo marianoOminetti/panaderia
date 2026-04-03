@@ -49,6 +49,8 @@ export default function App() {
   const [ventasPreloadGrupoKey, setVentasPreloadGrupoKey] = useState(null);
   const [ventasNuevaFlag, setVentasNuevaFlag] = useState(false);
   const [ventasPedidoFlag, setVentasPedidoFlag] = useState(false);
+  /** Filtro de fechas en Ventas (p. ej. desde Analytics) */
+  const [ventasFiltroFecha, setVentasFiltroFecha] = useState(null);
   const [stockOpenManual, setStockOpenManual] = useState(false);
   const [insumosCompraPreload, setInsumosCompraPreload] = useState(null);
   const [toast, setToast] = useState(null);
@@ -73,6 +75,18 @@ export default function App() {
     confirmResolveRef.current = null;
     setConfirmState(null);
   }, []);
+
+  const handleAbrirVentasPeriodo = useCallback(({ desde, hasta, label }) => {
+    if (!desde || !hasta) return;
+    setVentasFiltroFecha({
+      desde,
+      hasta,
+      label: label || "",
+    });
+    setTab("ventas");
+  }, []);
+
+  const clearVentasFiltroFecha = useCallback(() => setVentasFiltroFecha(null), []);
 
   // --- Datos (useAppData) ---
   const {
@@ -306,6 +320,9 @@ export default function App() {
         recetasFilterIds={recetasFilterIds}
         setRecetasFilterIds={setRecetasFilterIds}
         setPlanSemanalVersion={setPlanSemanalVersion}
+        ventasFiltroFecha={ventasFiltroFecha}
+        onClearVentasFiltroFecha={clearVentasFiltroFecha}
+        onAbrirVentasPeriodo={handleAbrirVentasPeriodo}
       />
       <AppNav
         visible={navVisible}

@@ -62,6 +62,9 @@ export default function AppContent({
   setPlanSemanalVersion,
   ventasPedidoFlag,
   onConsumedVentasPedido,
+  ventasFiltroFecha,
+  onClearVentasFiltroFecha,
+  onAbrirVentasPeriodo,
 }) {
   if (loading) {
     return (
@@ -101,6 +104,7 @@ export default function AppContent({
           recetaIngredientes={recetaIngredientes}
           insumos={insumos}
           gastosFijos={gastosFijos}
+          onAbrirVentasPeriodo={onAbrirVentasPeriodo}
         />
       )}
       {/* --- Insumos --- */}
@@ -158,6 +162,8 @@ export default function AppContent({
           onConsumedVentasNueva={onConsumedVentasNueva}
           ventasPedidoFlag={ventasPedidoFlag}
           onConsumedVentasPedido={onConsumedVentasPedido}
+          ventasFiltroFecha={ventasFiltroFecha}
+          onClearVentasFiltroFecha={onClearVentasFiltroFecha}
         />
       )}
       {/* --- Pedidos (MAS) --- */}

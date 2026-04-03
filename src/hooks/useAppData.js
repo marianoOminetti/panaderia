@@ -3,9 +3,35 @@ import { supabase } from "../lib/supabaseClient";
 import { INSUMOS_SEED } from "../config/appConfig";
 import { reportError } from "../utils/errorReport";
 
+/** PostgREST suele limitar filas por request (p. ej. max_rows 1000); paginamos para no truncar analytics. */
+const VENTAS_PAGE = 1000;
+const VENTAS_MAX_PAGES = 500;
+
+async function loadVentasDesde(fechaGte) {
+  const all = [];
+  for (let page = 0; page < VENTAS_MAX_PAGES; page++) {
+    const from = page * VENTAS_PAGE;
+    const to = from + VENTAS_PAGE - 1;
+    const r = await supabase
+      .from("ventas")
+      .select("*")
+      .gte("fecha", fechaGte)
+      .order("fecha", { ascending: false })
+      .order("created_at", { ascending: false })
+      .range(from, to);
+    if (r.error) {
+      return { data: all.length > 0 ? all : null, error: r.error };
+    }
+    const batch = r.data || [];
+    all.push(...batch);
+    if (batch.length < VENTAS_PAGE) break;
+  }
+  return { data: all, error: null };
+}
+
 /**
  * Carga y mantiene todos los datos de la app (insumos, recetas, ventas, clientes, pedidos, stock, etc.).
- * Usado solo por App.js. loadData() re-fetcha todo; límites: ventas 1000, pedidos 1000, insumo_movimientos 100.
+ * Usado solo por App.js. loadData() re-fetcha todo; ventas desde hace 36 meses (paginado ante max_rows PostgREST), pedidos 1000, insumo_movimientos 100.
  * @param {{ showToast?: (msg: string) => void }} options
  * @returns {{ insumos, recetas, ventas, recetaIngredientes, clientes, pedidos, stock, insumoStock, insumoMovimientos, insumoComposicion, precioHistorial, gastosFijos, loading, loadData, setStock, setInsumoStock, setInsumoMovimientos, recetasFilterIds, setRecetasFilterIds, planSemanalVersion, setPlanSemanalVersion }}
  */
@@ -32,8 +58,17 @@ export function useAppData({ showToast } = {}) {
   const [recetasFilterIds, setRecetasFilterIds] = useState([]);
   const [planSemanalVersion, setPlanSemanalVersion] = useState(0);
 
-  // Límites de carga en queries: ventas 1000, pedidos 1000, insumo_movimientos 100, precio_historial 5000.
+  // Límites de carga en queries: pedidos 1000, insumo_movimientos 100, precio_historial 5000.
+  // Ventas: todas desde fecha >= inicio del mes hace 36 meses (analytics por mes histórico).
   const loadData = useCallback(async () => {
+    const ventasDesde = new Date();
+    ventasDesde.setMonth(ventasDesde.getMonth() - 36);
+    ventasDesde.setDate(1);
+    ventasDesde.setHours(0, 0, 0, 0);
+    const ventasDesdeStr = `${ventasDesde.getFullYear()}-${String(ventasDesde.getMonth() + 1).padStart(2, "0")}-01`;
+
+    const ventasPromise = loadVentasDesde(ventasDesdeStr);
+
     const stPromise = supabase
       .from("stock")
       .select("receta_id, cantidad")
@@ -78,7 +113,6 @@ export function useAppData({ showToast } = {}) {
     const [
       insRes,
       recRes,
-      venRes,
       riRes,
       cliRes,
       pedRes,
@@ -88,14 +122,10 @@ export function useAppData({ showToast } = {}) {
       insCompRes,
       gastosRes,
       precioHistRes,
+      venRes,
     ] = await Promise.all([
       supabase.from("insumos").select("*").order("categoria").order("nombre"),
       supabase.from("recetas").select("*").order("nombre"),
-      supabase
-        .from("ventas")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(1000),
       supabase.from("receta_ingredientes").select("*"),
       supabase.from("clientes").select("*").order("nombre"),
       pedidosPromise,
@@ -105,6 +135,7 @@ export function useAppData({ showToast } = {}) {
       insCompPromise,
       gastosPromise,
       precioHistPromise,
+      ventasPromise,
     ]);
 
     const authErr = (e) => e && (e.status === 401 || e.status === 403);

@@ -2,12 +2,13 @@
  * Contenedor de Analytics: vista resumen o detalle (Hoy, Semana, Mes).
  * Navegación entre períodos en detalle Semana y Mes.
  */
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAnalyticsData } from "../../hooks/useAnalyticsData";
 import AnalyticsResumen from "./AnalyticsResumen";
 import AnalyticsDetalleHoy from "./AnalyticsDetalleHoy";
 import AnalyticsDetalleSemana from "./AnalyticsDetalleSemana";
 import AnalyticsDetalleMes from "./AnalyticsDetalleMes";
+import AnalyticsDrilldown from "./AnalyticsDrilldown";
 
 export default function Analytics({
   ventas,
@@ -16,11 +17,18 @@ export default function Analytics({
   recetaIngredientes,
   insumos,
   gastosFijos,
+  onAbrirVentasPeriodo,
 }) {
   const [vista, setVista] = useState("resumen");
   const [offsetDia, setOffsetDia] = useState(0);
   const [offsetSemana, setOffsetSemana] = useState(0);
   const [offsetMes, setOffsetMes] = useState(0);
+  /** Detalle ampliado mismo período: { tipo: string } */
+  const [drill, setDrill] = useState(null);
+
+  useEffect(() => {
+    setDrill(null);
+  }, [vista, offsetSemana, offsetMes]);
 
   const data = useAnalyticsData({
     ventas,
@@ -98,6 +106,35 @@ export default function Analytics({
   }
 
   if (vista === "detalle-semana") {
+    if (drill?.tipo) {
+      return (
+        <AnalyticsDrilldown
+          drill={drill}
+          onBack={() => setDrill(null)}
+          periodLabel={`Semana · ${data.semanaLabel || ""}`}
+          ventasPeriodo={data.ventasPeriodoSemana || []}
+          data={data}
+          recetas={recetas}
+          clientes={clientes}
+          recetaIngredientes={recetaIngredientes}
+          insumos={insumos}
+          fechasVentasPeriodo={{
+            desde: data.periodoSemanaDesdeStr,
+            hasta: data.periodoSemanaHastaStr,
+          }}
+          onAbrirEnVentas={
+            onAbrirVentasPeriodo
+              ? () =>
+                  onAbrirVentasPeriodo({
+                    desde: data.periodoSemanaDesdeStr,
+                    hasta: data.periodoSemanaHastaStr,
+                    label: `Semana · ${data.semanaLabel || ""}`,
+                  })
+              : undefined
+          }
+        />
+      );
+    }
     return (
       <div className="content">
         <div
@@ -128,12 +165,43 @@ export default function Analytics({
             setOffsetSemana((o) => (o < 0 ? o + 1 : o))
           }
           onIrActual={() => setOffsetSemana(0)}
+          onDrill={setDrill}
+          onAbrirVentasPeriodo={onAbrirVentasPeriodo}
         />
       </div>
     );
   }
 
   if (vista === "detalle-mes") {
+    if (drill?.tipo) {
+      return (
+        <AnalyticsDrilldown
+          drill={drill}
+          onBack={() => setDrill(null)}
+          periodLabel={`Mes · ${data.mesLabel || ""}`}
+          ventasPeriodo={data.ventasPeriodoMes || []}
+          data={data}
+          recetas={recetas}
+          clientes={clientes}
+          recetaIngredientes={recetaIngredientes}
+          insumos={insumos}
+          fechasVentasPeriodo={{
+            desde: data.periodoMesDesdeStr,
+            hasta: data.periodoMesHastaStr,
+          }}
+          onAbrirEnVentas={
+            onAbrirVentasPeriodo
+              ? () =>
+                  onAbrirVentasPeriodo({
+                    desde: data.periodoMesDesdeStr,
+                    hasta: data.periodoMesHastaStr,
+                    label: `Mes · ${data.mesLabel || ""}`,
+                  })
+              : undefined
+          }
+        />
+      );
+    }
     return (
       <div className="content">
         <div
@@ -162,6 +230,8 @@ export default function Analytics({
           onPrev={() => setOffsetMes((o) => o - 1)}
           onNext={() => setOffsetMes((o) => (o < 0 ? o + 1 : o))}
           onIrActual={() => setOffsetMes(0)}
+          onDrill={setDrill}
+          onAbrirVentasPeriodo={onAbrirVentasPeriodo}
         />
       </div>
     );
