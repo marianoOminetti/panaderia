@@ -277,7 +277,7 @@ const TicketPreview = forwardRef(function TicketPreview(
         )}
         {data.descuento > 0 && (
           <div style={ticketStyles.totalRow}>
-            <span>Descuento</span>
+            <span>{data.descuentoLabel || "Descuento"}</span>
             <span style={{ color: "#4a7c59" }}>-{fmt(data.descuento)}</span>
           </div>
         )}

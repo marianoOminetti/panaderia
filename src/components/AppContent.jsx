@@ -14,6 +14,7 @@ import Analytics from "./analytics/Analytics";
 import Recetas from "./recetas/Recetas";
 import MoreMenuScreen from "./menu/MoreMenuScreen";
 import Pedidos from "./pedidos/Pedidos";
+import Promociones from "./promociones/Promociones";
 
 export default function AppContent({
   tab,
@@ -48,6 +49,7 @@ export default function AppContent({
   insumoComposicion,
   precioHistorial,
   gastosFijos,
+  promociones,
   resumenPlanSemanal,
   actualizarStock,
   actualizarStockBatch,
@@ -164,6 +166,17 @@ export default function AppContent({
           onConsumedVentasPedido={onConsumedVentasPedido}
           ventasFiltroFecha={ventasFiltroFecha}
           onClearVentasFiltroFecha={onClearVentasFiltroFecha}
+          promociones={promociones}
+        />
+      )}
+      {/* --- Promociones --- */}
+      {tab === "promociones" && (
+        <Promociones
+          promociones={promociones}
+          recetas={recetas}
+          onRefresh={loadData}
+          showToast={showToast}
+          confirm={confirm}
         />
       )}
       {/* --- Pedidos (MAS) --- */}

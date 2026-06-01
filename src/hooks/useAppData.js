@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { INSUMOS_SEED } from "../config/appConfig";
+import { normalizarPromociones } from "../lib/promociones";
 import { reportError } from "../utils/errorReport";
 
 /** PostgREST suele limitar filas por request (p. ej. max_rows 1000); paginamos para no truncar analytics. */
@@ -48,6 +49,7 @@ export function useAppData({ showToast } = {}) {
   const [insumoComposicion, setInsumoComposicion] = useState([]);
   const [precioHistorial, setPrecioHistorial] = useState([]);
   const [gastosFijos, setGastosFijos] = useState([]);
+  const [promociones, setPromociones] = useState([]);
 
   const [loading, setLoading] = useState(true);
   const [seeded, setSeeded] = useState(false);
@@ -110,6 +112,11 @@ export function useAppData({ showToast } = {}) {
       .select("*")
       .order("nombre");
 
+    const promosPromise = supabase
+      .from("promociones")
+      .select("*, promocion_recetas(receta_id)")
+      .order("nombre");
+
     const [
       insRes,
       recRes,
@@ -121,6 +128,7 @@ export function useAppData({ showToast } = {}) {
       insMovRes,
       insCompRes,
       gastosRes,
+      promosRes,
       precioHistRes,
       venRes,
     ] = await Promise.all([
@@ -134,6 +142,7 @@ export function useAppData({ showToast } = {}) {
       insMovPromise,
       insCompPromise,
       gastosPromise,
+      promosPromise,
       precioHistPromise,
       ventasPromise,
     ]);
@@ -206,6 +215,14 @@ export function useAppData({ showToast } = {}) {
       });
       showToast?.("⚠️ Error al cargar gastos fijos");
     }
+    if (promosRes?.error && promosRes.error.code !== "42P01") {
+      reportError(promosRes.error, {
+        action: "loadData",
+        source: "promociones",
+        code: promosRes.error?.code,
+      });
+      showToast?.("⚠️ Error al cargar promociones");
+    }
 
     setInsumos(insRes.data || []);
     setRecetas(recRes.data || []);
@@ -233,6 +250,11 @@ export function useAppData({ showToast } = {}) {
     if (insCompRes.ok) setInsumoComposicion(insCompRes.data || []);
     if (precioHistRes.ok) setPrecioHistorial(precioHistRes.data || []);
     setGastosFijos(gastosRes?.data || []);
+    if (promosRes?.error?.code === "42P01") {
+      setPromociones([]);
+    } else {
+      setPromociones(normalizarPromociones(promosRes?.data));
+    }
     setLoading(false);
 
     // Seed insumos if empty (ref evita que loadData cambie de identidad y dispare doble carga)
@@ -275,6 +297,7 @@ export function useAppData({ showToast } = {}) {
     insumoComposicion,
     precioHistorial,
     gastosFijos,
+    promociones,
     loading,
     // setters needed by other hooks/mutations
     setStock,

@@ -102,6 +102,7 @@ export default function App() {
     insumoComposicion,
     precioHistorial,
     gastosFijos,
+    promociones,
     loading,
     setStock,
     setInsumoStock,
@@ -308,6 +309,7 @@ export default function App() {
         insumoComposicion={insumoComposicion}
         precioHistorial={precioHistorial}
         gastosFijos={gastosFijos}
+        promociones={promociones}
         resumenPlanSemanal={resumenPlanSemanal}
         actualizarStock={actualizarStock}
         actualizarStockBatch={actualizarStockBatch}

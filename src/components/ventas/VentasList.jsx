@@ -61,6 +61,7 @@ export default function VentasList({
   ventas,
   hoy,
   recetas,
+  promociones = [],
   clientes,
   gruposConDeuda = [],
   totalDeuda,
@@ -91,6 +92,8 @@ export default function VentasList({
       0
     );
     const descuento = subtotal - grupo.total;
+    const promoId = grupo.rawItems?.find((r) => r.promocion_id)?.promocion_id;
+    const promo = (promociones || []).find((p) => p.id === promoId);
     return {
       fecha: ejemplo?.fecha,
       created_at: ejemplo?.created_at,
@@ -99,6 +102,7 @@ export default function VentasList({
       estado_pago: ejemplo?.estado_pago || "pagado",
       subtotal,
       descuento: descuento > 0 ? descuento : 0,
+      descuentoLabel: promo?.nombre ? `Promo: ${promo.nombre}` : undefined,
       total: grupo.total,
       items,
     };
