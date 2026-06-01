@@ -3,12 +3,16 @@
  * Usado por Ventas.jsx.
  */
 import { useState, useMemo } from "react";
-import { toCantidadNumber } from "../lib/format";
+import { toCantidadNumber, fmt } from "../lib/format";
 import { generateTransaccionId } from "../lib/ventas";
+import { buildVentaRowsConPromos } from "../lib/buildVentaRowsConPromos";
+import { calcularPromosEnCarrito } from "../lib/promociones";
+import { useCartConPromos } from "./useCartConPromos";
 import { reportError } from "../utils/errorReport";
 
 export function useVentasEdit({
   recetas,
+  promociones = [],
   updateVenta,
   deleteVentas,
   insertVentas,
@@ -31,6 +35,7 @@ export function useVentasEdit({
   const [editRemovedRecetas, setEditRemovedRecetas] = useState([]);
   const [editPrecios, setEditPrecios] = useState({});
   const [editTotalOverride, setEditTotalOverride] = useState("");
+  const [editPromosExcluidas, setEditPromosExcluidas] = useState([]);
   const [editSaving, setEditSaving] = useState(false);
 
   const abrirEditar = (grupo) => {
@@ -56,6 +61,36 @@ export function useVentasEdit({
     setEditItemsToAdd([]);
     setEditRemovedRecetas([]);
     setEditTotalOverride("");
+
+    const tempCart = Object.entries(cantByReceta)
+      .map(([rid, cant]) => {
+        const receta = recetas?.find((r) => r.id === rid);
+        if (!receta) return null;
+        return {
+          receta,
+          cantidad: cant,
+          precio_unitario: preciosByReceta[rid] ?? receta.precio_venta ?? 0,
+        };
+      })
+      .filter(Boolean);
+    const subtotalLista = tempCart.reduce((s, it) => {
+      const c = toCantidadNumber(it.cantidad) || 0;
+      return s + (Number(it.precio_unitario) || 0) * c;
+    }, 0);
+    const teniaDescuento = grupo.total < subtotalLista - 0.01;
+    const preview = calcularPromosEnCarrito(tempCart, promociones);
+    const promosGuardadas = new Set(
+      grupo.rawItems.map((r) => r.promocion_id).filter(Boolean),
+    );
+    let excluidas = [];
+    if (!teniaDescuento && preview.descuentoTotal > 0) {
+      excluidas = preview.aplicadas.map((a) => a.promocion_id);
+    } else if (promosGuardadas.size > 0) {
+      excluidas = preview.aplicadas
+        .filter((a) => !promosGuardadas.has(a.promocion_id))
+        .map((a) => a.promocion_id);
+    }
+    setEditPromosExcluidas(excluidas);
   };
 
   const closeEdit = () => {
@@ -65,6 +100,7 @@ export function useVentasEdit({
     setEditRemovedRecetas([]);
     setEditPrecios({});
     setEditTotalOverride("");
+    setEditPromosExcluidas([]);
     setEditForm({
       cliente_id: null,
       medio_pago: "efectivo",
@@ -110,6 +146,12 @@ export function useVentasEdit({
     const qty = Math.max(0.1, c);
     return s + (item.precio_unitario || 0) * qty;
   }, 0);
+
+  const editCartPromos = useCartConPromos(
+    editCartItems,
+    promociones,
+    editPromosExcluidas,
+  );
 
   const editUpdateQuantity = (recetaId, delta) => {
     setEditCantidades((prev) => {
@@ -244,47 +286,38 @@ export function useVentasEdit({
       .filter(([, d]) => d !== 0)
       .map(([receta_id, delta]) => ({ receta_id, delta }));
 
-    const lineas = [];
-    for (const rid of Object.keys(rawByReceta)) {
-      const raws = rawByReceta[rid];
-      const first = raws[0];
-      const nuevaCant = Math.max(0.1, toCantidadNumber(editCantidades[rid] ?? 0));
-      const precio = editPrecios[rid] ?? first.precio_unitario ?? 0;
-      lineas.push({ rid, cant: nuevaCant, precio, key: `raw-${rid}` });
+    if (editCartItems.length === 0) {
+      showToast("Agregá al menos un producto");
+      setEditSaving(false);
+      return;
     }
-    for (const [rid, { cantidad, receta, precio }] of Object.entries(addByReceta)) {
-      const cantNum = Math.max(0.1, toCantidadNumber(cantidad));
-      const p = precio ?? receta?.precio_venta ?? 0;
-      lineas.push({ rid, cant: cantNum, precio: p, key: `add-${rid}` });
-    }
-    const totalCart = lineas.reduce((s, l) => s + l.cant * l.precio, 0);
-    const overrideVal = parseFloat(String(editTotalOverride || "").replace(",", "."));
-    const usarOverride =
-      !Number.isNaN(overrideVal) &&
-      overrideVal >= 0 &&
-      totalCart > 0 &&
-      overrideVal !== totalCart;
+
+    const built = buildVentaRowsConPromos({
+      cartItems: editCartItems,
+      promociones,
+      excludePromoIds: editPromosExcluidas,
+      chargeTotalOverride: editTotalOverride,
+      fecha: fechaEdit,
+      transaccionId,
+      clienteId: editForm.cliente_id,
+      medioPago: editForm.medio_pago,
+      estadoPago: editForm.estado_pago,
+    });
+
     if (
-      !Number.isNaN(overrideVal) &&
-      overrideVal > 0 &&
-      totalCart === 0
+      built.subtotalLista === 0 &&
+      editTotalOverride !== "" &&
+      !Number.isNaN(parseFloat(String(editTotalOverride).replace(",", "."))) &&
+      parseFloat(String(editTotalOverride).replace(",", ".")) > 0
     ) {
       showToast("Para aplicar un total final, asigná precios mayores a 0 en el carrito.");
       setEditSaving(false);
       return;
     }
-    const preciosAjustados = {};
-    if (usarOverride) {
-      let acumulado = 0;
-      lineas.forEach((l, i) => {
-        const nuevoSubtotal =
-          i === lineas.length - 1
-            ? overrideVal - acumulado
-            : Math.round((l.cant * l.precio * overrideVal) / totalCart);
-        preciosAjustados[l.key] = l.cant > 0 ? nuevoSubtotal / l.cant : l.precio;
-        acumulado += nuevoSubtotal;
-      });
-    }
+
+    const rowByReceta = Object.fromEntries(
+      built.rows.map((r) => [r.receta_id, r]),
+    );
 
     try {
       if (stockDeltas.length > 0 && actualizarStockBatch) {
@@ -298,19 +331,19 @@ export function useVentasEdit({
         for (const rid of Object.keys(rawByReceta)) {
           const raws = rawByReceta[rid];
           const first = raws[0];
-          const nuevaCant = Math.max(0.1, toCantidadNumber(editCantidades[rid] ?? 0));
-          const precioBase = editPrecios[rid] ?? first.precio_unitario ?? 0;
-          const precio = preciosAjustados[`raw-${rid}`] ?? precioBase;
-          const subtotal = precio * nuevaCant;
+          const row = rowByReceta[rid];
+          if (!row) continue;
           const payload = {
-            cliente_id: editForm.cliente_id || null,
-            medio_pago: editForm.medio_pago,
-            estado_pago: editForm.estado_pago,
-            fecha: fechaEdit,
-            cantidad: nuevaCant,
-            precio_unitario: precio,
-            subtotal,
-            total_final: usarOverride ? subtotal : subtotal - (first.descuento ?? 0),
+            cliente_id: row.cliente_id,
+            medio_pago: row.medio_pago,
+            estado_pago: row.estado_pago,
+            fecha: row.fecha,
+            cantidad: row.cantidad,
+            precio_unitario: row.precio_unitario,
+            subtotal: row.subtotal,
+            descuento: row.descuento ?? 0,
+            total_final: row.total_final,
+            promocion_id: row.promocion_id ?? null,
           };
           if (Object.keys(addByReceta).length > 0) payload.transaccion_id = transaccionId;
           await updateVenta(first.id, payload);
@@ -319,26 +352,10 @@ export function useVentasEdit({
           await deleteVentas(idsToDelete);
         }
         if (Object.keys(addByReceta).length > 0) {
-          const rows = Object.entries(addByReceta).map(([receta_id, { cantidad, receta, precio }]) => {
-            const cantNum = Math.max(0.1, toCantidadNumber(cantidad));
-            const pBase = precio ?? receta?.precio_venta ?? 0;
-            const p = preciosAjustados[`add-${receta_id}`] ?? pBase;
-            const subtotal = p * cantNum;
-            return {
-              receta_id,
-              cantidad: cantNum,
-              precio_unitario: p,
-              subtotal,
-              descuento: 0,
-              total_final: subtotal,
-              fecha: fechaEdit,
-              transaccion_id: transaccionId,
-              cliente_id: editForm.cliente_id || null,
-              medio_pago: editForm.medio_pago,
-              estado_pago: editForm.estado_pago,
-            };
-          });
-          await insertVentas(rows);
+          const rows = Object.keys(addByReceta)
+            .map((receta_id) => rowByReceta[receta_id])
+            .filter(Boolean);
+          if (rows.length > 0) await insertVentas(rows);
         }
       } catch (ventaErr) {
         if (stockDeltas.length > 0) {
@@ -352,7 +369,10 @@ export function useVentasEdit({
         }
         throw ventaErr;
       }
-      showToast("✅ Venta actualizada");
+      const promoLabel = built.promoResult.aplicadas.map((a) => a.nombre).join(", ");
+      showToast(
+        `✅ Venta actualizada: ${fmt(built.totalCobrado)}${promoLabel ? ` · ${promoLabel}` : ""}`,
+      );
       closeEdit();
       onRefresh();
     } catch (err) {
@@ -384,5 +404,8 @@ export function useVentasEdit({
     editUpdatePrice,
     addToCartForEdit,
     guardarEdicion,
+    editCartPromos,
+    editPromosExcluidas,
+    setEditPromosExcluidas,
   };
 }

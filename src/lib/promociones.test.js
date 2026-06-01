@@ -1,7 +1,6 @@
 import {
   calcularPromosEnCarrito,
   aplicarDescuentoPromoARows,
-  recetasEnOtrasPromosActivas,
   TIPOS_PROMO,
 } from "./promociones";
 
@@ -114,14 +113,31 @@ describe("porcentaje por monto mínimo", () => {
   });
 });
 
-describe("recetasEnOtrasPromosActivas", () => {
-  it("excluye la promo en edición", () => {
-    const promos = [
-      { id: "p1", activa: true, receta_ids: ["a"] },
-      { id: "p2", activa: true, receta_ids: ["b"] },
-    ];
-    const set = recetasEnOtrasPromosActivas(promos, "p1");
-    expect(set.has("a")).toBe(false);
-    expect(set.has("b")).toBe(true);
+describe("excluir promos en cobro", () => {
+  it("no aplica promo excluida", () => {
+    const cart = [{ receta: recetaA, cantidad: 5, precio_unitario: 100 }];
+    const r = calcularPromosEnCarrito(cart, [promo5x4], {
+      excludePromoIds: ["p1"],
+    });
+    expect(r.descuentoTotal).toBe(0);
+    expect(r.totalFinal).toBe(500);
+  });
+});
+
+describe("varias promos mismo producto", () => {
+  it("suma descuentos de dos promos sobre el mismo producto", () => {
+    const promoNxM = { ...promo5x4, id: "p1" };
+    const promo20 = {
+      id: "p2",
+      nombre: "20%",
+      tipo: TIPOS_PROMO.PORCENTAJE_PRODUCTOS,
+      porcentaje: 20,
+      activa: true,
+      receta_ids: ["a"],
+    };
+    const cart = [{ receta: recetaA, cantidad: 5, precio_unitario: 100 }];
+    const r = calcularPromosEnCarrito(cart, [promoNxM, promo20]);
+    expect(r.descuentoTotal).toBe(200);
+    expect(r.aplicadas).toHaveLength(2);
   });
 });

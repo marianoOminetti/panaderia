@@ -6,6 +6,7 @@ import { fmtMonedaDecimal } from "../../lib/format";
 import { hoyLocalISO } from "../../lib/dates";
 import { SelectorCliente, SelectoresPago } from "./VentasSelectors";
 import VentasCart from "./VentasCart";
+import PromosEnVentaPanel from "./PromosEnVentaPanel";
 import { FormMoneyInput, FormInput, FormTextarea, DatePicker } from "../ui";
 
 export default function VentasChargeModal({
@@ -14,6 +15,8 @@ export default function VentasChargeModal({
   cartItems,
   cartTotal,
   cartPromos,
+  promosExcluidasCobro,
+  setPromosExcluidasCobro,
   clienteSel,
   setClienteSel,
   medioPago,
@@ -40,10 +43,10 @@ export default function VentasChargeModal({
 
   const hoy = hoyLocalISO();
   const esPedido = fechaEntrega && fechaEntrega > hoy;
-  const subtotalLista = cartPromos?.subtotalLista ?? cartTotal;
   const descuentoPromo = cartPromos?.descuentoTotal ?? 0;
   const totalConPromo = cartPromos?.totalFinal ?? cartTotal;
-  const promosAplicadas = cartPromos?.aplicadas ?? [];
+  const promosEnCobro = cartPromos?.promosEnCobro ?? [];
+  const hayPromosEnCarrito = !esPedido && promosEnCobro.length > 0;
 
   const handleRegistrar = () => {
     if (esPedido && !clienteSel) {
@@ -71,47 +74,12 @@ export default function VentasChargeModal({
             cartTotal={cartTotal}
             readOnly
           />
-          {!esPedido && descuentoPromo > 0 && (
-            <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px dashed var(--border)" }}>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  fontSize: 13,
-                  marginBottom: 4,
-                }}
-              >
-                <span>Subtotal</span>
-                <span>{fmtMonedaDecimal(subtotalLista)}</span>
-              </div>
-              {promosAplicadas.map((p) => (
-                <div
-                  key={p.promocion_id}
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    fontSize: 13,
-                    color: "#4a7c59",
-                    marginBottom: 4,
-                  }}
-                >
-                  <span>{p.nombre}</span>
-                  <span>-{fmtMonedaDecimal(p.descuento)}</span>
-                </div>
-              ))}
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  fontWeight: 600,
-                  fontSize: 16,
-                  marginTop: 8,
-                }}
-              >
-                <span>Total</span>
-                <span>{fmtMonedaDecimal(totalConPromo)}</span>
-              </div>
-            </div>
+          {hayPromosEnCarrito && (
+            <PromosEnVentaPanel
+              cartPromos={cartPromos}
+              promosExcluidas={promosExcluidasCobro}
+              setPromosExcluidas={setPromosExcluidasCobro}
+            />
           )}
         </div>
 

@@ -4,12 +4,7 @@
 import { useState, useMemo } from "react";
 import { reportError } from "../../utils/errorReport";
 import { usePromociones } from "../../hooks/usePromociones";
-import {
-  TIPOS_PROMO,
-  etiquetaPromo,
-  promoUsaProductos,
-  recetasEnOtrasPromosActivas,
-} from "../../lib/promociones";
+import { TIPOS_PROMO, etiquetaPromo, promoUsaProductos } from "../../lib/promociones";
 import { FormInput, FormMoneyInput, FormCheckbox } from "../ui";
 
 const TIPOS_OPCIONES = [
@@ -65,17 +60,29 @@ export default function Promociones({ promociones, recetas, onRefresh, showToast
     setModalOpen(true);
   };
 
-  const bloqueadas = useMemo(
-    () => recetasEnOtrasPromosActivas(promociones, editId),
-    [promociones, editId],
-  );
-
   const recetasFiltradas = useMemo(() => {
     const q = searchRecetas.trim().toLowerCase();
     return [...(recetas || [])]
       .filter((r) => !q || (r.nombre || "").toLowerCase().includes(q))
       .sort((a, b) => (a.nombre || "").localeCompare(b.nombre || "", "es"));
   }, [recetas, searchRecetas]);
+
+  const productosDePromo = (p) =>
+    (p.receta_ids || [])
+      .map((rid) => recetas.find((r) => r.id === rid))
+      .filter(Boolean);
+
+  const seleccionarTodosVisibles = () => {
+    const idsVisibles = recetasFiltradas.map((r) => r.id);
+    setForm((prev) => ({
+      ...prev,
+      receta_ids: [...new Set([...(prev.receta_ids || []), ...idsVisibles])],
+    }));
+  };
+
+  const limpiarSeleccionProductos = () => {
+    setForm((prev) => ({ ...prev, receta_ids: [] }));
+  };
 
   const toggleReceta = (recetaId) => {
     setForm((prev) => {
@@ -134,15 +141,6 @@ export default function Promociones({ promociones, recetas, onRefresh, showToast
       }
     }
 
-    if (usaProductos) {
-      const conflicto = form.receta_ids.find((rid) => bloqueadas.has(rid));
-      if (conflicto) {
-        const r = recetas.find((x) => x.id === conflicto);
-        showToast(`"${r?.nombre || "Producto"}" ya está en otra promo activa`);
-        return;
-      }
-    }
-
     setSaving(true);
     try {
       await savePromocion({
@@ -166,17 +164,6 @@ export default function Promociones({ promociones, recetas, onRefresh, showToast
   };
 
   const toggleConValidacion = async (p) => {
-    if (p.activa === false && promoUsaProductos(p.tipo)) {
-      const bloqueadasToggle = recetasEnOtrasPromosActivas(promociones, p.id);
-      const conflicto = (p.receta_ids || []).find((rid) => bloqueadasToggle.has(rid));
-      if (conflicto) {
-        const r = recetas.find((x) => x.id === conflicto);
-        showToast(
-          `No se puede activar: "${r?.nombre || "producto"}" ya está en otra promo activa`,
-        );
-        return;
-      }
-    }
     try {
       await toggleActiva(p);
     } catch (err) {
@@ -238,9 +225,37 @@ export default function Promociones({ promociones, recetas, onRefresh, showToast
             </div>
             <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 8 }}>
               {etiquetaPromo(p)}
-              {promoUsaProductos(p.tipo) &&
-                ` · ${(p.receta_ids || []).length} producto${(p.receta_ids || []).length === 1 ? "" : "s"}`}
             </p>
+            {promoUsaProductos(p.tipo) && (p.receta_ids || []).length > 0 && (
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: 6,
+                  marginBottom: 10,
+                }}
+              >
+                {productosDePromo(p).map((r) => (
+                  <span
+                    key={r.id}
+                    style={{
+                      fontSize: 12,
+                      padding: "4px 8px",
+                      borderRadius: 8,
+                      background: "rgba(74, 124, 89, 0.12)",
+                      color: "var(--green)",
+                    }}
+                  >
+                    {r.emoji || "🍞"} {r.nombre}
+                  </span>
+                ))}
+              </div>
+            )}
+            {promoUsaProductos(p.tipo) && (p.receta_ids || []).length === 0 && (
+              <p style={{ fontSize: 12, color: "var(--danger)", marginBottom: 8 }}>
+                Sin productos asignados
+              </p>
+            )}
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <button type="button" className="btn-secondary btn-sm" onClick={() => abrirEditar(p)}>
                 Editar
@@ -341,6 +356,32 @@ export default function Promociones({ promociones, recetas, onRefresh, showToast
               <div className="card" style={{ marginBottom: 16 }}>
                 <div className="card-header">
                   <span className="card-title">Productos incluidos</span>
+                  <span style={{ fontSize: 12, color: "var(--green)", fontWeight: 600 }}>
+                    {form.receta_ids.length} seleccionado
+                    {form.receta_ids.length === 1 ? "" : "s"}
+                  </span>
+                </div>
+                <p className="form-hint" style={{ marginBottom: 8 }}>
+                  Marcá todos los productos que entran en esta promo. Un mismo producto puede
+                  estar en varias promos activas.
+                </p>
+                <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    style={{ width: "auto", marginTop: 0, padding: "6px 12px", fontSize: 12 }}
+                    onClick={seleccionarTodosVisibles}
+                  >
+                    Marcar visibles
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    style={{ width: "auto", marginTop: 0, padding: "6px 12px", fontSize: 12 }}
+                    onClick={limpiarSeleccionProductos}
+                  >
+                    Quitar todos
+                  </button>
                 </div>
                 <FormInput
                   label="Buscar"
@@ -351,7 +392,6 @@ export default function Promociones({ promociones, recetas, onRefresh, showToast
                 <div style={{ maxHeight: 280, overflowY: "auto" }}>
                   {recetasFiltradas.map((r) => {
                     const checked = form.receta_ids.includes(r.id);
-                    const disabled = !checked && bloqueadas.has(r.id);
                     return (
                       <label
                         key={r.id}
@@ -359,26 +399,24 @@ export default function Promociones({ promociones, recetas, onRefresh, showToast
                           display: "flex",
                           alignItems: "center",
                           gap: 8,
-                          padding: "8px 0",
-                          borderBottom: "1px solid var(--border)",
-                          opacity: disabled ? 0.5 : 1,
-                          cursor: disabled ? "not-allowed" : "pointer",
+                          padding: "8px 10px",
+                          marginBottom: 4,
+                          borderRadius: 8,
+                          border: checked
+                            ? "1px solid rgba(74, 124, 89, 0.4)"
+                            : "1px solid var(--border)",
+                          background: checked ? "rgba(74, 124, 89, 0.08)" : "transparent",
+                          cursor: "pointer",
                         }}
                       >
                         <input
                           type="checkbox"
                           checked={checked}
-                          disabled={disabled}
-                          onChange={() => !disabled && toggleReceta(r.id)}
+                          onChange={() => toggleReceta(r.id)}
                         />
                         <span>
                           {r.emoji || "🍞"} {r.nombre}
                         </span>
-                        {disabled && (
-                          <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
-                            (otra promo)
-                          </span>
-                        )}
                       </label>
                     );
                   })}

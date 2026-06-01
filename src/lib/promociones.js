@@ -94,11 +94,38 @@ function calcularDescuentoPromo(promo, cartItems, subtotalLista) {
 }
 
 /**
- * Calcula promos activas sobre el carrito.
+ * Lista promos activas con descuento potencial (para pantalla de cobro).
  */
-export function calcularPromosEnCarrito(cartItems, promociones) {
+export function listarPromosParaCobro(cartItems, promociones, excludePromoIds = []) {
   const subtotalLista = subtotalCarrito(cartItems);
+  const excludeSet = new Set(excludePromoIds || []);
   const activas = (promociones || []).filter((p) => p.activa !== false);
+
+  return activas
+    .map((promo) => {
+      const descuento = calcularDescuentoPromo(promo, cartItems, subtotalLista);
+      return {
+        promocion_id: promo.id,
+        nombre: promo.nombre,
+        etiqueta: etiquetaPromo(promo),
+        descuento,
+        excluida: excludeSet.has(promo.id),
+        aplica: descuento > 0 && !excludeSet.has(promo.id),
+      };
+    })
+    .filter((p) => p.descuento > 0);
+}
+
+/**
+ * Calcula promos activas sobre el carrito.
+ * @param {{ excludePromoIds?: string[] }} [opciones]
+ */
+export function calcularPromosEnCarrito(cartItems, promociones, opciones = {}) {
+  const subtotalLista = subtotalCarrito(cartItems);
+  const excludeSet = new Set(opciones.excludePromoIds || []);
+  const activas = (promociones || []).filter(
+    (p) => p.activa !== false && !excludeSet.has(p.id),
+  );
   const aplicadas = [];
   let descuentoTotal = 0;
 
@@ -149,21 +176,6 @@ export function aplicarDescuentoPromoARows(rows, descuentoTotal, promocionId) {
       promocion_id: promocionId || null,
     };
   });
-}
-
-/** Recetas en otra promo activa que usa productos (nxm o % productos). */
-export function recetasEnOtrasPromosActivas(promociones, excludePromoId = null) {
-  const set = new Set();
-  for (const p of promociones || []) {
-    if (p.activa === false) continue;
-    if (excludePromoId && p.id === excludePromoId) continue;
-    const tipo = p.tipo || TIPOS_PROMO.NXM;
-    if (tipo === TIPOS_PROMO.PORCENTAJE_MONTO_MINIMO) continue;
-    for (const rid of p.receta_ids || []) {
-      set.add(rid);
-    }
-  }
-  return set;
 }
 
 export function etiquetaPromoNxm(promo) {

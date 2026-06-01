@@ -10,9 +10,7 @@ import { useClientes } from "../../hooks/useClientes";
 import { useVentasCart } from "../../hooks/useVentasCart";
 import { useCartConPromos } from "../../hooks/useCartConPromos";
 import { useVentasChargeModal } from "../../hooks/useVentasChargeModal";
-import {
-  aplicarDescuentoPromoARows,
-} from "../../lib/promociones";
+import { buildVentaRowsConPromos } from "../../lib/buildVentaRowsConPromos";
 import { useVentasEdit } from "../../hooks/useVentasEdit";
 import { hoyLocalISO } from "../../lib/dates";
 import { saveVentaPendiente } from "../../lib/offlineVentas";
@@ -59,7 +57,8 @@ function Ventas({
     cartTotal,
   } = useVentasCart();
 
-  const cartPromos = useCartConPromos(cartItems, promociones);
+  const [promosExcluidasCobro, setPromosExcluidasCobro] = useState([]);
+  const cartPromos = useCartConPromos(cartItems, promociones, promosExcluidasCobro);
 
   const [manualScreenOpen, setManualScreenOpen] = useState(false);
   const [clienteSel, setClienteSel] = useState(null);
@@ -84,6 +83,7 @@ function Ventas({
 
   const edit = useVentasEdit({
     recetas,
+    promociones,
     updateVenta,
     deleteVentas,
     insertVentas,
@@ -175,9 +175,15 @@ function Ventas({
     return { inserted, zeros };
   };
 
+  const cerrarCobro = () => {
+    setPromosExcluidasCobro([]);
+    closeChargeModal();
+  };
+
   const resetNuevaVenta = () => {
     setManualScreenOpen(false);
     setCartItems([]);
+    setPromosExcluidasCobro([]);
     setClienteSel(null);
     setMedioPago("efectivo");
     setEstadoPago("pagado");
@@ -353,55 +359,30 @@ function Ventas({
         const fechaDisplay = new Date(fechaFinal).toLocaleDateString("es-AR");
         showToast(`✅ Pedido guardado para ${fechaDisplay}: ${fmt(subtotalLista)}`);
       } else {
-        const override = parseFloat(String(chargeTotalOverride || "").replace(",", "."));
-        const totalBase = descuentoPromo > 0 ? totalConPromo : subtotalLista;
-        const usarOverride =
-          !Number.isNaN(override) && override >= 0 && override !== totalBase && subtotalLista > 0;
-        if (subtotalLista === 0 && !Number.isNaN(override) && override > 0) {
+        const transaccionId = generateTransaccionId();
+        const built = buildVentaRowsConPromos({
+          cartItems,
+          promociones,
+          excludePromoIds: promosExcluidasCobro,
+          chargeTotalOverride,
+          fecha: fechaFinal,
+          transaccionId,
+          clienteId: clienteSel,
+          medioPago,
+          estadoPago,
+        });
+        const { rows, promoResult, subtotalLista: subLista, totalCobrado } = built;
+        if (
+          subLista === 0 &&
+          chargeTotalOverride !== "" &&
+          !Number.isNaN(parseFloat(String(chargeTotalOverride).replace(",", "."))) &&
+          parseFloat(String(chargeTotalOverride).replace(",", ".")) > 0
+        ) {
           showToast("Para usar un total final distinto, asigná precios mayores a 0 en el carrito.");
           setSaving(false);
           return;
         }
-        let transaccionId = generateTransaccionId();
-        let rows = cartItems.map(({ receta, cantidad, precio_unitario }) => {
-          const cantNum = toCantidadNumber(cantidad) || 0;
-          const precio = precio_unitario || 0;
-          const subtotal = precio * cantNum;
-          return {
-            receta_id: receta.id,
-            cantidad: cantNum,
-            precio_unitario: precio,
-            subtotal,
-            descuento: 0,
-            total_final: subtotal,
-            fecha: fechaFinal,
-            transaccion_id: transaccionId,
-            cliente_id: clienteSel || null,
-            medio_pago: medioPago,
-            estado_pago: estadoPago,
-          };
-        });
-        if (usarOverride) {
-          const factor = override / subtotalLista;
-          let acumulado = 0;
-          for (let i = 0; i < rows.length; i++) {
-            const nuevoSubtotal = i === rows.length - 1 ? override - acumulado : Math.round(rows[i].subtotal * factor);
-            rows[i].precio_unitario = rows[i].cantidad > 0 ? nuevoSubtotal / rows[i].cantidad : rows[i].precio_unitario;
-            rows[i].subtotal = nuevoSubtotal;
-            rows[i].total_final = nuevoSubtotal;
-            rows[i].descuento = 0;
-            rows[i].promocion_id = null;
-            acumulado += nuevoSubtotal;
-          }
-        } else if (descuentoPromo > 0) {
-          rows = aplicarDescuentoPromoARows(rows, descuentoPromo, cartPromos.promocionId);
-        }
-        const totalCobrado = usarOverride
-          ? override
-          : descuentoPromo > 0
-            ? totalConPromo
-            : subtotalLista;
-        const promoLabel = cartPromos.aplicadas.map((a) => a.nombre).join(", ");
+        const promoLabel = promoResult.aplicadas.map((a) => a.nombre).join(", ");
         if (typeof navigator !== "undefined" && !navigator.onLine) {
           await saveVentaPendiente(rows);
           showToast(
@@ -507,6 +488,7 @@ function Ventas({
         addToCart={edit.editGrupo ? edit.addToCartForEdit : addToCart}
         onCobrar={() => {
           if (cartItems.length === 0) return;
+          setPromosExcluidasCobro([]);
           openChargeModal();
         }}
         editCartItems={edit.editCartItems}
@@ -524,14 +506,19 @@ function Ventas({
         editSaving={edit.editSaving}
         editTotalOverride={edit.editTotalOverride}
         setEditTotalOverride={edit.setEditTotalOverride}
+        editCartPromos={edit.editCartPromos}
+        editPromosExcluidas={edit.editPromosExcluidas}
+        setEditPromosExcluidas={edit.setEditPromosExcluidas}
       />
 
       <VentasChargeModal
         open={chargeModalOpen}
-        onClose={closeChargeModal}
+        onClose={cerrarCobro}
         cartItems={cartItems}
         cartTotal={cartTotal}
         cartPromos={cartPromos}
+        promosExcluidasCobro={promosExcluidasCobro}
+        setPromosExcluidasCobro={setPromosExcluidasCobro}
         clienteSel={clienteSel}
         setClienteSel={setClienteSel}
         medioPago={medioPago}

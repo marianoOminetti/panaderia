@@ -3,6 +3,7 @@ import VentasCart from "./VentasCart";
 import { SelectorCliente, SelectoresPago } from "./VentasSelectors";
 import { DatePicker, ProductSearchInput, FormMoneyInput } from "../ui";
 import { useFilterBySearch } from "../../hooks/useFilterBySearch";
+import PromosEnVentaPanel from "./PromosEnVentaPanel";
 
 export default function VentasManualScreen({
   open,
@@ -36,6 +37,9 @@ export default function VentasManualScreen({
   editSaving,
   editTotalOverride = "",
   setEditTotalOverride,
+  editCartPromos,
+  editPromosExcluidas = [],
+  setEditPromosExcluidas,
 }) {
   const { search, setSearch, filteredItems: filteredRecetas } = useFilterBySearch(
     recetas ?? [],
@@ -46,13 +50,18 @@ export default function VentasManualScreen({
 
   const isEdit = mode === "edit";
   const items = isEdit ? editCartItems : cartItems;
-  const totalBase = isEdit ? editCartTotal : cartTotal;
+  const totalLista = isEdit ? editCartTotal : cartTotal;
+  const totalConPromoEdit =
+    isEdit && (editCartPromos?.descuentoTotal ?? 0) > 0
+      ? editCartPromos.totalFinal
+      : totalLista;
   const overrideNum =
     isEdit &&
     editTotalOverride !== "" &&
     !Number.isNaN(parseFloat(String(editTotalOverride).replace(",", ".")))
       ? parseFloat(String(editTotalOverride).replace(",", "."))
       : null;
+  const totalBase = isEdit ? totalConPromoEdit : totalLista;
   const total =
     isEdit && overrideNum != null && overrideNum >= 0 ? overrideNum : totalBase;
   const hasItems = (isEdit ? editCartItems : cartItems)?.length > 0;
@@ -117,11 +126,11 @@ export default function VentasManualScreen({
               label="Total final (editable)"
               value={editTotalOverride}
               onChange={(v) => setEditTotalOverride?.(v)}
-              placeholder={fmtMonedaDecimal(editCartTotal).replace("$", "").trim()}
+              placeholder={fmtMonedaDecimal(totalConPromoEdit).replace("$", "").trim()}
               style={{ marginTop: 12 }}
             />
             <p className="form-hint" style={{ marginTop: -8 }}>
-              Dejalo vacío para usar el total del carrito. Usalo para descuentos o redondeos.
+              Dejalo vacío para usar el total con promos. Usalo para descuentos extra o redondeos.
             </p>
           </div>
         )}
@@ -131,7 +140,7 @@ export default function VentasManualScreen({
           </div>
           <VentasCart
             cartItems={items}
-            cartTotal={total}
+            cartTotal={totalLista}
             updateCartQuantity={isEdit ? editUpdateQuantity : updateCartQuantity}
             removeFromCart={isEdit ? editRemoveItem : removeFromCart}
             updateCartPrice={isEdit ? editUpdatePrice : updateCartPrice}
@@ -139,6 +148,13 @@ export default function VentasManualScreen({
             quantityIntegerOnly={false}
             priceEditable
           />
+          {isEdit && (editCartPromos?.promosEnCobro?.length ?? 0) > 0 && (
+            <PromosEnVentaPanel
+              cartPromos={editCartPromos}
+              promosExcluidas={editPromosExcluidas}
+              setPromosExcluidas={setEditPromosExcluidas}
+            />
+          )}
         </div>
         <div className="card">
           <div className="card-header">
