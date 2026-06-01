@@ -19,13 +19,30 @@ export function usePromociones({ onRefresh, showToast } = {}) {
   }, []);
 
   const savePromocion = useCallback(
-    async ({ id, nombre, tipo, llevar, pagar, activa, receta_ids }) => {
+    async ({
+      id,
+      nombre,
+      tipo,
+      llevar,
+      pagar,
+      porcentaje,
+      monto_minimo,
+      activa,
+      receta_ids,
+    }) => {
+      const tipoFinal = tipo || "nxm";
       const payload = {
         nombre: nombre.trim(),
-        tipo: tipo || "nxm",
-        llevar: Number(llevar),
-        pagar: Number(pagar),
+        tipo: tipoFinal,
         activa: activa !== false,
+        llevar: tipoFinal === "nxm" ? Number(llevar) : null,
+        pagar: tipoFinal === "nxm" ? Number(pagar) : null,
+        porcentaje:
+          tipoFinal === "porcentaje_productos" || tipoFinal === "porcentaje_monto_minimo"
+            ? Number(porcentaje)
+            : null,
+        monto_minimo:
+          tipoFinal === "porcentaje_monto_minimo" ? Number(monto_minimo) : null,
       };
       let promoId = id;
       if (id) {
