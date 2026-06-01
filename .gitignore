@@ -35,6 +35,9 @@
 # Supabase link cache
 supabase/.temp
 
+# Certificados AFIP locales (nunca commitear)
+.afip-local/
+
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

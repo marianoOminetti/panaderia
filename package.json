@@ -41,6 +41,11 @@
     "push:icons": "bash scripts/generate-notification-icons.sh",
     "push:vapid:set": "node scripts/push-set-vapid-secrets.js",
     "push:deploy": "supabase link --project-ref clgxrxlccjjqxzvapfav && supabase functions deploy send-push notify-event",
+    "functions:deploy:afip": "npm run supabase:link && supabase functions deploy registrar-en-afip",
+    "secrets:set:afip-mock": "npm run supabase:link && supabase secrets set AFIP_ALLOW_MOCK=true",
+    "afip:setup": "./scripts/afip-setup-secrets.sh",
+    "afip:setup:local": "./scripts/afip-setup-from-local.sh",
+    "afip:listar-pv": "NODE_OPTIONS='--tls-cipher-list=DEFAULT@SECLEVEL=1' node scripts/afip-listar-puntos-venta.mjs",
     "seed:paginacion": "env-cmd -f .env.development.local node scripts/seed-ventas-paginacion.js",
     "test": "react-scripts test",
     "eject": "react-scripts eject"

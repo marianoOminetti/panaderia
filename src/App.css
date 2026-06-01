@@ -60,15 +60,26 @@ body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--cream); c
   border-top: 1px solid rgba(196,176,224,0.3);
   z-index: 100;
   padding-bottom: env(safe-area-inset-bottom, 0px);
-  transition: transform 0.25s ease-out;
+  transition: background-color 0.25s ease-out, border-color 0.25s ease-out;
 }
+/* Scroll abajo: fondo violeta ~5%, iconos/texto ~20% */
 .nav.nav--hidden {
-  transform: translateX(-50%) translateY(100%);
+  background-color: rgba(123, 91, 168, 0.05);
+  border-top-color: rgba(196, 176, 224, 0.08);
+}
+.nav.nav--hidden .nav-icon,
+.nav.nav--hidden .nav-label-copy {
+  opacity: 0.2;
+}
+.nav.nav--hidden .nav-btn.active .nav-icon,
+.nav.nav--hidden .nav-btn.active .nav-label-copy {
+  opacity: 0.45;
 }
 .nav-btn { flex: 1; padding: 10px 4px 12px; display: flex; flex-direction: column; align-items: center; gap: 3px; background: none; border: none; cursor: pointer; color: rgba(255,255,255,0.7); transition: color 0.2s; }
 .nav-btn.active { color: var(--purple-light); }
-.nav-btn .nav-icon { font-size: 20px; }
+.nav-btn .nav-icon { font-size: 20px; transition: opacity 0.25s ease-out; }
 .nav-btn .nav-label { font-size: 9px; letter-spacing: 0.8px; text-transform: uppercase; font-family: 'Plus Jakarta Sans', sans-serif; color: inherit; display: inline-flex; align-items: center; gap: 4px; }
+.nav-label-copy { transition: opacity 0.25s ease-out; }
 .nav-badge-stock { background: var(--danger); color: white; font-size: 9px; font-weight: 600; padding: 2px 6px; border-radius: 999px; }
 
 /* Content */
