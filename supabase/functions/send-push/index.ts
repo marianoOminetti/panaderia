@@ -94,13 +94,12 @@ Deno.serve(async (req) => {
     );
   }
 
-  const payload: Record<string, string> = {
+  const payload = {
     title: reqBody.title,
     body: reqBody.body,
     url: reqBody.url || "/",
+    tag: reqBody.tag || "panaderia-push",
   };
-  // Sin tag global: cada evento debe pasar tag único; si falta, uno por envío para no reemplazar avisos previos.
-  payload.tag = reqBody.tag?.trim() || crypto.randomUUID();
 
   const adminContact = Deno.env.get("PUSH_ADMIN_CONTACT") || "mailto:owner@example.com";
 

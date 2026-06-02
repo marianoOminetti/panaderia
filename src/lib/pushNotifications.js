@@ -4,8 +4,7 @@
  */
 import { supabase } from "./supabaseClient";
 
-// Bump al cambiar lógica de push en public/sw.js (los clientes cachean el SW).
-const SW_PATH = "/sw.js?v=push-stack-icon-1";
+const SW_PATH = "/sw.js";
 
 /**
  * Registra el Service Worker para push. Debe llamarse una vez al cargar la app (ej. desde usePushSubscription).
