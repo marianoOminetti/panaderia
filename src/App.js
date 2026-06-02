@@ -237,8 +237,8 @@ export default function App() {
   }, [defaultTab, normalizedRole, roleReady, tab]);
 
   useEffect(() => {
-    if (session) loadData();
-  }, [session, loadData]);
+    if (session && roleReady) loadData();
+  }, [session, roleReady, loadData]);
 
   const isMoreSection = ["analytics", "plan", "clientes", "insumos", "recetas"].includes(tab);
   const sinStockCount = recetas.filter((r) => (stock[r.id] ?? 0) <= 0).length;
