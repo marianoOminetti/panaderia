@@ -197,12 +197,8 @@ async function handleVenta(
 
   const url = grupoKey ? `/?tab=ventas&venta=${encodeURIComponent(grupoKey)}` : "/?tab=ventas";
 
-  const tag = grupoKey
-    ? `venta-${grupoKey}-${Date.now()}`
-    : `venta-${crypto.randomUUID()}`;
-
   const { data, error: pushError } = await supabase.functions.invoke("send-push", {
-    body: { title, body, url, tag },
+    body: { title, body, url },
   });
 
   if (pushError) {
@@ -237,10 +233,8 @@ async function handleStockZero(
   const title = "Stock en 0";
   const body = `${nombre} se quedó sin stock.`;
 
-  const tag = `stock-zero-${receta_id}-${Date.now()}`;
-
   const { data, error: pushError } = await supabase.functions.invoke("send-push", {
-    body: { title, body, tag },
+    body: { title, body },
   });
 
   if (pushError) {
@@ -277,14 +271,8 @@ async function handleIngresoMercaderia(
   const title = "Ingreso de mercadería";
   const body = movimiento_id ? `${descripcion}` : "Se registró una compra de insumos.";
 
-  const tag = movimiento_id
-    ? `ingreso-${movimiento_id}`
-    : insumo_id
-      ? `ingreso-${insumo_id}-${Date.now()}`
-      : `ingreso-${crypto.randomUUID()}`;
-
   const { data, error: pushError } = await supabase.functions.invoke("send-push", {
-    body: { title, body, tag },
+    body: { title, body },
   });
 
   if (pushError) {

@@ -94,13 +94,12 @@ Deno.serve(async (req) => {
     );
   }
 
-  const payload: Record<string, string> = {
+  const payload = {
     title: reqBody.title,
     body: reqBody.body,
     url: reqBody.url || "/",
+    tag: reqBody.tag || "panaderia-push",
   };
-  // pushId solo para trazabilidad en logs; el SW no usa tag (evita colapsar/silenciar en Android).
-  const pushId = reqBody.tag?.trim() || crypto.randomUUID();
 
   const adminContact = Deno.env.get("PUSH_ADMIN_CONTACT") || "mailto:owner@example.com";
 
@@ -133,11 +132,11 @@ Deno.serve(async (req) => {
       if (res.ok || res.status === 201) {
         sent += 1;
       } else if (res.status === 404 || res.status === 410) {
-        console.warn("[send-push] subscription gone", sub.user_id, res.status, pushId);
-        await supabase.from("push_subscriptions").delete().eq("endpoint", sub.endpoint);
+        console.warn("[send-push] subscription gone", sub.user_id, res.status);
+        // Opcional: borrar suscripción de la tabla push_subscriptions
       } else {
         const text = await res.text().catch(() => "");
-        console.error("[send-push] push failed", sub.user_id, res.status, pushId, text);
+        console.error("[send-push] push failed", sub.user_id, res.status, text);
       }
     } catch (e) {
       console.error("[send-push] per-sub error", sub.user_id, e);

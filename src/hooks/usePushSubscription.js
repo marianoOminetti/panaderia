@@ -2,11 +2,12 @@
  * Hook para suscripción push: permiso, registro SW, suscribir/desuscribir y estado.
  * Centraliza la petición de permiso (antes en App.js); no toca lógica de negocio.
  */
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "../lib/supabaseClient";
 import {
   registerServiceWorker,
-  syncPushSubscription,
+  subscribeUser,
+  saveSubscriptionToSupabase,
 } from "../lib/pushNotifications";
 
 const VAPID_PUBLIC_KEY = process.env.REACT_APP_VAPID_PUBLIC_KEY;
@@ -17,6 +18,7 @@ export function usePushSubscription(userId) {
   );
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [loading, setLoading] = useState(false);
+  const subscribeOnceRef = useRef(false);
 
   // Pedir permiso al montar si hay usuario y permiso aún no decidido (reemplaza el useEffect de App.js)
   useEffect(() => {
@@ -58,37 +60,35 @@ export function usePushSubscription(userId) {
     return () => { cancelled = true; };
   }, [userId, permission]);
 
-  // Sincronizar SW + suscripción en Supabase cada vez que hay permiso (recupera 410 del servidor).
+  // Auto-suscribir una vez cuando hay permiso, usuario y soporte (Etapa 1: sin botón en UI)
   useEffect(() => {
     if (
       !userId ||
       permission !== "granted" ||
       !VAPID_PUBLIC_KEY ||
+      isSubscribed ||
+      subscribeOnceRef.current ||
       typeof navigator === "undefined" ||
       !navigator.serviceWorker
     )
       return;
-
-    let cancelled = false;
-    syncPushSubscription(userId, VAPID_PUBLIC_KEY)
-      .then((sub) => {
-        if (!cancelled) setIsSubscribed(!!sub);
-      })
-      .catch((err) => {
-        console.error("[usePushSubscription] sync", err);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [userId, permission]);
+    subscribeOnceRef.current = true;
+    subscribe();
+  }, [userId, permission, isSubscribed]); // eslint-disable-line react-hooks/exhaustive-deps -- subscribe once when granted
 
   const subscribe = useCallback(async () => {
     if (!userId || !VAPID_PUBLIC_KEY) return;
     setLoading(true);
     try {
-      const sub = await syncPushSubscription(userId, VAPID_PUBLIC_KEY);
-      setIsSubscribed(!!sub);
+      const reg = await navigator.serviceWorker.ready;
+      let sub = await reg.pushManager.getSubscription();
+      if (!sub) {
+        sub = await subscribeUser(VAPID_PUBLIC_KEY);
+      }
+      if (sub) {
+        await saveSubscriptionToSupabase(sub, userId);
+        setIsSubscribed(true);
+      }
     } catch (err) {
       console.error("[usePushSubscription] subscribe", err);
     } finally {
