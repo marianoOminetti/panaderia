@@ -17,9 +17,11 @@ supabase login
 # 2. Vincular al proyecto dev
 supabase link --project-ref xdiggsdjmmylkvephyod
 
-# 3. Push de migraciones
-supabase db push
+# 3. Push de migraciones (dev suele requerir --include-all)
+npm run db:push:dev
 ```
+
+Tras el primer deploy de roles, la migración `20260602123100_bootstrap_user_roles_dev.sql` asigna `admin` a usuarios Auth existentes sin fila en `user_roles`.
 
 Para producción: `supabase link --project-ref clgxrxlccjjqxzvapfav`
 
@@ -41,6 +43,34 @@ SUPABASE_ACCESS_TOKEN=tu_token supabase link --project-ref xdiggsdjmmylkvephyod
 6. Guardá
 
 Ese usuario ya puede entrar a la app con ese email y contraseña.
+
+---
+
+## Asignar rol de app (obligatorio)
+
+La app usa roles internos en `public.user_roles`.
+Si un usuario no tiene rol, no puede entrar.
+
+Roles disponibles:
+- `admin`: acceso completo.
+- `venta`: solo módulo de ventas (CRUD ventas + alta/edición básica de cliente).
+
+Asignar rol desde SQL Editor (Supabase):
+
+```sql
+-- 1) Buscar el user_id del usuario
+select id, email
+from auth.users
+where email = 'usuario@tu-dominio.com';
+
+-- 2) Asignar rol (ejemplo: venta)
+insert into public.user_roles (user_id, role)
+values ('UUID_DEL_USUARIO', 'venta')
+on conflict (user_id)
+do update set role = excluded.role, updated_at = now();
+```
+
+Para asignar admin, usar `role = 'admin'`.
 
 ---
 

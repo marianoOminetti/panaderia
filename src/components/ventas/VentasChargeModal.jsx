@@ -38,17 +38,22 @@ export default function VentasChargeModal({
   setHoraEntrega,
   notas,
   setNotas,
+  allowPedidos = true,
 }) {
   if (!open) return null;
 
   const hoy = hoyLocalISO();
-  const esPedido = fechaEntrega && fechaEntrega > hoy;
+  const esPedido = allowPedidos && fechaEntrega && fechaEntrega > hoy;
   const descuentoPromo = cartPromos?.descuentoTotal ?? 0;
   const totalConPromo = cartPromos?.totalFinal ?? cartTotal;
   const promosEnCobro = cartPromos?.promosEnCobro ?? [];
   const hayPromosEnCarrito = !esPedido && promosEnCobro.length > 0;
 
   const handleRegistrar = () => {
+    if (!allowPedidos && fechaEntrega && fechaEntrega > hoy) {
+      showToast?.("Con este usuario solo se permiten ventas inmediatas.");
+      return;
+    }
     if (esPedido && !clienteSel) {
       showToast?.("Para pedidos es obligatorio elegir un cliente");
       return;
@@ -93,7 +98,9 @@ export default function VentasChargeModal({
             className="form-hint"
             style={{ marginTop: -8, marginBottom: 12 }}
           >
-            Hoy = venta inmediata. Fecha futura = pedido.
+            {allowPedidos
+              ? "Hoy = venta inmediata. Fecha futura = pedido."
+              : "Con este usuario, solo se permiten ventas inmediatas."}
           </p>
 
           <SelectorCliente

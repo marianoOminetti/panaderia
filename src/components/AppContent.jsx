@@ -15,8 +15,10 @@ import Recetas from "./recetas/Recetas";
 import MoreMenuScreen from "./menu/MoreMenuScreen";
 import Pedidos from "./pedidos/Pedidos";
 import Promociones from "./promociones/Promociones";
+import { canAccessTab } from "../config/permissions";
 
 export default function AppContent({
+  role,
   tab,
   setTab,
   stockProductionPreloadReceta,
@@ -76,6 +78,7 @@ export default function AppContent({
       </div>
     );
   }
+  if (!canAccessTab(role, tab)) return null;
   return (
     <>
       {/* --- Dashboard --- */}
@@ -148,6 +151,7 @@ export default function AppContent({
       {/* --- Ventas --- */}
       {tab === "ventas" && (
         <Ventas
+          role={role}
           recetas={recetas}
           ventas={ventas}
           clientes={clientes}

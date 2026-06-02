@@ -18,11 +18,13 @@ import { reportError } from "../../utils/errorReport";
 import { agruparVentas, gruposConDeuda as getGruposConDeuda, totalDebeEnGrupo } from "../../lib/agrupadores";
 import { filtrarVentasPorFechaRango } from "../../lib/ventasFiltroFecha";
 import { notifyEvent } from "../../lib/notifyEvent";
+import { isVentaRole as checkVentaRole } from "../../config/permissions";
 import VentasList from "./VentasList";
 import VentasChargeModal from "./VentasChargeModal";
 import VentasManualScreen from "./VentasManualScreen";
 
 function Ventas({
+  role = "admin",
   recetas,
   ventas,
   clientes,
@@ -80,6 +82,7 @@ function Ventas({
   const [deletingId, setDeletingId] = useState(null);
   const [productosEnCeroAviso, setProductosEnCeroAviso] = useState(null);
   const hoy = hoyLocalISO();
+  const isVentaRole = checkVentaRole(role);
 
   const edit = useVentasEdit({
     recetas,
@@ -132,8 +135,10 @@ function Ventas({
     0,
   );
 
-  const gruposConDeuda = getGruposConDeuda(ventas);
-  const totalDeuda = gruposConDeuda.reduce((s, g) => s + totalDebeEnGrupo(g), 0);
+  const gruposConDeuda = isVentaRole ? [] : getGruposConDeuda(ventas);
+  const totalDeuda = isVentaRole
+    ? 0
+    : gruposConDeuda.reduce((s, g) => s + totalDebeEnGrupo(g), 0);
 
   const registrarVentaEnSupabase = async (rows, transaccionId) => {
     const inserted = await insertVentas(rows);
@@ -315,6 +320,10 @@ function Ventas({
     const hoyVenta = hoyLocalISO();
     const fechaFinal = fechaEntrega || hoyVenta;
     const esPedido = fechaFinal > hoyVenta;
+    if (isVentaRole && esPedido) {
+      showToast("Con este usuario no está habilitado guardar pedidos futuros.");
+      return;
+    }
 
     if (esPedido && !clienteSel) {
       showToast("Para pedidos es obligatorio elegir un cliente");
@@ -409,7 +418,9 @@ function Ventas({
   return (
     <div className="content">
       <p className="page-title">Ventas</p>
-      {ventasFiltroFecha?.desde && ventasFiltroFecha?.hasta ? (
+      {isVentaRole ? (
+        <p className="page-subtitle">Últimas ventas registradas</p>
+      ) : ventasFiltroFecha?.desde && ventasFiltroFecha?.hasta ? (
         <>
           <p className="page-subtitle">
             {ventasFiltroFecha.label?.trim() || "Período filtrado"}
@@ -420,7 +431,7 @@ function Ventas({
         <p className="page-subtitle">Hoy: {fmt(ingresoHoy)}</p>
       )}
 
-      {ventasFiltroFecha?.desde && ventasFiltroFecha?.hasta && (
+      {!isVentaRole && ventasFiltroFecha?.desde && ventasFiltroFecha?.hasta && (
         <div className="card" style={{ marginBottom: 12 }}>
           <div
             style={{
@@ -457,6 +468,7 @@ function Ventas({
         eliminarVenta={eliminarVenta}
         abrirEditar={abrirEditar}
         deletingId={deletingId}
+        isVentaRole={isVentaRole}
       />
 
       {!manualScreenOpen && (
@@ -538,6 +550,7 @@ function Ventas({
         setHoraEntrega={setHoraEntrega}
         notas={notas}
         setNotas={setNotas}
+        allowPedidos={!isVentaRole}
       />
 
       {productosEnCeroAviso && (
@@ -581,6 +594,7 @@ function Ventas({
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               <button
                 className="btn-primary"
+                title={isVentaRole ? "Disponible solo para usuarios admin" : undefined}
                 onClick={() => {
                   const recs = productosEnCeroAviso;
                   setProductosEnCeroAviso(null);
@@ -588,9 +602,15 @@ function Ventas({
                     onOpenCargarProduccion?.(recs.length === 1 ? recs[0] : recs);
                   }
                 }}
+                disabled={isVentaRole}
               >
                 Cargar stock
               </button>
+              {isVentaRole && (
+                <p style={{ fontSize: 12, color: "var(--text-muted)", margin: 0 }}>
+                  Disponible solo para usuarios admin.
+                </p>
+              )}
               <button className="btn-secondary" onClick={() => setProductosEnCeroAviso(null)}>
                 Lo veo después
               </button>

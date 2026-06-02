@@ -89,9 +89,23 @@ export function useStockMutations({
             : parseFloat(u.delta) || 0,
       }));
       const updatedAt = new Date().toISOString();
-      // Calcular next y rows desde stock actual (no dentro de setState) para no depender
-      // de que React 18 ejecute el updater de forma síncrona.
-      const prev = stock ?? {};
+      const stockSnapshot = { ...(stock ?? {}) };
+      const recetaIds = deltas.map((d) => d.receta_id).filter(Boolean);
+      // Base en DB para las recetas tocadas (evita pisar stock real si el estado local está vacío o viejo).
+      let prev = { ...stockSnapshot };
+      if (recetaIds.length > 0) {
+        const { data: stockRows, error: fetchErr } = await supabase
+          .from("stock")
+          .select("receta_id, cantidad")
+          .in("receta_id", recetaIds);
+        if (fetchErr) throw fetchErr;
+        for (const row of stockRows || []) {
+          prev[row.receta_id] = Number(row.cantidad) || 0;
+        }
+        for (const rid of recetaIds) {
+          if (prev[rid] === undefined) prev[rid] = 0;
+        }
+      }
       const next = { ...prev };
       for (const { receta_id, delta } of deltas) {
         const actualRaw = next[receta_id] ?? 0;
@@ -116,10 +130,7 @@ export function useStockMutations({
         .from("stock")
         .upsert(rows, { onConflict: "receta_id" });
       if (error) {
-        setStock((prevRaw) => {
-          const prev = prevRaw || {};
-          return prev;
-        });
+        setStock(stockSnapshot);
         throw error;
       }
 

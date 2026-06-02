@@ -7,6 +7,17 @@ import { reportError } from "../utils/errorReport";
 /** PostgREST suele limitar filas por request (p. ej. max_rows 1000); paginamos para no truncar analytics. */
 const VENTAS_PAGE = 1000;
 const VENTAS_MAX_PAGES = 500;
+/** Filas de ventas a cargar para rol venta (suficiente para ~5 grupos recientes). */
+const VENTA_VENTAS_FETCH_LIMIT = 80;
+
+async function loadVentasRecientesParaRolVenta() {
+  const r = await supabase
+    .from("ventas")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(VENTA_VENTAS_FETCH_LIMIT);
+  return { data: r.data || [], error: r.error };
+}
 
 async function loadVentasDesde(fechaGte) {
   const all = [];
@@ -36,7 +47,7 @@ async function loadVentasDesde(fechaGte) {
  * @param {{ showToast?: (msg: string) => void }} options
  * @returns {{ insumos, recetas, ventas, recetaIngredientes, clientes, pedidos, stock, insumoStock, insumoMovimientos, insumoComposicion, precioHistorial, gastosFijos, loading, loadData, setStock, setInsumoStock, setInsumoMovimientos, recetasFilterIds, setRecetasFilterIds, planSemanalVersion, setPlanSemanalVersion }}
  */
-export function useAppData({ showToast } = {}) {
+export function useAppData({ showToast, role } = {}) {
   const [insumos, setInsumos] = useState([]);
   const [recetas, setRecetas] = useState([]);
   const [ventas, setVentas] = useState([]);
@@ -63,37 +74,48 @@ export function useAppData({ showToast } = {}) {
   // Límites de carga en queries: pedidos 1000, insumo_movimientos 100, precio_historial 5000.
   // Ventas: todas desde fecha >= inicio del mes hace 36 meses (analytics por mes histórico).
   const loadData = useCallback(async () => {
+    const isVenta = role === "venta";
     const ventasDesde = new Date();
     ventasDesde.setMonth(ventasDesde.getMonth() - 36);
     ventasDesde.setDate(1);
     ventasDesde.setHours(0, 0, 0, 0);
     const ventasDesdeStr = `${ventasDesde.getFullYear()}-${String(ventasDesde.getMonth() + 1).padStart(2, "0")}-01`;
 
-    const ventasPromise = loadVentasDesde(ventasDesdeStr);
+    const ventasPromise = isVenta
+      ? loadVentasRecientesParaRolVenta()
+      : loadVentasDesde(ventasDesdeStr);
 
     const stPromise = supabase
       .from("stock")
       .select("receta_id, cantidad")
       .then((r) => ({ ok: !r.error, data: r.data || [] }))
       .catch(() => ({ ok: false, data: [] }));
-    const insStPromise = supabase
+    const insStPromise = isVenta
+      ? Promise.resolve({ ok: true, data: [] })
+      : supabase
       .from("insumo_stock")
       .select("insumo_id, cantidad")
       .then((r) => ({ ok: !r.error, data: r.data || [] }))
       .catch(() => ({ ok: false, data: [] }));
-    const insMovPromise = supabase
+    const insMovPromise = isVenta
+      ? Promise.resolve({ ok: true, data: [] })
+      : supabase
       .from("insumo_movimientos")
       .select("id, insumo_id, tipo, cantidad, valor, created_at")
       .order("created_at", { ascending: false })
       .limit(100)
       .then((r) => ({ ok: !r.error, data: r.data || [] }))
       .catch(() => ({ ok: false, data: [] }));
-    const insCompPromise = supabase
+    const insCompPromise = isVenta
+      ? Promise.resolve({ ok: true, data: [] })
+      : supabase
       .from("insumo_composicion")
       .select("insumo_id, insumo_id_componente, factor")
       .then((r) => ({ ok: !r.error, data: r.data || [] }))
       .catch(() => ({ ok: false, data: [] }));
-    const precioHistPromise = supabase
+    const precioHistPromise = isVenta
+      ? Promise.resolve({ ok: true, data: [] })
+      : supabase
       .from("precio_historial")
       .select("id, insumo_id, precio_anterior, precio_nuevo, fecha, motivo")
       .order("fecha", { ascending: true })
@@ -101,13 +123,17 @@ export function useAppData({ showToast } = {}) {
       .then((r) => ({ ok: !r.error, data: r.data || [] }))
       .catch(() => ({ ok: false, data: [] }));
 
-    const pedidosPromise = supabase
+    const pedidosPromise = isVenta
+      ? Promise.resolve({ data: [], error: null })
+      : supabase
       .from("pedidos")
       .select("*")
       .order("fecha_entrega", { ascending: true })
       .limit(1000);
 
-    const gastosPromise = supabase
+    const gastosPromise = isVenta
+      ? Promise.resolve({ data: [], error: null })
+      : supabase
       .from("gastos_fijos")
       .select("*")
       .order("nombre");
@@ -132,9 +158,13 @@ export function useAppData({ showToast } = {}) {
       precioHistRes,
       venRes,
     ] = await Promise.all([
-      supabase.from("insumos").select("*").order("categoria").order("nombre"),
+      isVenta
+        ? Promise.resolve({ data: [], error: null })
+        : supabase.from("insumos").select("*").order("categoria").order("nombre"),
       supabase.from("recetas").select("*").order("nombre"),
-      supabase.from("receta_ingredientes").select("*"),
+      isVenta
+        ? Promise.resolve({ data: [], error: null })
+        : supabase.from("receta_ingredientes").select("*"),
       supabase.from("clientes").select("*").order("nombre"),
       pedidosPromise,
       stPromise,
@@ -149,15 +179,7 @@ export function useAppData({ showToast } = {}) {
 
     const authErr = (e) => e && (e.status === 401 || e.status === 403);
     if (
-      [
-        insRes.error,
-        recRes.error,
-        venRes.error,
-        riRes.error,
-        cliRes.error,
-        pedRes?.error,
-        gastosRes?.error,
-      ].some(authErr)
+      [recRes.error, venRes.error, cliRes.error, promosRes?.error].some(authErr)
     ) {
       if (showToast) {
         showToast("🔒 Sesión expirada o sin permisos. Volvé a iniciar sesión.");
@@ -167,7 +189,7 @@ export function useAppData({ showToast } = {}) {
       return;
     }
 
-    if (insRes.error) {
+    if (insRes.error && !isVenta) {
       reportError(insRes.error, {
         action: "loadData",
         source: "insumos",
@@ -191,7 +213,7 @@ export function useAppData({ showToast } = {}) {
       });
       showToast?.("⚠️ Error al cargar ventas");
     }
-    if (pedRes && pedRes.error) {
+    if (pedRes && pedRes.error && !isVenta) {
       reportError(pedRes.error, {
         action: "loadData",
         source: "pedidos",
@@ -207,7 +229,7 @@ export function useAppData({ showToast } = {}) {
         showToast?.("⚠️ Error al cargar pedidos");
       }
     }
-    if (gastosRes && gastosRes.error) {
+    if (gastosRes && gastosRes.error && !isVenta) {
       reportError(gastosRes.error, {
         action: "loadData",
         source: "gastos_fijos",
@@ -258,7 +280,7 @@ export function useAppData({ showToast } = {}) {
     setLoading(false);
 
     // Seed insumos if empty (ref evita que loadData cambie de identidad y dispare doble carga)
-    if (!seededRef.current && insRes.data && insRes.data.length === 0) {
+    if (!isVenta && !seededRef.current && insRes.data && insRes.data.length === 0) {
       try {
         const { error } = await supabase.from("insumos").insert(INSUMOS_SEED);
         if (error) {
@@ -281,7 +303,7 @@ export function useAppData({ showToast } = {}) {
       seededRef.current = true;
       setSeeded(true);
     }
-  }, [showToast]);
+  }, [role, showToast]);
 
   return {
     // data

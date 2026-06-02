@@ -6,6 +6,7 @@ import { useState } from "react";
 import { fmt } from "../../lib/format";
 import { agruparVentas, totalDebeEnGrupo } from "../../lib/agrupadores";
 import { useFilterVentasGrupos } from "../../hooks/useFilterVentasGrupos";
+import { VENTA_LIST_MAX_GROUPS } from "../../config/permissions";
 import VentasListFilters from "./VentasListFilters";
 import ShareTicketModal from "../shared/ShareTicketModal";
 
@@ -68,9 +69,13 @@ export default function VentasList({
   eliminarVenta,
   abrirEditar,
   deletingId,
+  isVentaRole = false,
 }) {
   const hoyDate = new Date(hoy);
-  const grupos = agruparVentas(ventas || []);
+  const gruposAll = agruparVentas(ventas || []);
+  const grupos = isVentaRole
+    ? gruposAll.slice(0, VENTA_LIST_MAX_GROUPS)
+    : gruposAll;
   const [search, setSearch] = useState("");
   const [shareGrupo, setShareGrupo] = useState(null);
   const filteredGrupos = useFilterVentasGrupos(grupos, recetas, clientes, search);
@@ -110,7 +115,7 @@ export default function VentasList({
 
   return (
     <>
-      {gruposConDeuda.length > 0 && (
+      {!isVentaRole && gruposConDeuda.length > 0 && (
         <div className="card dashboard-alert" style={{ marginBottom: 12 }}>
           <div className="card-header">
             <span className="card-title">⚠️ Clientes con deuda</span>
@@ -203,7 +208,9 @@ export default function VentasList({
       {ventas.length > 0 && (
         <>
           <div className="card-header" style={{ marginBottom: 8 }}>
-            <span className="card-title">Ventas recientes</span>
+            <span className="card-title">
+              {isVentaRole ? "Últimas ventas" : "Ventas recientes"}
+            </span>
           </div>
           <VentasListFilters search={search} onSearchChange={setSearch} />
           {filteredGrupos.length === 0 && search.trim() ? (
@@ -322,21 +329,25 @@ export default function VentasList({
                     </div>
                   );
                 })}
-                <div className="venta-grupo-total">
-                  Total: {fmt(grupo.total)}
-                </div>
+                {!isVentaRole && (
+                  <div className="venta-grupo-total">
+                    Total: {fmt(grupo.total)}
+                  </div>
+                )}
                 <div className="venta-grupo-actions">
-                  <button
-                    type="button"
-                    className="btn-venta-action"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      e.preventDefault();
-                      setShareGrupo(grupo);
-                    }}
-                  >
-                    📤
-                  </button>
+                  {!isVentaRole && (
+                    <button
+                      type="button"
+                      className="btn-venta-action"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        setShareGrupo(grupo);
+                      }}
+                    >
+                      📤
+                    </button>
+                  )}
                   <button
                     className="btn-venta-action"
                     onClick={(e) => {

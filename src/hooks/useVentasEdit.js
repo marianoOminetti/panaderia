@@ -240,7 +240,7 @@ export function useVentasEdit({
   };
 
   const guardarEdicion = async () => {
-    if (!editGrupo) return;
+    if (!editGrupo || editSaving) return;
     setEditSaving(true);
     const fechaEdit = (editForm.fecha && editForm.fecha.slice(0, 10)) || hoy;
     let transaccionId = editGrupo.rawItems[0]?.transaccion_id;
@@ -377,7 +377,8 @@ export function useVentasEdit({
       onRefresh();
     } catch (err) {
       reportError(err, { action: "guardarEdicion", grupo: editGrupo?.key });
-      showToast("⚠️ Error al actualizar venta");
+      const msg = (err?.message || err?.code || "Error").slice(0, 100);
+      showToast(`⚠️ Error al actualizar venta: ${msg}`);
     } finally {
       setEditSaving(false);
     }
