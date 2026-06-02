@@ -21,11 +21,23 @@ export default function ShareTicketModal({ type, data, onClose }) {
       const lineTotal = lineTotals[i] ?? computed;
       return { ...it, _lineTotal: lineTotal };
     });
-    const total = items.reduce((s, it) => s + (it._lineTotal || 0), 0);
+    const itemsSubtotal = items.reduce((s, it) => s + (it._lineTotal || 0), 0);
+    const hasManualLineEdits = Object.keys(lineTotals).length > 0;
+    let total;
+    if (hasManualLineEdits) {
+      total = itemsSubtotal;
+    } else if ((data.descuento || 0) > 0) {
+      total = itemsSubtotal - data.descuento;
+    } else {
+      total = data.total ?? itemsSubtotal;
+    }
     return {
       ...data,
       items,
       total,
+      subtotal: hasManualLineEdits ? undefined : data.subtotal,
+      descuento: hasManualLineEdits ? 0 : data.descuento,
+      descuentoLabel: hasManualLineEdits ? undefined : data.descuentoLabel,
       cliente: cliente.trim() || data?.cliente,
     };
   }, [data, cliente, lineTotals]);
