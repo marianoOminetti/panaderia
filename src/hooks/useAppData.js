@@ -2,23 +2,13 @@ import { useCallback, useRef, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { INSUMOS_SEED } from "../config/appConfig";
 import { normalizarPromociones } from "../lib/promociones";
+import { hoyLocalISO } from "../lib/dates";
+import { fechaHaceDiasISO } from "../lib/recetasParaVenta";
 import { reportError } from "../utils/errorReport";
 
 /** PostgREST suele limitar filas por request (p. ej. max_rows 1000); paginamos para no truncar analytics. */
 const VENTAS_PAGE = 1000;
 const VENTAS_MAX_PAGES = 500;
-/** Filas de ventas a cargar para rol venta (suficiente para ~5 grupos recientes). */
-const VENTA_VENTAS_FETCH_LIMIT = 80;
-
-async function loadVentasRecientesParaRolVenta() {
-  const r = await supabase
-    .from("ventas")
-    .select("*")
-    .order("created_at", { ascending: false })
-    .limit(VENTA_VENTAS_FETCH_LIMIT);
-  return { data: r.data || [], error: r.error };
-}
-
 async function loadVentasDesde(fechaGte) {
   const all = [];
   for (let page = 0; page < VENTAS_MAX_PAGES; page++) {
@@ -82,7 +72,7 @@ export function useAppData({ showToast, role } = {}) {
     const ventasDesdeStr = `${ventasDesde.getFullYear()}-${String(ventasDesde.getMonth() + 1).padStart(2, "0")}-01`;
 
     const ventasPromise = isVenta
-      ? loadVentasRecientesParaRolVenta()
+      ? loadVentasDesde(fechaHaceDiasISO(hoyLocalISO(), 6))
       : loadVentasDesde(ventasDesdeStr);
 
     const stPromise = supabase

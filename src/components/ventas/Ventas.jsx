@@ -311,53 +311,79 @@ function Ventas({
     }
   };
 
-  const registrarVentaCarrito = async () => {
+  const registrarVentaCarrito = async ({ cobroPorDefecto = false } = {}) => {
+    if (saving) return;
+
     if (cartItems.length === 0) {
       showToast("Agregá productos al carrito primero.");
       return;
     }
 
+    if (cobroPorDefecto && isPedidoFlow) {
+      showToast("Para pedidos usá Ir a cobro.");
+      return;
+    }
+
     const hoyVenta = hoyLocalISO();
-    const fechaFinal = fechaEntrega || hoyVenta;
+    const fechaEntregaEff = cobroPorDefecto ? "" : fechaEntrega;
+    const clienteEff = cobroPorDefecto ? null : clienteSel;
+    const medioPagoEff = cobroPorDefecto ? "efectivo" : medioPago;
+    const estadoPagoEff = cobroPorDefecto ? "pagado" : estadoPago;
+    const chargeOverrideEff = cobroPorDefecto ? "" : chargeTotalOverride;
+    const promosExclEff = cobroPorDefecto ? [] : promosExcluidasCobro;
+    const seniaEff = cobroPorDefecto ? "" : senia;
+    const horaEntregaEff = cobroPorDefecto ? "" : horaEntrega;
+    const notasEff = cobroPorDefecto ? "" : notas;
+
+    const fechaFinal = fechaEntregaEff || hoyVenta;
     const esPedido = fechaFinal > hoyVenta;
     if (isVentaRole && esPedido) {
       showToast("Con este usuario no está habilitado guardar pedidos futuros.");
       return;
     }
 
-    if (esPedido && !clienteSel) {
+    if (esPedido && !clienteEff) {
       showToast("Para pedidos es obligatorio elegir un cliente");
       return;
     }
+
+    setSaving(true);
 
     if (!esPedido) {
       const sinStock = cartItems.filter(
         ({ receta, cantidad }) =>
           ((stock || {})[receta.id] ?? 0) < (toCantidadNumber(cantidad) || 0),
       );
-      if (sinStock.length > 0 && !(await confirm(`Stock insuficiente en ${sinStock.map((s) => s.receta.nombre).join(", ")}. ¿Registrar venta igual?`)))
+      if (sinStock.length > 0 && !(await confirm(`Stock insuficiente en ${sinStock.map((s) => s.receta.nombre).join(", ")}. ¿Registrar venta igual?`))) {
+        setSaving(false);
         return;
+      }
     }
 
-    setSaving(true);
     try {
-      const subtotalLista = cartPromos.subtotalLista;
+      const subtotalLista = cobroPorDefecto
+        ? cartItems.reduce(
+            (s, item) =>
+              s + (item.precio_unitario || 0) * (toCantidadNumber(item.cantidad) || 0),
+            0,
+          )
+        : cartPromos.subtotalLista;
 
       if (esPedido) {
         const pedidoId = generateTransaccionId();
-        const seniaNum = parseFloat(String(senia || "").replace(",", ".")) || 0;
+        const seniaNum = parseFloat(String(seniaEff || "").replace(",", ".")) || 0;
         const rows = cartItems.map(({ receta, cantidad, precio_unitario }, index) => {
           const cantNum = toCantidadNumber(cantidad) || 0;
           const precio = precio_unitario || 0;
           return {
             pedido_id: pedidoId,
-            cliente_id: clienteSel,
+            cliente_id: clienteEff,
             receta_id: receta.id,
             cantidad: cantNum,
             precio_unitario: precio,
             senia: index === 0 ? seniaNum : 0,
-            hora_entrega: index === 0 ? (horaEntrega || null) : null,
-            notas: index === 0 ? (notas || null) : null,
+            hora_entrega: index === 0 ? (horaEntregaEff || null) : null,
+            notas: index === 0 ? (notasEff || null) : null,
             estado: "pendiente",
             fecha_entrega: fechaFinal,
           };
@@ -370,20 +396,20 @@ function Ventas({
         const built = buildVentaRowsConPromos({
           cartItems,
           promociones,
-          excludePromoIds: promosExcluidasCobro,
-          chargeTotalOverride,
+          excludePromoIds: promosExclEff,
+          chargeTotalOverride: chargeOverrideEff,
           fecha: fechaFinal,
           transaccionId,
-          clienteId: clienteSel,
-          medioPago,
-          estadoPago,
+          clienteId: clienteEff,
+          medioPago: medioPagoEff,
+          estadoPago: estadoPagoEff,
         });
         const { rows, promoResult, subtotalLista: subLista, totalCobrado } = built;
         if (
           subLista === 0 &&
-          chargeTotalOverride !== "" &&
-          !Number.isNaN(parseFloat(String(chargeTotalOverride).replace(",", "."))) &&
-          parseFloat(String(chargeTotalOverride).replace(",", ".")) > 0
+          chargeOverrideEff !== "" &&
+          !Number.isNaN(parseFloat(String(chargeOverrideEff).replace(",", "."))) &&
+          parseFloat(String(chargeOverrideEff).replace(",", ".")) > 0
         ) {
           showToast("Para usar un total final distinto, asigná precios mayores a 0 en el carrito.");
           setSaving(false);
@@ -494,6 +520,7 @@ function Ventas({
         updateCartPrice={updateCartPrice}
         setCartQuantity={setCartQuantity}
         recetas={recetas}
+        ventas={ventas}
         stock={stock}
         addToCart={edit.editGrupo ? edit.addToCartForEdit : addToCart}
         onCobrar={() => {
@@ -501,6 +528,8 @@ function Ventas({
           setPromosExcluidasCobro([]);
           openChargeModal();
         }}
+        onRegistrarRapida={() => registrarVentaCarrito({ cobroPorDefecto: true })}
+        savingVenta={saving}
         editCartItems={edit.editCartItems}
         editCartTotal={edit.editCartTotal}
         editUpdateQuantity={edit.editUpdateQuantity}
@@ -537,7 +566,7 @@ function Ventas({
         setEstadoPago={setEstadoPago}
         chargeTotalOverride={chargeTotalOverride}
         setChargeTotalOverride={setChargeTotalOverride}
-        onRegistrar={registrarVentaCarrito}
+        onRegistrar={() => registrarVentaCarrito()}
         saving={saving}
         clientes={clientes}
         insertCliente={insertCliente}

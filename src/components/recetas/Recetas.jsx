@@ -82,7 +82,8 @@ export default function Recetas({ recetas, insumos, recetaIngredientes, showToas
         gramos_por_unidad:
           r.gramos_por_unidad != null && r.gramos_por_unidad > 0
             ? parseDecimal(r.gramos_por_unidad)
-            : null
+            : null,
+        oculto_en_venta: !!r.oculto_en_venta,
       };
       const newReceta = await insertReceta(payload);
       if (!newReceta?.id) {
@@ -113,7 +114,8 @@ export default function Recetas({ recetas, insumos, recetaIngredientes, showToas
         unidad_rinde: newReceta.unidad_rinde || "u",
         precio_venta: newReceta.precio_venta != null ? String(newReceta.precio_venta) : "",
         es_precursora: !!newReceta.es_precursora,
-        gramos_por_unidad: newReceta.gramos_por_unidad != null ? String(newReceta.gramos_por_unidad) : ""
+        gramos_por_unidad: newReceta.gramos_por_unidad != null ? String(newReceta.gramos_por_unidad) : "",
+        oculto_en_venta: !!newReceta.oculto_en_venta,
       });
       const ingsForm = ingsOrig.length > 0 ? ingsOrig.map((i) => ({
         insumo_id: i.insumo_id || "",
@@ -153,7 +155,8 @@ export default function Recetas({ recetas, insumos, recetaIngredientes, showToas
       gramos_por_unidad: (() => {
         const g = parseDecimal(form.gramos_por_unidad);
         return g != null && g > 0 ? g : null;
-      })()
+      })(),
+      oculto_en_venta: !!form.oculto_en_venta,
     };
     let recId = editando?.id;
 
@@ -306,7 +309,14 @@ export default function Recetas({ recetas, insumos, recetaIngredientes, showToas
               <span className="receta-emoji">{r.emoji}</span>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div className="receta-nombre">{r.nombre}</div>
-                <div className="receta-rinde">Rinde {r.rinde} {r.unidad_rinde}</div>
+                <div className="receta-rinde">
+                  Rinde {r.rinde} {r.unidad_rinde}
+                  {r.oculto_en_venta ? (
+                    <span style={{ marginLeft: 8, color: "var(--text-muted)", fontSize: 12 }}>
+                      · Oculto en venta
+                    </span>
+                  ) : null}
+                </div>
               </div>
               <button type="button" className="receta-copy-btn" onClick={(e) => { e.stopPropagation(); copyReceta(r); }} title="Copiar receta" disabled={saving}>📋 Copiar</button>
             </div>

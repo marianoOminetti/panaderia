@@ -1,4 +1,6 @@
+import { useMemo } from "react";
 import { fmt, fmtMonedaDecimal, fmtStock } from "../../lib/format";
+import { prepararRecetasParaVenta } from "../../lib/recetasParaVenta";
 import VentasCart from "./VentasCart";
 import { SelectorCliente, SelectoresPago } from "./VentasSelectors";
 import { DatePicker, ProductSearchInput, FormMoneyInput } from "../ui";
@@ -18,9 +20,12 @@ export default function VentasManualScreen({
   updateCartPrice,
   setCartQuantity,
   recetas,
+  ventas = [],
   stock,
   addToCart,
   onCobrar,
+  onRegistrarRapida,
+  savingVenta = false,
   // Editar venta
   editCartItems,
   editCartTotal,
@@ -41,9 +46,14 @@ export default function VentasManualScreen({
   editPromosExcluidas = [],
   setEditPromosExcluidas,
 }) {
+  const recetasParaLista = useMemo(
+    () => prepararRecetasParaVenta(recetas, ventas),
+    [recetas, ventas],
+  );
+
   const { search, setSearch, filteredItems: filteredRecetas } = useFilterBySearch(
-    recetas ?? [],
-    "nombre"
+    recetasParaLista,
+    "nombre",
   );
 
   if (!open) return null;
@@ -280,15 +290,40 @@ export default function VentasManualScreen({
               {editSaving ? "Guardando…" : "Guardar"}
             </button>
           ) : (
-            <button
-              type="button"
-              className="btn-primary"
-              onClick={onCobrar}
-              disabled={!hasItems}
-              style={{ width: 180 }}
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 8,
+                flex: 1,
+                minWidth: 0,
+                maxWidth: 220,
+              }}
             >
-              Ir a cobro
-            </button>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={onRegistrarRapida}
+                disabled={!hasItems || savingVenta || isPedidoFlow}
+                title={
+                  isPedidoFlow
+                    ? "Para pedidos usá Ir a cobro"
+                    : "Efectivo, consumidor final, pagado, hoy"
+                }
+                style={{ width: "100%", marginTop: 0, padding: "12px 10px", fontSize: 14 }}
+              >
+                {savingVenta ? "Registrando…" : "Registrar venta"}
+              </button>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={onCobrar}
+                disabled={!hasItems || savingVenta}
+                style={{ width: "100%", marginTop: 0, padding: "10px", fontSize: 13 }}
+              >
+                Ir a cobro
+              </button>
+            </div>
           )}
         </div>
       </div>

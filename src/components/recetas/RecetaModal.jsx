@@ -183,6 +183,12 @@ export default function RecetaModal({
         />
 
         <FormCheckbox
+          label="Ocultar en venta (no aparece al cargar una venta nueva)"
+          checked={!!form.oculto_en_venta}
+          onChange={(v) => setForm({ ...form, oculto_en_venta: v })}
+        />
+
+        <FormCheckbox
           label="Es receta precursora (se puede usar como ingrediente de otras recetas)"
           checked={!!form.es_precursora}
           onChange={(v) => setForm({ ...form, es_precursora: v })}

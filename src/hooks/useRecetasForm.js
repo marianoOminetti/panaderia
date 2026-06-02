@@ -7,7 +7,8 @@ const INITIAL_FORM = {
   unidad_rinde: "u",
   precio_venta: "",
   es_precursora: false,
-  gramos_por_unidad: ""
+  gramos_por_unidad: "",
+  oculto_en_venta: false,
 };
 
 const INITIAL_ING = {
@@ -45,7 +46,8 @@ export function useRecetasForm({ recetaIngredientes = [] }) {
       unidad_rinde: r.unidad_rinde || "u",
       precio_venta: String(r.precio_venta || ""),
       es_precursora: !!r.es_precursora,
-      gramos_por_unidad: r.gramos_por_unidad != null ? String(r.gramos_por_unidad) : ""
+      gramos_por_unidad: r.gramos_por_unidad != null ? String(r.gramos_por_unidad) : "",
+      oculto_en_venta: !!r.oculto_en_venta,
     });
     const ings = recetaIngredientes
       .filter((i) => String(i.receta_id) === String(r.id))
