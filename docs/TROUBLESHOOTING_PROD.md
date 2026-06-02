@@ -100,6 +100,8 @@ Repetí para `stock`, `insumos`, `recetas`, `clientes`, etc., según las tablas 
 
 ## Ver el error real
 
+**Sentry (recomendado en prod):** configurá `REACT_APP_SENTRY_DSN` en Vercel y redeploy. Ver pasos en [SENTRY.md](./SENTRY.md).
+
 Con el sistema de logs que agregamos, cuando falla una operación:
 
 1. El toast muestra el mensaje de Supabase (ej: `new row violates row-level security policy`)
