@@ -161,7 +161,6 @@ export default function AppContent({
           onRefresh={loadData}
           showToast={showToast}
           confirm={confirm}
-          onOpenCargarProduccion={onOpenCargarProduccion}
           ventasPreloadGrupoKey={ventasPreloadGrupoKey}
           onConsumedVentasPreload={onConsumedVentasPreload}
           ventasNuevaFlag={ventasNuevaFlag}

@@ -40,7 +40,6 @@ function Ventas({
   onConsumedVentasNueva,
   ventasPedidoFlag,
   onConsumedVentasPedido,
-  onOpenCargarProduccion,
   ventasFiltroFecha,
   onClearVentasFiltroFecha,
   promociones = [],
@@ -80,7 +79,6 @@ function Ventas({
     closeChargeModal,
   } = useVentasChargeModal();
   const [deletingId, setDeletingId] = useState(null);
-  const [productosEnCeroAviso, setProductosEnCeroAviso] = useState(null);
   const hoy = hoyLocalISO();
   const isVentaRole = checkVentaRole(role);
 
@@ -142,17 +140,12 @@ function Ventas({
 
   const registrarVentaEnSupabase = async (rows, transaccionId) => {
     const inserted = await insertVentas(rows);
-    const zeros = [];
     if (actualizarStock) {
       try {
         for (const v of rows) {
           const cant = v.cantidad || 0;
           if (v.receta_id && cant > 0) {
-            const res = await actualizarStock(v.receta_id, -cant);
-            if (res?.nuevo === 0) {
-              const receta = (recetas || []).find((r) => r.id === v.receta_id);
-              if (receta) zeros.push(receta);
-            }
+            await actualizarStock(v.receta_id, -cant);
           }
         }
       } catch (err) {
@@ -177,7 +170,7 @@ function Ventas({
       });
     }
 
-    return { inserted, zeros };
+    return { inserted };
   };
 
   const cerrarCobro = () => {
@@ -349,17 +342,6 @@ function Ventas({
 
     setSaving(true);
 
-    if (!esPedido) {
-      const sinStock = cartItems.filter(
-        ({ receta, cantidad }) =>
-          ((stock || {})[receta.id] ?? 0) < (toCantidadNumber(cantidad) || 0),
-      );
-      if (sinStock.length > 0 && !(await confirm(`Stock insuficiente en ${sinStock.map((s) => s.receta.nombre).join(", ")}. ¿Registrar venta igual?`))) {
-        setSaving(false);
-        return;
-      }
-    }
-
     try {
       const subtotalLista = cobroPorDefecto
         ? cartItems.reduce(
@@ -422,13 +404,10 @@ function Ventas({
             `✅ Venta guardada offline: ${fmt(totalCobrado)}${promoLabel ? ` (${promoLabel})` : ""}. Se sincronizará cuando vuelva la conexión.`,
           );
         } else {
-          const { zeros } = await registrarVentaEnSupabase(rows, transaccionId);
+          await registrarVentaEnSupabase(rows, transaccionId);
           showToast(
             `✅ Venta registrada: ${fmt(totalCobrado)}${promoLabel ? ` · ${promoLabel}` : ""}`,
           );
-          if (zeros && zeros.length > 0) {
-            setProductosEnCeroAviso(zeros);
-          }
         }
       }
       resetNuevaVenta();
@@ -581,72 +560,6 @@ function Ventas({
         setNotas={setNotas}
         allowPedidos={!isVentaRole}
       />
-
-      {productosEnCeroAviso && (
-        <div className="screen-overlay">
-          <div className="screen-header">
-            <button
-              className="screen-back"
-              onClick={() => setProductosEnCeroAviso(null)}
-            >
-              ← Volver
-            </button>
-            <span className="screen-title">Productos en 0</span>
-          </div>
-          <div className="screen-content">
-            <div className="card" style={{ marginBottom: 12 }}>
-              <div className="card-header">
-                <span className="card-title">Se agotó stock</span>
-              </div>
-              <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 8 }}>
-                Esta venta dejó algunos productos en 0. Si vas a producir, podés cargar stock ahora.
-              </p>
-            </div>
-            <div className="card" style={{ marginBottom: 16 }}>
-              <div className="card-header">
-                <span className="card-title">Productos</span>
-              </div>
-              {productosEnCeroAviso.map((r) => (
-                <div
-                  key={r.id}
-                  className="insumo-item"
-                  style={{ padding: "8px 0", borderBottom: "1px solid var(--border)" }}
-                >
-                  <div className="insumo-info" style={{ flex: 1 }}>
-                    <div className="insumo-nombre">
-                      {r.emoji || "🍞"} {r.nombre}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              <button
-                className="btn-primary"
-                title={isVentaRole ? "Disponible solo para usuarios admin" : undefined}
-                onClick={() => {
-                  const recs = productosEnCeroAviso;
-                  setProductosEnCeroAviso(null);
-                  if (recs?.length) {
-                    onOpenCargarProduccion?.(recs.length === 1 ? recs[0] : recs);
-                  }
-                }}
-                disabled={isVentaRole}
-              >
-                Cargar stock
-              </button>
-              {isVentaRole && (
-                <p style={{ fontSize: 12, color: "var(--text-muted)", margin: 0 }}>
-                  Disponible solo para usuarios admin.
-                </p>
-              )}
-              <button className="btn-secondary" onClick={() => setProductosEnCeroAviso(null)}>
-                Lo veo después
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
