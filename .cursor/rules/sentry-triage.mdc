@@ -1,0 +1,18 @@
+---
+description: Invocar sentry-triage ante link de Sentry, issue sentry-triage o pedido de analizar error de prod
+alwaysApply: false
+---
+
+# Sentry triage
+
+Si el mensaje incluye **cualquiera** de:
+
+- URL `sentry.io/issues/` o `sentry.io/organizations/`
+- «analizá el error de sentry», «sentry triage», «error en prod sentry»
+- Issue de GitHub con label `sentry-triage` o título que empiece con `[Sentry]`
+
+Entonces la **primera acción** debe ser invocar el subagente **sentry-triage** (`Task` con `subagent_type` generalPurpose o agente definido en `.cursor/agents/sentry-triage.md` leyendo ese archivo como instrucciones).
+
+Pasale: URL del issue, cuerpo del issue de GitHub, o payload pegado.
+
+No implementes un fix grande sin el reporte de triage salvo urgencia explícita.

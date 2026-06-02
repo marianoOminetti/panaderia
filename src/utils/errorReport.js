@@ -46,10 +46,14 @@ export function reportError(error, context = {}) {
   buf.push(entry);
   saveBuffer(buf);
 
-  // 3) Enviar a Sentry si está configurado
-  if (Sentry?.captureException) {
+  // 3) Enviar a Sentry si el DSN está en el build (init en index.js)
+  if (process.env.REACT_APP_SENTRY_DSN && Sentry?.captureException) {
+    const tags = {};
+    if (context.action) tags.action = String(context.action);
+    if (context.type) tags.error_type = String(context.type);
     Sentry.captureException(error instanceof Error ? error : new Error(msg), {
-      extra: context
+      extra: context,
+      tags: Object.keys(tags).length ? tags : undefined,
     });
   }
 
