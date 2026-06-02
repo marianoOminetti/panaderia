@@ -333,8 +333,6 @@ function Ventas({
     setSaving(true);
     try {
       const subtotalLista = cartPromos.subtotalLista;
-      const descuentoPromo = cartPromos.descuentoTotal;
-      const totalConPromo = cartPromos.totalFinal;
 
       if (esPedido) {
         const pedidoId = generateTransaccionId();

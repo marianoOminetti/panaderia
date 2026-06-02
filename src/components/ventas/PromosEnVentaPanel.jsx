@@ -11,7 +11,6 @@ export default function PromosEnVentaPanel({
   showTotales = true,
 }) {
   const subtotalLista = cartPromos?.subtotalLista ?? 0;
-  const descuentoPromo = cartPromos?.descuentoTotal ?? 0;
   const totalConPromo = cartPromos?.totalFinal ?? subtotalLista;
   const promosEnCobro = cartPromos?.promosEnCobro ?? [];
 
