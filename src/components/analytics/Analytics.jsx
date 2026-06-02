@@ -1,6 +1,5 @@
 /**
- * Contenedor de Analytics: vista resumen o detalle (Hoy, Semana, Mes).
- * Navegación entre períodos en detalle Semana y Mes.
+ * Contenedor de Analytics: vista resumen o detalle (Hoy, Semana, Mes, Año).
  */
 import { useState, useEffect } from "react";
 import { useAnalyticsData } from "../../hooks/useAnalyticsData";
@@ -8,6 +7,7 @@ import AnalyticsResumen from "./AnalyticsResumen";
 import AnalyticsDetalleHoy from "./AnalyticsDetalleHoy";
 import AnalyticsDetalleSemana from "./AnalyticsDetalleSemana";
 import AnalyticsDetalleMes from "./AnalyticsDetalleMes";
+import AnalyticsDetalleAnio from "./AnalyticsDetalleAnio";
 import AnalyticsDrilldown from "./AnalyticsDrilldown";
 
 export default function Analytics({
@@ -23,12 +23,12 @@ export default function Analytics({
   const [offsetDia, setOffsetDia] = useState(0);
   const [offsetSemana, setOffsetSemana] = useState(0);
   const [offsetMes, setOffsetMes] = useState(0);
-  /** Detalle ampliado mismo período: { tipo: string } */
+  const [offsetAnio, setOffsetAnio] = useState(0);
   const [drill, setDrill] = useState(null);
 
   useEffect(() => {
     setDrill(null);
-  }, [vista, offsetSemana, offsetMes]);
+  }, [vista, offsetSemana, offsetMes, offsetAnio]);
 
   const data = useAnalyticsData({
     ventas,
@@ -40,6 +40,7 @@ export default function Analytics({
     offsetDias: vista === "detalle-hoy" ? offsetDia : 0,
     offsetSemanas: vista === "detalle-semana" ? offsetSemana : 0,
     offsetMeses: vista === "detalle-mes" ? offsetMes : 0,
+    offsetAnios: vista === "detalle-anio" ? offsetAnio : 0,
   });
 
   const handleVerDetalle = (tipo) => {
@@ -52,6 +53,9 @@ export default function Analytics({
     } else if (tipo === "mes") {
       setOffsetMes(0);
       setVista("detalle-mes");
+    } else if (tipo === "anio") {
+      setOffsetAnio(0);
+      setVista("detalle-anio");
     }
   };
 
@@ -59,12 +63,31 @@ export default function Analytics({
     setVista("resumen");
   };
 
+  const detailHeader = (
+    <div
+      className="analytics-detail-header"
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+        marginBottom: 16,
+      }}
+    >
+      <button type="button" className="screen-back" onClick={handleVolver}>
+        ← Volver
+      </button>
+      <span className="page-title" style={{ flex: 1, margin: 0 }}>
+        Analytics
+      </span>
+    </div>
+  );
+
   if (vista === "resumen") {
     return (
       <div className="content">
         <p className="page-title">Analytics</p>
         <p className="page-subtitle">
-          Hoy · Semana · Mes · tocá para ver el detalle
+          Hoy · Semana · Mes · Año · tocá para ver el detalle
         </p>
         <AnalyticsResumen data={data} onVerDetalle={handleVerDetalle} />
       </div>
@@ -74,26 +97,7 @@ export default function Analytics({
   if (vista === "detalle-hoy") {
     return (
       <div className="content">
-        <div
-          className="analytics-detail-header"
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 12,
-            marginBottom: 16,
-          }}
-        >
-          <button
-            type="button"
-            className="screen-back"
-            onClick={handleVolver}
-          >
-            ← Volver
-          </button>
-          <span className="page-title" style={{ flex: 1, margin: 0 }}>
-            Analytics
-          </span>
-        </div>
+        {detailHeader}
         <AnalyticsDetalleHoy
           data={data}
           offsetDia={offsetDia}
@@ -137,33 +141,12 @@ export default function Analytics({
     }
     return (
       <div className="content">
-        <div
-          className="analytics-detail-header"
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 12,
-            marginBottom: 16,
-          }}
-        >
-          <button
-            type="button"
-            className="screen-back"
-            onClick={handleVolver}
-          >
-            ← Volver
-          </button>
-          <span className="page-title" style={{ flex: 1, margin: 0 }}>
-            Analytics
-          </span>
-        </div>
+        {detailHeader}
         <AnalyticsDetalleSemana
           data={data}
           offsetSemana={offsetSemana}
           onPrev={() => setOffsetSemana((o) => o - 1)}
-          onNext={() =>
-            setOffsetSemana((o) => (o < 0 ? o + 1 : o))
-          }
+          onNext={() => setOffsetSemana((o) => (o < 0 ? o + 1 : o))}
           onIrActual={() => setOffsetSemana(0)}
           onDrill={setDrill}
           onAbrirVentasPeriodo={onAbrirVentasPeriodo}
@@ -204,32 +187,59 @@ export default function Analytics({
     }
     return (
       <div className="content">
-        <div
-          className="analytics-detail-header"
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 12,
-            marginBottom: 16,
-          }}
-        >
-          <button
-            type="button"
-            className="screen-back"
-            onClick={handleVolver}
-          >
-            ← Volver
-          </button>
-          <span className="page-title" style={{ flex: 1, margin: 0 }}>
-            Analytics
-          </span>
-        </div>
+        {detailHeader}
         <AnalyticsDetalleMes
           data={data}
           offsetMes={offsetMes}
           onPrev={() => setOffsetMes((o) => o - 1)}
           onNext={() => setOffsetMes((o) => (o < 0 ? o + 1 : o))}
           onIrActual={() => setOffsetMes(0)}
+          onDrill={setDrill}
+          onAbrirVentasPeriodo={onAbrirVentasPeriodo}
+        />
+      </div>
+    );
+  }
+
+  if (vista === "detalle-anio") {
+    if (drill?.tipo) {
+      return (
+        <AnalyticsDrilldown
+          drill={drill}
+          onBack={() => setDrill(null)}
+          periodLabel={`Año · ${data.anioLabel || ""}`}
+          ventasPeriodo={data.ventasPeriodoAnio || []}
+          data={data}
+          recetas={recetas}
+          clientes={clientes}
+          recetaIngredientes={recetaIngredientes}
+          insumos={insumos}
+          fechasVentasPeriodo={{
+            desde: data.periodoAnioDesdeStr,
+            hasta: data.periodoAnioHastaStr,
+          }}
+          onAbrirEnVentas={
+            onAbrirVentasPeriodo
+              ? () =>
+                  onAbrirVentasPeriodo({
+                    desde: data.periodoAnioDesdeStr,
+                    hasta: data.periodoAnioHastaStr,
+                    label: `Año · ${data.anioLabel || ""}`,
+                  })
+              : undefined
+          }
+        />
+      );
+    }
+    return (
+      <div className="content">
+        {detailHeader}
+        <AnalyticsDetalleAnio
+          data={data}
+          offsetAnio={offsetAnio}
+          onPrev={() => setOffsetAnio((o) => o - 1)}
+          onNext={() => setOffsetAnio((o) => (o < 0 ? o + 1 : o))}
+          onIrActual={() => setOffsetAnio(0)}
           onDrill={setDrill}
           onAbrirVentasPeriodo={onAbrirVentasPeriodo}
         />

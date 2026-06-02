@@ -429,6 +429,11 @@ button.analytics-drill-card .analytics-drill-hint {
 .bar-chart-7 .bar-chart-bar { max-width: 28px; }
 .bar-chart-7 .bar-chart-value { font-size: 11px; font-weight: 600; color: var(--purple-dark); }
 .bar-chart-7 .bar-chart-label { font-size: 11px; font-weight: 500; }
+.bar-chart.bar-chart-12 { display: grid; grid-template-columns: repeat(12, 1fr); gap: 4px; height: auto; min-height: 100px; padding: 8px 0; }
+.bar-chart-12 .bar-chart-col { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 2px; }
+.bar-chart-12 .bar-chart-bar { max-width: 18px; }
+.bar-chart-12 .bar-chart-value { font-size: 9px; font-weight: 600; color: var(--purple-dark); }
+.bar-chart-12 .bar-chart-label { font-size: 9px; font-weight: 500; }
 .bar-chart.bar-chart-24 { display: grid; grid-template-columns: repeat(12, 1fr); grid-auto-rows: 72px; gap: 6px; min-height: 150px; padding-bottom: 0; }
 .bar-chart-24 .bar-chart-col { flex: none; }
 .bar-chart.bar-chart-franjas { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; height: auto; min-height: 120px; padding: 8px 0; }

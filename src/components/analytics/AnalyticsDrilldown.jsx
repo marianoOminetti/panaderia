@@ -600,5 +600,37 @@ export default function AnalyticsDrilldown({
     );
   }
 
+  if (tipo === "ingreso-por-mes-anio") {
+    const arr = data.ingresoPorMesAnio || [];
+    return (
+      <div className="content">
+        <DrillHeader
+          title="Ingreso por mes"
+          periodLabel={periodLabel}
+          onBack={onBack}
+        />
+        <div className="card">
+          <p
+            style={{
+              fontSize: 13,
+              color: "var(--text-muted)",
+              marginBottom: 12,
+            }}
+          >
+            Total de ingresos por mes del año seleccionado.
+          </p>
+          <div>
+            {arr.map((row) => (
+              <DrillTableRow key={row.label}>
+                <span>{row.label}</span>
+                <span style={{ fontWeight: 600 }}>{fmt(row.ingreso)}</span>
+              </DrillTableRow>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return null;
 }

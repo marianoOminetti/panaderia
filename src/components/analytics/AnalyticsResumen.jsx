@@ -1,5 +1,5 @@
 /**
- * Vista principal de Analytics: 3 cards (Hoy, Semana, Mes) con "Ver detalle"
+ * Vista principal de Analytics: 4 cards (Hoy, Semana, Mes, Año) con plantilla unificada.
  */
 import { fmt } from "../../lib/format";
 
@@ -9,78 +9,105 @@ function arrow(dir) {
   return "→";
 }
 
+function PeriodCard({
+  label,
+  ingreso,
+  ventasCount,
+  gananciaNeta,
+  trend,
+  trendVsLabel,
+  extraLine,
+  onVerDetalle,
+  tipo,
+}) {
+  return (
+    <div
+      className="stat-card"
+      style={{ cursor: "pointer" }}
+      onClick={() => onVerDetalle(tipo)}
+      onKeyDown={(e) => e.key === "Enter" && onVerDetalle(tipo)}
+      role="button"
+      tabIndex={0}
+    >
+      <div className="stat-label">{label}</div>
+      <div className="stat-value">{fmt(ingreso || 0)}</div>
+      <div className="analytics-kpi-sub">
+        {ventasCount ?? 0} ventas · Ganancia neta {fmt(gananciaNeta ?? 0)}
+      </div>
+      <div className="analytics-kpi-sub">
+        {trendVsLabel}{" "}
+        <span
+          className={`analytics-trend analytics-trend-${trend?.dir || "flat"}`}
+        >
+          {arrow(trend?.dir)} {trend?.label || "—"}
+        </span>
+      </div>
+      {extraLine}
+    </div>
+  );
+}
+
 export default function AnalyticsResumen({ data, onVerDetalle }) {
   return (
     <div className="analytics-section">
       <div className="stats-stack">
-        <div
-          className="stat-card"
-          style={{ cursor: "pointer" }}
-          onClick={() => onVerDetalle("hoy")}
-          onKeyDown={(e) => e.key === "Enter" && onVerDetalle("hoy")}
-          role="button"
-          tabIndex={0}
-        >
-          <div className="stat-label">Hoy</div>
-          <div className="stat-value">{fmt(data.ingresoHoy || 0)}</div>
-          <div className="analytics-kpi-sub">
-            {data.ventasHoy || 0} ventas · Ganancia {fmt(data.gananciaHoy ?? 0)}
-          </div>
-          <div className="analytics-kpi-sub">
-            Vs ayer{" "}
-            <span
-              className={`analytics-trend analytics-trend-${data.trendHoyVsAyer?.dir || "flat"}`}
-            >
-              {arrow(data.trendHoyVsAyer?.dir)} {data.trendHoyVsAyer?.label || "—"}
-            </span>
-          </div>
-        </div>
+        <PeriodCard
+          label="Hoy"
+          ingreso={data.ingresoHoy}
+          ventasCount={data.ventasHoy}
+          gananciaNeta={data.gananciaHoy}
+          trend={data.trendHoyVsAyer}
+          trendVsLabel="Vs ayer"
+          onVerDetalle={onVerDetalle}
+          tipo="hoy"
+        />
 
-        <div
-          className="stat-card"
-          style={{ cursor: "pointer" }}
-          onClick={() => onVerDetalle("semana")}
-          onKeyDown={(e) => e.key === "Enter" && onVerDetalle("semana")}
-          role="button"
-          tabIndex={0}
-        >
-          <div className="stat-label">Semana</div>
-          <div className="stat-value">{fmt(data.ingresoSemanaActual || 0)}</div>
-          <div className="analytics-kpi-sub">
-            Ganancia {fmt(data.gananciaSemanaActual ?? 0)} · Margen{" "}
-            {data.margenSemanaActual != null
-              ? `${Math.round(data.margenSemanaActual * 100)}%`
-              : "—"}
-          </div>
-          <div className="analytics-kpi-sub">
-            Vs sem. anterior{" "}
-            <span
-              className={`analytics-trend analytics-trend-${data.trendGanancia?.dir || "flat"}`}
-            >
-              {arrow(data.trendGanancia?.dir)} {data.trendGanancia?.label || "—"}
-            </span>
-          </div>
-        </div>
+        <PeriodCard
+          label="Semana"
+          ingreso={data.ingresoSemanaActual}
+          ventasCount={data.ventasSemanaCount}
+          gananciaNeta={data.gananciaSemanaActual}
+          trend={data.trendIngreso}
+          trendVsLabel="Vs sem. anterior"
+          onVerDetalle={onVerDetalle}
+          tipo="semana"
+        />
 
-        <div
-          className="stat-card"
-          style={{ cursor: "pointer" }}
-          onClick={() => onVerDetalle("mes")}
-          onKeyDown={(e) => e.key === "Enter" && onVerDetalle("mes")}
-          role="button"
-          tabIndex={0}
-        >
-          <div className="stat-label">Mes</div>
-          <div className="stat-value">{fmt(data.ingresoMes || 0)}</div>
-          <div className="analytics-kpi-sub">
-            Ganancia neta {fmt(data.gananciaMesNeta ?? 0)}
-          </div>
-          {data.proyeccionAplicable && (
-            <div className="analytics-kpi-sub">
-              Proyección ingreso {fmt(data.proyIngresoMes ?? 0)}
-            </div>
-          )}
-        </div>
+        <PeriodCard
+          label="Mes"
+          ingreso={data.ingresoMes}
+          ventasCount={data.ventasMesCount}
+          gananciaNeta={data.gananciaMesNeta}
+          trend={data.trendIngresoMes}
+          trendVsLabel="Vs mes anterior"
+          onVerDetalle={onVerDetalle}
+          tipo="mes"
+          extraLine={
+            data.proyeccionAplicable ? (
+              <div className="analytics-kpi-sub">
+                Proyección ingreso {fmt(data.proyIngresoMes ?? 0)}
+              </div>
+            ) : null
+          }
+        />
+
+        <PeriodCard
+          label="Año"
+          ingreso={data.ingresoAnio}
+          ventasCount={data.ventasAnioCount}
+          gananciaNeta={data.gananciaAnioNeta}
+          trend={data.trendIngresoAnio}
+          trendVsLabel="Vs año anterior"
+          onVerDetalle={onVerDetalle}
+          tipo="anio"
+          extraLine={
+            data.proyeccionAnioAplicable ? (
+              <div className="analytics-kpi-sub">
+                Proyección ingreso {fmt(data.proyIngresoAnio ?? 0)}
+              </div>
+            ) : null
+          }
+        />
       </div>
     </div>
   );

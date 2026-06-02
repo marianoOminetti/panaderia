@@ -49,7 +49,13 @@ export default function AnalyticsNavPeriodo({
           onClick={onIrActual}
           style={{ fontSize: 13 }}
         >
-          {tipo === "día" ? "Hoy" : tipo === "semana" ? "Esta semana" : "Este mes"}
+          {tipo === "día"
+            ? "Hoy"
+            : tipo === "semana"
+              ? "Esta semana"
+              : tipo === "año"
+                ? "Este año"
+                : "Este mes"}
         </button>
       )}
     </div>
