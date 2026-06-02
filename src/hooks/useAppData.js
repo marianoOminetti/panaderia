@@ -1,22 +1,30 @@
 import { useCallback, useRef, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { INSUMOS_SEED } from "../config/appConfig";
+import { normalizarPromociones } from "../lib/promociones";
+import { hoyLocalISO } from "../lib/dates";
+import { fechaHaceDiasISO } from "../lib/recetasParaVenta";
 import { reportError } from "../utils/errorReport";
+
+/** PostgREST suele limitar filas por request (p. ej. max_rows 1000); paginamos para no truncar analytics. */
+const VENTAS_PAGE = 1000;
+const VENTAS_MAX_PAGES = 500;
 
 function isTransientFetchError(error) {
   const msg = error?.message ?? String(error);
   return /failed to fetch|networkerror|load failed/i.test(msg);
 }
 
-/** Ventas recientes con reintentos ante cortes de red (Sentry: Failed to fetch). */
-async function loadVentasRecientes() {
+async function supabaseVentasPage(fechaGte, from, to) {
   const maxAttempts = 3;
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const r = await supabase
       .from("ventas")
       .select("*")
+      .gte("fecha", fechaGte)
+      .order("fecha", { ascending: false })
       .order("created_at", { ascending: false })
-      .limit(1000);
+      .range(from, to);
     if (!r.error || !isTransientFetchError(r.error) || attempt === maxAttempts - 1) {
       return r;
     }
@@ -25,13 +33,29 @@ async function loadVentasRecientes() {
   return { data: null, error: new Error("Failed to fetch ventas") };
 }
 
+async function loadVentasDesde(fechaGte) {
+  const all = [];
+  for (let page = 0; page < VENTAS_MAX_PAGES; page++) {
+    const from = page * VENTAS_PAGE;
+    const to = from + VENTAS_PAGE - 1;
+    const r = await supabaseVentasPage(fechaGte, from, to);
+    if (r.error) {
+      return { data: all.length > 0 ? all : null, error: r.error };
+    }
+    const batch = r.data || [];
+    all.push(...batch);
+    if (batch.length < VENTAS_PAGE) break;
+  }
+  return { data: all, error: null };
+}
+
 /**
  * Carga y mantiene todos los datos de la app (insumos, recetas, ventas, clientes, pedidos, stock, etc.).
- * Usado solo por App.js. loadData() re-fetcha todo; límites: ventas 1000, pedidos 1000, insumo_movimientos 100.
- * @param {{ showToast?: (msg: string) => void }} options
- * @returns {{ insumos, recetas, ventas, recetaIngredientes, clientes, pedidos, stock, insumoStock, insumoMovimientos, insumoComposicion, precioHistorial, gastosFijos, loading, loadData, setStock, setInsumoStock, setInsumoMovimientos, recetasFilterIds, setRecetasFilterIds, planSemanalVersion, setPlanSemanalVersion }}
+ * Usado solo por App.js. loadData() re-fetcha todo; ventas desde hace 36 meses (paginado ante max_rows PostgREST), pedidos 1000, insumo_movimientos 100.
+ * @param {{ showToast?: (msg: string) => void, role?: string }} options
+ * @returns {{ insumos, recetas, ventas, recetaIngredientes, clientes, pedidos, stock, insumoStock, insumoMovimientos, insumoComposicion, precioHistorial, gastosFijos, promociones, loading, loadData, setStock, setInsumoStock, setInsumoMovimientos, recetasFilterIds, setRecetasFilterIds, planSemanalVersion, setPlanSemanalVersion }}
  */
-export function useAppData({ showToast } = {}) {
+export function useAppData({ showToast, role } = {}) {
   const [insumos, setInsumos] = useState([]);
   const [recetas, setRecetas] = useState([]);
   const [ventas, setVentas] = useState([]);
@@ -44,6 +68,7 @@ export function useAppData({ showToast } = {}) {
   const [insumoComposicion, setInsumoComposicion] = useState([]);
   const [precioHistorial, setPrecioHistorial] = useState([]);
   const [gastosFijos, setGastosFijos] = useState([]);
+  const [promociones, setPromociones] = useState([]);
 
   const [loading, setLoading] = useState(true);
   const [seeded, setSeeded] = useState(false);
@@ -51,60 +76,85 @@ export function useAppData({ showToast } = {}) {
   seededRef.current = seeded;
   const loadInFlightRef = useRef(null);
 
-  // UI-related shared states currently owned by App
   const [recetasFilterIds, setRecetasFilterIds] = useState([]);
   const [planSemanalVersion, setPlanSemanalVersion] = useState(0);
 
-  // Límites de carga en queries: ventas 1000, pedidos 1000, insumo_movimientos 100, precio_historial 5000.
   const loadData = useCallback(async () => {
-    if (loadInFlightRef.current) return loadInFlightRef.current;
+    const roleKey = role ?? "__pending__";
+    if (loadInFlightRef.current?.roleKey === roleKey) {
+      return loadInFlightRef.current.promise;
+    }
 
     const run = async () => {
+      const isVenta = role === "venta";
+      const ventasDesde = new Date();
+      ventasDesde.setMonth(ventasDesde.getMonth() - 36);
+      ventasDesde.setDate(1);
+      ventasDesde.setHours(0, 0, 0, 0);
+      const ventasDesdeStr = `${ventasDesde.getFullYear()}-${String(ventasDesde.getMonth() + 1).padStart(2, "0")}-01`;
+
+      const ventasPromise = isVenta
+        ? loadVentasDesde(fechaHaceDiasISO(hoyLocalISO(), 6))
+        : loadVentasDesde(ventasDesdeStr);
+
       const stPromise = supabase
         .from("stock")
         .select("receta_id, cantidad")
         .then((r) => ({ ok: !r.error, data: r.data || [] }))
         .catch(() => ({ ok: false, data: [] }));
-      const insStPromise = supabase
-        .from("insumo_stock")
-        .select("insumo_id, cantidad")
-        .then((r) => ({ ok: !r.error, data: r.data || [] }))
-        .catch(() => ({ ok: false, data: [] }));
-      const insMovPromise = supabase
-        .from("insumo_movimientos")
-        .select("id, insumo_id, tipo, cantidad, valor, created_at")
-        .order("created_at", { ascending: false })
-        .limit(100)
-        .then((r) => ({ ok: !r.error, data: r.data || [] }))
-        .catch(() => ({ ok: false, data: [] }));
-      const insCompPromise = supabase
-        .from("insumo_composicion")
-        .select("insumo_id, insumo_id_componente, factor")
-        .then((r) => ({ ok: !r.error, data: r.data || [] }))
-        .catch(() => ({ ok: false, data: [] }));
-      const precioHistPromise = supabase
-        .from("precio_historial")
-        .select("id, insumo_id, precio_anterior, precio_nuevo, fecha, motivo")
-        .order("fecha", { ascending: true })
-        .limit(5000)
-        .then((r) => ({ ok: !r.error, data: r.data || [] }))
-        .catch(() => ({ ok: false, data: [] }));
+      const insStPromise = isVenta
+        ? Promise.resolve({ ok: true, data: [] })
+        : supabase
+            .from("insumo_stock")
+            .select("insumo_id, cantidad")
+            .then((r) => ({ ok: !r.error, data: r.data || [] }))
+            .catch(() => ({ ok: false, data: [] }));
+      const insMovPromise = isVenta
+        ? Promise.resolve({ ok: true, data: [] })
+        : supabase
+            .from("insumo_movimientos")
+            .select("id, insumo_id, tipo, cantidad, valor, created_at")
+            .order("created_at", { ascending: false })
+            .limit(100)
+            .then((r) => ({ ok: !r.error, data: r.data || [] }))
+            .catch(() => ({ ok: false, data: [] }));
+      const insCompPromise = isVenta
+        ? Promise.resolve({ ok: true, data: [] })
+        : supabase
+            .from("insumo_composicion")
+            .select("insumo_id, insumo_id_componente, factor")
+            .then((r) => ({ ok: !r.error, data: r.data || [] }))
+            .catch(() => ({ ok: false, data: [] }));
+      const precioHistPromise = isVenta
+        ? Promise.resolve({ ok: true, data: [] })
+        : supabase
+            .from("precio_historial")
+            .select("id, insumo_id, precio_anterior, precio_nuevo, fecha, motivo")
+            .order("fecha", { ascending: true })
+            .limit(5000)
+            .then((r) => ({ ok: !r.error, data: r.data || [] }))
+            .catch(() => ({ ok: false, data: [] }));
 
-      const pedidosPromise = supabase
-        .from("pedidos")
-        .select("*")
-        .order("fecha_entrega", { ascending: true })
-        .limit(1000);
+      const pedidosPromise = isVenta
+        ? Promise.resolve({ data: [], error: null })
+        : supabase
+            .from("pedidos")
+            .select("*")
+            .order("fecha_entrega", { ascending: true })
+            .limit(1000);
 
-      const gastosPromise = supabase
-        .from("gastos_fijos")
-        .select("*")
+      const gastosPromise = isVenta
+        ? Promise.resolve({ data: [], error: null })
+        : supabase.from("gastos_fijos").select("*").order("nombre");
+
+      const promosPromise = supabase
+        .from("promociones")
+        .select("*, promocion_recetas(receta_id)")
         .order("nombre");
 
       const [
         insRes,
         recRes,
-        venRes,
         riRes,
         cliRes,
         pedRes,
@@ -113,12 +163,17 @@ export function useAppData({ showToast } = {}) {
         insMovRes,
         insCompRes,
         gastosRes,
+        promosRes,
         precioHistRes,
+        venRes,
       ] = await Promise.all([
-        supabase.from("insumos").select("*").order("categoria").order("nombre"),
+        isVenta
+          ? Promise.resolve({ data: [], error: null })
+          : supabase.from("insumos").select("*").order("categoria").order("nombre"),
         supabase.from("recetas").select("*").order("nombre"),
-        loadVentasRecientes(),
-        supabase.from("receta_ingredientes").select("*"),
+        isVenta
+          ? Promise.resolve({ data: [], error: null })
+          : supabase.from("receta_ingredientes").select("*"),
         supabase.from("clientes").select("*").order("nombre"),
         pedidosPromise,
         stPromise,
@@ -126,20 +181,14 @@ export function useAppData({ showToast } = {}) {
         insMovPromise,
         insCompPromise,
         gastosPromise,
+        promosPromise,
         precioHistPromise,
+        ventasPromise,
       ]);
 
       const authErr = (e) => e && (e.status === 401 || e.status === 403);
       if (
-        [
-          insRes.error,
-          recRes.error,
-          venRes.error,
-          riRes.error,
-          cliRes.error,
-          pedRes?.error,
-          gastosRes?.error,
-        ].some(authErr)
+        [recRes.error, venRes.error, cliRes.error, promosRes?.error].some(authErr)
       ) {
         if (showToast) {
           showToast("🔒 Sesión expirada o sin permisos. Volvé a iniciar sesión.");
@@ -149,7 +198,7 @@ export function useAppData({ showToast } = {}) {
         return;
       }
 
-      if (insRes.error) {
+      if (insRes.error && !isVenta) {
         reportError(insRes.error, {
           action: "loadData",
           source: "insumos",
@@ -173,7 +222,7 @@ export function useAppData({ showToast } = {}) {
         });
         showToast?.("⚠️ Error al cargar ventas");
       }
-      if (pedRes && pedRes.error) {
+      if (pedRes && pedRes.error && !isVenta) {
         reportError(pedRes.error, {
           action: "loadData",
           source: "pedidos",
@@ -189,13 +238,21 @@ export function useAppData({ showToast } = {}) {
           showToast?.("⚠️ Error al cargar pedidos");
         }
       }
-      if (gastosRes && gastosRes.error) {
+      if (gastosRes && gastosRes.error && !isVenta) {
         reportError(gastosRes.error, {
           action: "loadData",
           source: "gastos_fijos",
           code: gastosRes.error?.code,
         });
         showToast?.("⚠️ Error al cargar gastos fijos");
+      }
+      if (promosRes?.error && promosRes.error.code !== "42P01") {
+        reportError(promosRes.error, {
+          action: "loadData",
+          source: "promociones",
+          code: promosRes.error?.code,
+        });
+        showToast?.("⚠️ Error al cargar promociones");
       }
 
       setInsumos(insRes.data || []);
@@ -224,10 +281,14 @@ export function useAppData({ showToast } = {}) {
       if (insCompRes.ok) setInsumoComposicion(insCompRes.data || []);
       if (precioHistRes.ok) setPrecioHistorial(precioHistRes.data || []);
       setGastosFijos(gastosRes?.data || []);
+      if (promosRes?.error?.code === "42P01") {
+        setPromociones([]);
+      } else {
+        setPromociones(normalizarPromociones(promosRes?.data));
+      }
       setLoading(false);
 
-      // Seed insumos if empty (ref evita que loadData cambie de identidad y dispare doble carga)
-      if (!seededRef.current && insRes.data && insRes.data.length === 0) {
+      if (!isVenta && !seededRef.current && insRes.data && insRes.data.length === 0) {
         try {
           const { error } = await supabase.from("insumos").insert(INSUMOS_SEED);
           if (error) {
@@ -253,18 +314,17 @@ export function useAppData({ showToast } = {}) {
     };
 
     const promise = run();
-    loadInFlightRef.current = promise;
+    loadInFlightRef.current = { roleKey, promise };
     try {
       await promise;
     } finally {
-      if (loadInFlightRef.current === promise) {
+      if (loadInFlightRef.current?.promise === promise) {
         loadInFlightRef.current = null;
       }
     }
-  }, [showToast]);
+  }, [role, showToast]);
 
   return {
-    // data
     insumos,
     recetas,
     ventas,
@@ -277,17 +337,15 @@ export function useAppData({ showToast } = {}) {
     insumoComposicion,
     precioHistorial,
     gastosFijos,
+    promociones,
     loading,
-    // setters needed by other hooks/mutations
     setStock,
     setInsumoStock,
     setInsumoMovimientos,
-    // UI-ish state
     recetasFilterIds,
     setRecetasFilterIds,
     planSemanalVersion,
     setPlanSemanalVersion,
-    // actions
     loadData,
   };
 }
