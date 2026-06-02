@@ -14,8 +14,11 @@ import Analytics from "./analytics/Analytics";
 import Recetas from "./recetas/Recetas";
 import MoreMenuScreen from "./menu/MoreMenuScreen";
 import Pedidos from "./pedidos/Pedidos";
+import Promociones from "./promociones/Promociones";
+import { canAccessTab } from "../config/permissions";
 
 export default function AppContent({
+  role,
   tab,
   setTab,
   stockProductionPreloadReceta,
@@ -48,6 +51,7 @@ export default function AppContent({
   insumoComposicion,
   precioHistorial,
   gastosFijos,
+  promociones,
   resumenPlanSemanal,
   actualizarStock,
   actualizarStockBatch,
@@ -62,6 +66,9 @@ export default function AppContent({
   setPlanSemanalVersion,
   ventasPedidoFlag,
   onConsumedVentasPedido,
+  ventasFiltroFecha,
+  onClearVentasFiltroFecha,
+  onAbrirVentasPeriodo,
 }) {
   if (loading) {
     return (
@@ -71,6 +78,7 @@ export default function AppContent({
       </div>
     );
   }
+  if (!canAccessTab(role, tab)) return null;
   return (
     <>
       {/* --- Dashboard --- */}
@@ -101,6 +109,7 @@ export default function AppContent({
           recetaIngredientes={recetaIngredientes}
           insumos={insumos}
           gastosFijos={gastosFijos}
+          onAbrirVentasPeriodo={onAbrirVentasPeriodo}
         />
       )}
       {/* --- Insumos --- */}
@@ -142,6 +151,7 @@ export default function AppContent({
       {/* --- Ventas --- */}
       {tab === "ventas" && (
         <Ventas
+          role={role}
           recetas={recetas}
           ventas={ventas}
           clientes={clientes}
@@ -151,13 +161,25 @@ export default function AppContent({
           onRefresh={loadData}
           showToast={showToast}
           confirm={confirm}
-          onOpenCargarProduccion={onOpenCargarProduccion}
           ventasPreloadGrupoKey={ventasPreloadGrupoKey}
           onConsumedVentasPreload={onConsumedVentasPreload}
           ventasNuevaFlag={ventasNuevaFlag}
           onConsumedVentasNueva={onConsumedVentasNueva}
           ventasPedidoFlag={ventasPedidoFlag}
           onConsumedVentasPedido={onConsumedVentasPedido}
+          ventasFiltroFecha={ventasFiltroFecha}
+          onClearVentasFiltroFecha={onClearVentasFiltroFecha}
+          promociones={promociones}
+        />
+      )}
+      {/* --- Promociones --- */}
+      {tab === "promociones" && (
+        <Promociones
+          promociones={promociones}
+          recetas={recetas}
+          onRefresh={loadData}
+          showToast={showToast}
+          confirm={confirm}
         />
       )}
       {/* --- Pedidos (MAS) --- */}

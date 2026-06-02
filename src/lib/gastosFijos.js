@@ -87,7 +87,7 @@ const isBetween = (date, from, to) =>
  * Variable/puntual: monto completo si la fecha cae en el período.
  * @param {Array} gastos - Lista de gastos
  * @param {Date} [fechaRef=new Date()] - Fecha de referencia para semana/mes
- * @returns {{ dia: number, semana: number, mes: number }}
+ * @returns {{ dia: number, semana: number, mes: number, anio: number }}
  */
 export function calcularGastosTotales(gastos, fechaRef = new Date()) {
   const ref = fechaRef instanceof Date ? fechaRef : new Date(fechaRef);
@@ -106,9 +106,12 @@ export function calcularGastosTotales(gastos, fechaRef = new Date()) {
     59,
     999
   );
+  const yearStart = new Date(ref.getFullYear(), 0, 1, 0, 0, 0, 0);
+  const yearEnd = new Date(ref.getFullYear(), 11, 31, 23, 59, 59, 999);
 
   let varPuntSemana = 0;
   let varPuntMes = 0;
+  let varPuntAnio = 0;
   for (const g of gastos || []) {
     const tipo = (g.tipo || "fijo").toLowerCase();
     if (tipo !== "variable" && tipo !== "puntual") continue;
@@ -118,14 +121,21 @@ export function calcularGastosTotales(gastos, fechaRef = new Date()) {
     if (!fecha) continue;
     if (isBetween(fecha, weekStart, weekEnd)) varPuntSemana += monto;
     if (isBetween(fecha, monthStart, monthEnd)) varPuntMes += monto;
+    if (isBetween(fecha, yearStart, yearEnd)) varPuntAnio += monto;
   }
 
   const totalDiasMes = monthEnd.getDate();
   const mesFijos = (diaFijos || 0) * totalDiasMes;
+  const isLeap =
+    (ref.getFullYear() % 4 === 0 && ref.getFullYear() % 100 !== 0) ||
+    ref.getFullYear() % 400 === 0;
+  const totalDiasAnio = isLeap ? 366 : 365;
+  const anioFijos = (diaFijos || 0) * totalDiasAnio;
 
   return {
     dia: diaFijos || 0,
     semana: (semanaFijos || 0) + varPuntSemana,
     mes: mesFijos + varPuntMes,
+    anio: anioFijos + varPuntAnio,
   };
 }

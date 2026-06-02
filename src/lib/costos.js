@@ -5,8 +5,19 @@
 import { parseDecimal } from "./format";
 import { convertirAUnidadInsumo, aGramos } from "./units";
 
+// Algunos IDs vienen como `number` y otros como `string` desde Supabase/formularios.
+// Para evitar que `.find()`/`.filter()` no matcheen, normalizamos a string.
+function normId(v) {
+  return v === null || v === undefined ? null : String(v);
+}
+
 /** Calcula el costo total desde ingredientes del formulario (antes de guardar). Incluye recetas precursoras. */
-export function costoDesdeIngredientes(ingredientes, insumos, recetas = []) {
+export function costoDesdeIngredientes(
+  ingredientes,
+  insumos,
+  recetas = [],
+  recetaIngredientes = [],
+) {
   let total = 0;
   for (const ing of ingredientes || []) {
     const costoFijoNum = parseDecimal(ing.costo_fijo);
@@ -15,21 +26,37 @@ export function costoDesdeIngredientes(ingredientes, insumos, recetas = []) {
       continue;
     }
     if (ing.receta_id_precursora) {
-      const prec = recetas.find((r) => r.id === ing.receta_id_precursora);
-      const costoUnitPrec = typeof prec?.costo_unitario === "number" && prec.costo_unitario >= 0 ? prec.costo_unitario : 0;
-      const cant = parseDecimal(ing.cantidad) ?? 0;
-      const u = (ing.unidad || "u").toLowerCase();
-      const cantUnidades = u === "u" ? cant : (aGramos(cant, ing.unidad) / (parseFloat(prec?.gramos_por_unidad) || 1));
+      const precId = normId(ing.receta_id_precursora);
+      const prec = recetas.find((r) => normId(r.id) === precId);
+      const rindePrec = prec ? parseDecimal(prec.rinde) ?? 1 : 1;
+      const cantRaw = parseDecimal(ing.cantidad) ?? 0;
+      const cantUnidades = cantidadPrecursoraAUnidades(
+        cantRaw,
+        ing.unidad || "u",
+        prec?.gramos_por_unidad,
+      );
+      if (cantUnidades == null) continue;
+
+      const costoPrecLote = costoReceta(
+        precId,
+        recetaIngredientes,
+        insumos,
+        recetas,
+      );
+      const costoUnitPrec = rindePrec > 0 ? costoPrecLote / rindePrec : 0;
+
       total += cantUnidades * costoUnitPrec;
       continue;
     }
     if (!ing.insumo_id) continue;
-    const insumo = insumos.find((x) => x.id === ing.insumo_id);
-    if (!insumo || !insumo.cantidad_presentacion) continue;
+    const insumo = insumos.find((x) => normId(x.id) === normId(ing.insumo_id));
+    const cantidadPresentacion = parseDecimal(insumo?.cantidad_presentacion);
+    if (!Number.isFinite(cantidadPresentacion) || cantidadPresentacion <= 0) continue;
     const cant = parseDecimal(ing.cantidad) ?? 0;
     if (cant <= 0) continue;
     const cantConvertida = convertirAUnidadInsumo(cant, ing.unidad || "g", insumo.unidad);
-    const precioUnitario = insumo.precio / insumo.cantidad_presentacion;
+    const precio = parseDecimal(insumo?.precio) ?? 0;
+    const precioUnitario = precio / cantidadPresentacion;
     total += precioUnitario * cantConvertida;
   }
   return total;
@@ -40,15 +67,21 @@ function cantidadPrecursoraAUnidades(cantidad, unidad, gramosPorUnidad) {
   const u = (unidad || "u").toLowerCase();
   if (u === "u") return cantidad;
   const gramos = aGramos(cantidad, unidad);
-  const gPu = typeof gramosPorUnidad === "number" ? gramosPorUnidad : parseFloat(gramosPorUnidad);
-  if (gPu > 0) return gramos / gPu;
-  return cantidad;
+  const gPu =
+    typeof gramosPorUnidad === "number"
+      ? gramosPorUnidad
+      : parseDecimal(gramosPorUnidad);
+  // Si falta `gramos_por_unidad` y la unidad NO es `u`, no podemos convertir bien.
+  // Evitamos un fallback que dispara costos enormes.
+  if (gPu == null || !Number.isFinite(gPu) || gPu <= 0) return null;
+  return gramos / gPu;
 }
 
 /** Calcula el costo total de una receta según ingredientes (insumos, costo fijo o receta precursora).
  * Si hay recetas precursoras, se usa recursión; en ciclos se usa costo_unitario guardado. */
 export function costoReceta(recetaId, recetaIngredientes, insumos, recetas = [], visited = new Set()) {
-  const ings = recetaIngredientes.filter((i) => i.receta_id === recetaId);
+  const targetId = normId(recetaId);
+  const ings = recetaIngredientes.filter((i) => normId(i.receta_id) === targetId);
   let total = 0;
   for (const ing of ings) {
     if (ing.costo_fijo != null && ing.costo_fijo > 0) {
@@ -56,13 +89,21 @@ export function costoReceta(recetaId, recetaIngredientes, insumos, recetas = [],
       continue;
     }
     if (ing.receta_id_precursora) {
-      const precId = ing.receta_id_precursora;
-      const prec = recetas.find((r) => r.id === precId);
-      const rindePrec = prec ? parseFloat(prec.rinde) || 1 : 1;
-      const cantidadRaw = parseFloat(ing.cantidad) || 0;
-      const cantidadUnidades = cantidadPrecursoraAUnidades(cantidadRaw, ing.unidad || "u", prec?.gramos_por_unidad);
+      const precId = normId(ing.receta_id_precursora);
+      const prec = recetas.find((r) => normId(r.id) === precId);
+      const rindePrec = prec ? (parseDecimal(prec.rinde) ?? 1) : 1;
+      const cantidadRaw = parseDecimal(ing.cantidad) ?? 0;
+      const cantidadUnidades = cantidadPrecursoraAUnidades(
+        cantidadRaw,
+        ing.unidad || "u",
+        prec?.gramos_por_unidad,
+      );
+      if (cantidadUnidades == null) continue;
       if (visited.has(precId)) {
-        const costoUnitPrec = typeof prec?.costo_unitario === "number" && prec.costo_unitario >= 0 ? prec.costo_unitario : 0;
+        const costoUnitPrec = (() => {
+          const parsed = typeof prec?.costo_unitario === "number" ? prec.costo_unitario : parseDecimal(prec?.costo_unitario);
+          return typeof parsed === "number" && parsed >= 0 ? parsed : 0;
+        })();
         total += cantidadUnidades * costoUnitPrec;
       } else {
         visited.add(precId);
@@ -74,14 +115,17 @@ export function costoReceta(recetaId, recetaIngredientes, insumos, recetas = [],
       continue;
     }
     if (!ing.insumo_id) continue;
-    const insumo = insumos.find((x) => x.id === ing.insumo_id);
-    if (!insumo || !insumo.cantidad_presentacion) continue;
+    const insumo = insumos.find((x) => normId(x.id) === normId(ing.insumo_id));
+    const cantidadPresentacion = parseDecimal(insumo?.cantidad_presentacion);
+    if (!Number.isFinite(cantidadPresentacion) || cantidadPresentacion <= 0) continue;
+    const cantRaw = parseDecimal(ing.cantidad) ?? 0;
     const cantConvertida = convertirAUnidadInsumo(
-      parseFloat(ing.cantidad) || 0,
+      cantRaw,
       ing.unidad,
       insumo.unidad
     );
-    const precioUnitario = insumo.precio / insumo.cantidad_presentacion;
+    const precio = parseDecimal(insumo?.precio) ?? 0;
+    const precioUnitario = precio / cantidadPresentacion;
     total += precioUnitario * cantConvertida;
   }
   return total;
@@ -92,7 +136,7 @@ export function costoReceta(recetaId, recetaIngredientes, insumos, recetas = [],
 export function costoUnitarioPorRecetaMap(recetas = [], recetaIngredientes = [], insumos = []) {
   const map = {};
   for (const r of recetas) {
-    const rindeNum = parseFloat(r.rinde) || 1;
+    const rindeNum = parseDecimal(r.rinde) ?? 1;
     const costoLoteCalc = costoReceta(r.id, recetaIngredientes, insumos, recetas);
     const costoUnitarioCalc = rindeNum > 0 ? costoLoteCalc / rindeNum : null;
     const costoUnitario =

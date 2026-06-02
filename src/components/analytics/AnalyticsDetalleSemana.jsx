@@ -18,6 +18,8 @@ export default function AnalyticsDetalleSemana({
   onPrev,
   onNext,
   onIrActual,
+  onDrill,
+  onAbrirVentasPeriodo,
 }) {
   const esActual = offsetSemana === 0;
 
@@ -130,10 +132,39 @@ export default function AnalyticsDetalleSemana({
             <div className="analytics-kpi-sub">unidades vendidas</div>
           </div>
         </div>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "flex-start",
+            gap: 6,
+            marginTop: 8,
+          }}
+        >
+          <button
+            type="button"
+            className="card-link"
+            onClick={() => onDrill?.({ tipo: "ingreso-por-dia" })}
+          >
+            Ver ingreso por día →
+          </button>
+          <button
+            type="button"
+            className="card-link"
+            onClick={() => onDrill?.({ tipo: "clientes" })}
+          >
+            Ver clientes del período →
+          </button>
+        </div>
       </div>
 
       {/* Ventas por día (L-D) */}
-      <div className="card">
+      <button
+        type="button"
+        className="analytics-drill-card"
+        onClick={() => onDrill?.({ tipo: "ingreso-por-dia" })}
+        aria-label="Ver ingreso por día de la semana"
+      >
         <div className="card-header">
           <span className="card-title">Ventas por día (L–D)</span>
         </div>
@@ -143,32 +174,40 @@ export default function AnalyticsDetalleSemana({
             <p>No hay ventas esta semana.</p>
           </div>
         ) : (
-          <div className="bar-chart bar-chart-7">
-            {(data.ingresoPorDiaSemana || []).map((total, idx) => {
-              const maxH = 70;
-              const h = (data.maxIngresoSemana || 0) > 0
-                ? Math.max((total / data.maxIngresoSemana) * maxH, 6)
-                : 6;
-              const label = DIAS_SEMANA[idx] || "";
-              return (
-                <div key={idx} className="bar-chart-col">
-                  <div className="bar-chart-value">
-                    {total > 0 ? (total >= 1000 ? Math.round(total / 1000) + "k" : Math.round(total)) : ""}
+          <>
+            <div className="bar-chart bar-chart-7">
+              {(data.ingresoPorDiaSemana || []).map((total, idx) => {
+                const maxH = 70;
+                const h = (data.maxIngresoSemana || 0) > 0
+                  ? Math.max((total / data.maxIngresoSemana) * maxH, 6)
+                  : 6;
+                const label = DIAS_SEMANA[idx] || "";
+                return (
+                  <div key={idx} className="bar-chart-col">
+                    <div className="bar-chart-value">
+                      {total > 0 ? (total >= 1000 ? Math.round(total / 1000) + "k" : Math.round(total)) : ""}
+                    </div>
+                    <div
+                      className="bar-chart-bar"
+                      style={{ height: `${h}px` }}
+                    />
+                    <div className="bar-chart-label">{label}</div>
                   </div>
-                  <div
-                    className="bar-chart-bar"
-                    style={{ height: `${h}px` }}
-                  />
-                  <div className="bar-chart-label">{label}</div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+            <span className="analytics-drill-hint">Ver tabla de ingresos por día</span>
+          </>
         )}
-      </div>
+      </button>
 
       {/* TOP 5 productos más vendidos */}
-      <div className="card">
+      <button
+        type="button"
+        className="analytics-drill-card"
+        onClick={() => onDrill?.({ tipo: "productos-vendidos" })}
+        aria-label="Ver todos los productos vendidos en la semana"
+      >
         <div className="card-header">
           <span className="card-title">TOP 5 productos más vendidos (semana)</span>
         </div>
@@ -178,59 +217,113 @@ export default function AnalyticsDetalleSemana({
             <p>No hay ventas esta semana.</p>
           </div>
         ) : (
-          <div className="analytics-list">
-            {(data.topMasVendidos || []).map((row) => (
-              <div key={row.receta_id} className="analytics-item">
-                <span className="venta-emoji">{row.receta?.emoji || "🍞"}</span>
-                <div className="analytics-item-main">
-                  <div className="analytics-item-title">
-                    {row.receta?.nombre || "Sin nombre"}
+          <>
+            <div className="analytics-list">
+              {(data.topMasVendidos || []).map((row) => (
+                <div key={row.receta_id} className="analytics-item">
+                  <span className="venta-emoji">{row.receta?.emoji || "🍞"}</span>
+                  <div className="analytics-item-main">
+                    <div className="analytics-item-title">
+                      {row.receta?.nombre || "Sin nombre"}
+                    </div>
+                    <div className="analytics-item-sub">
+                      {row.unidades} u · {fmt(row.ingreso)}
+                    </div>
                   </div>
-                  <div className="analytics-item-sub">
-                    {row.unidades} u · {fmt(row.ingreso)}
-                  </div>
+                  {row.trend && (
+                    <span
+                      className={`analytics-item-badge analytics-trend-${row.trend.dir}`}
+                    >
+                      {arrow(row.trend.dir)} {row.trend.label}
+                    </span>
+                  )}
                 </div>
-                {row.trend && (
-                  <span
-                    className={`analytics-item-badge analytics-trend-${row.trend.dir}`}
-                  >
-                    {arrow(row.trend.dir)} {row.trend.label}
-                  </span>
-                )}
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+            <span className="analytics-drill-hint">Ver todos los productos</span>
+          </>
         )}
-      </div>
+      </button>
 
-      {/* TOP 5 productos más rentables */}
-      <div className="card">
+      {/* TOP 5 productos más rentables (misma semana que el encabezado) */}
+      <button
+        type="button"
+        className="analytics-drill-card"
+        onClick={() => onDrill?.({ tipo: "productos-rentables" })}
+        aria-label="Ver rentabilidad de todos los productos en la semana"
+      >
         <div className="card-header">
-          <span className="card-title">TOP 5 productos más rentables (30 días)</span>
+          <span className="card-title">TOP 5 productos más rentables (semana)</span>
         </div>
         {(data.topMasRentables || []).length === 0 ? (
           <div className="empty">
             <div className="empty-icon">💸</div>
-            <p>Todavía no hay datos de ganancia.</p>
+            <p>Todavía no hay datos de ganancia esta semana.</p>
           </div>
         ) : (
-          <div className="analytics-list">
-            {(data.topMasRentables || []).map((row) => (
-              <div key={row.receta_id} className="analytics-item">
-                <span className="venta-emoji">{row.receta?.emoji || "🍞"}</span>
-                <div className="analytics-item-main">
-                  <div className="analytics-item-title">
-                    {row.receta?.nombre || "Sin nombre"}
-                  </div>
-                  <div className="analytics-item-sub">
-                    Ganancia: {fmt(row.ganancia)} · Ingreso: {fmt(row.ingreso)}
+          <>
+            <div className="analytics-list">
+              {(data.topMasRentables || []).map((row) => (
+                <div key={row.receta_id} className="analytics-item">
+                  <span className="venta-emoji">{row.receta?.emoji || "🍞"}</span>
+                  <div className="analytics-item-main">
+                    <div className="analytics-item-title">
+                      {row.receta?.nombre || "Sin nombre"}
+                    </div>
+                    <div className="analytics-item-sub">
+                      Ganancia: {fmt(row.ganancia)} · Ingreso: {fmt(row.ingreso)}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
+            <span className="analytics-drill-hint">Ver rentabilidad completa</span>
+          </>
+        )}
+      </button>
+
+      <button
+        type="button"
+        className="analytics-drill-card"
+        onClick={() => onDrill?.({ tipo: "ventas" })}
+        aria-label="Ver ventas agrupadas de la semana"
+      >
+        <div className="card-header">
+          <span className="card-title">Ventas agrupadas</span>
+        </div>
+        <span
+          style={{
+            display: "block",
+            fontSize: 14,
+            color: "var(--text-muted)",
+            margin: "0 0 4px",
+            lineHeight: 1.4,
+          }}
+        >
+          Tickets y totales de la semana seleccionada (misma fecha que arriba).
+        </span>
+        <span className="analytics-drill-hint">Abrir listado</span>
+      </button>
+
+      {onAbrirVentasPeriodo &&
+        data.periodoSemanaDesdeStr &&
+        data.periodoSemanaHastaStr && (
+          <div className="card" style={{ paddingTop: 10, paddingBottom: 10 }}>
+            <button
+              type="button"
+              className="card-link"
+              onClick={() =>
+                onAbrirVentasPeriodo({
+                  desde: data.periodoSemanaDesdeStr,
+                  hasta: data.periodoSemanaHastaStr,
+                  label: `Semana · ${data.semanaLabel || ""}`,
+                })
+              }
+            >
+              Abrir pestaña Ventas con estas mismas fechas →
+            </button>
           </div>
         )}
-      </div>
 
       {/* Distribución de productos (pie chart) */}
       {(data.totalIngresosSemana || 0) > 0 && (

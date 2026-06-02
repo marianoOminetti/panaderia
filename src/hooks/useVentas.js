@@ -35,10 +35,26 @@ export function useVentas() {
   }, []);
 
   const updateVenta = useCallback(async (id, payload) => {
-    const { error } = await supabase
-      .from("ventas")
-      .update(payload)
-      .eq("id", id);
+    let { error } = await supabase.from("ventas").update(payload).eq("id", id);
+    if (error?.code === "42703") {
+      const strip = (keys, obj) => {
+        const next = { ...obj };
+        for (const k of keys) delete next[k];
+        return next;
+      };
+      const attempts = [
+        strip(["transaccion_id"], payload),
+        strip(["subtotal", "descuento", "total_final", "promocion_id"], payload),
+        strip(["transaccion_id", "subtotal", "descuento", "total_final", "promocion_id"], payload),
+      ];
+      for (const p of attempts) {
+        if (Object.keys(p).length === 0) break;
+        const res = await supabase.from("ventas").update(p).eq("id", id);
+        if (!res.error) return;
+        error = res.error;
+        if (error.code !== "42703") break;
+      }
+    }
     if (error) {
       console.error("[ventas/updateVenta]", error);
       throw error;

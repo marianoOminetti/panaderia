@@ -2,24 +2,29 @@
  * Pantalla Ventas: orquesta nueva venta (carrito useVentasCart), cobro (useVentasChargeModal), lista (VentasList),
  * edición de ventas (useVentasEdit) y venta manual (VentasManualScreen).
  */
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { fmt, toCantidadNumber } from "../../lib/format";
 import { generateTransaccionId } from "../../lib/ventas";
 import { useVentas } from "../../hooks/useVentas";
 import { useClientes } from "../../hooks/useClientes";
 import { useVentasCart } from "../../hooks/useVentasCart";
+import { useCartConPromos } from "../../hooks/useCartConPromos";
 import { useVentasChargeModal } from "../../hooks/useVentasChargeModal";
+import { buildVentaRowsConPromos } from "../../lib/buildVentaRowsConPromos";
 import { useVentasEdit } from "../../hooks/useVentasEdit";
 import { hoyLocalISO } from "../../lib/dates";
 import { saveVentaPendiente } from "../../lib/offlineVentas";
 import { reportError } from "../../utils/errorReport";
 import { agruparVentas, gruposConDeuda as getGruposConDeuda, totalDebeEnGrupo } from "../../lib/agrupadores";
+import { filtrarVentasPorFechaRango } from "../../lib/ventasFiltroFecha";
 import { notifyEvent } from "../../lib/notifyEvent";
+import { isVentaRole as checkVentaRole } from "../../config/permissions";
 import VentasList from "./VentasList";
 import VentasChargeModal from "./VentasChargeModal";
 import VentasManualScreen from "./VentasManualScreen";
 
 function Ventas({
+  role = "admin",
   recetas,
   ventas,
   clientes,
@@ -35,7 +40,9 @@ function Ventas({
   onConsumedVentasNueva,
   ventasPedidoFlag,
   onConsumedVentasPedido,
-  onOpenCargarProduccion,
+  ventasFiltroFecha,
+  onClearVentasFiltroFecha,
+  promociones = [],
 }) {
   const { insertVentas, deleteVentas, updateVenta } = useVentas();
   const { insertCliente, insertPedidos } = useClientes({ onRefresh, showToast });
@@ -50,6 +57,9 @@ function Ventas({
     updateCartPrice,
     cartTotal,
   } = useVentasCart();
+
+  const [promosExcluidasCobro, setPromosExcluidasCobro] = useState([]);
+  const cartPromos = useCartConPromos(cartItems, promociones, promosExcluidasCobro);
 
   const [manualScreenOpen, setManualScreenOpen] = useState(false);
   const [clienteSel, setClienteSel] = useState(null);
@@ -69,11 +79,12 @@ function Ventas({
     closeChargeModal,
   } = useVentasChargeModal();
   const [deletingId, setDeletingId] = useState(null);
-  const [productosEnCeroAviso, setProductosEnCeroAviso] = useState(null);
   const hoy = hoyLocalISO();
+  const isVentaRole = checkVentaRole(role);
 
   const edit = useVentasEdit({
     recetas,
+    promociones,
     updateVenta,
     deleteVentas,
     insertVentas,
@@ -85,6 +96,33 @@ function Ventas({
     onCloseEdit: () => setManualScreenOpen(false),
   });
 
+  const ventasListado = useMemo(() => {
+    if (
+      !ventasFiltroFecha?.desde ||
+      !ventasFiltroFecha?.hasta
+    ) {
+      return ventas || [];
+    }
+    return filtrarVentasPorFechaRango(
+      ventas,
+      ventasFiltroFecha.desde,
+      ventasFiltroFecha.hasta
+    );
+  }, [ventas, ventasFiltroFecha]);
+
+  const ingresoPeriodoFiltrado = useMemo(
+    () =>
+      ventasListado.reduce(
+        (s, v) =>
+          s +
+          (v.total_final != null
+            ? v.total_final
+            : (v.precio_unitario || 0) * (v.cantidad || 0)),
+        0
+      ),
+    [ventasListado]
+  );
+
   const ventasHoy = (ventas || []).filter((v) => v.fecha === hoy);
   const ingresoHoy = ventasHoy.reduce(
     (s, v) =>
@@ -95,22 +133,19 @@ function Ventas({
     0,
   );
 
-  const gruposConDeuda = getGruposConDeuda(ventas);
-  const totalDeuda = gruposConDeuda.reduce((s, g) => s + totalDebeEnGrupo(g), 0);
+  const gruposConDeuda = isVentaRole ? [] : getGruposConDeuda(ventas);
+  const totalDeuda = isVentaRole
+    ? 0
+    : gruposConDeuda.reduce((s, g) => s + totalDebeEnGrupo(g), 0);
 
   const registrarVentaEnSupabase = async (rows, transaccionId) => {
     const inserted = await insertVentas(rows);
-    const zeros = [];
     if (actualizarStock) {
       try {
         for (const v of rows) {
           const cant = v.cantidad || 0;
           if (v.receta_id && cant > 0) {
-            const res = await actualizarStock(v.receta_id, -cant);
-            if (res?.nuevo === 0) {
-              const receta = (recetas || []).find((r) => r.id === v.receta_id);
-              if (receta) zeros.push(receta);
-            }
+            await actualizarStock(v.receta_id, -cant);
           }
         }
       } catch (err) {
@@ -135,12 +170,18 @@ function Ventas({
       });
     }
 
-    return { inserted, zeros };
+    return { inserted };
+  };
+
+  const cerrarCobro = () => {
+    setPromosExcluidasCobro([]);
+    closeChargeModal();
   };
 
   const resetNuevaVenta = () => {
     setManualScreenOpen(false);
     setCartItems([]);
+    setPromosExcluidasCobro([]);
     setClienteSel(null);
     setMedioPago("efectivo");
     setEstadoPago("pagado");
@@ -263,106 +304,110 @@ function Ventas({
     }
   };
 
-  const registrarVentaCarrito = async () => {
+  const registrarVentaCarrito = async ({ cobroPorDefecto = false } = {}) => {
+    if (saving) return;
+
     if (cartItems.length === 0) {
       showToast("Agregá productos al carrito primero.");
       return;
     }
 
-    const hoyVenta = hoyLocalISO();
-    const fechaFinal = fechaEntrega || hoyVenta;
-    const esPedido = fechaFinal > hoyVenta;
+    if (cobroPorDefecto && isPedidoFlow) {
+      showToast("Para pedidos usá Ir a cobro.");
+      return;
+    }
 
-    if (esPedido && !clienteSel) {
+    const hoyVenta = hoyLocalISO();
+    const fechaEntregaEff = cobroPorDefecto ? "" : fechaEntrega;
+    const clienteEff = cobroPorDefecto ? null : clienteSel;
+    const medioPagoEff = cobroPorDefecto ? "efectivo" : medioPago;
+    const estadoPagoEff = cobroPorDefecto ? "pagado" : estadoPago;
+    const chargeOverrideEff = cobroPorDefecto ? "" : chargeTotalOverride;
+    const promosExclEff = cobroPorDefecto ? [] : promosExcluidasCobro;
+    const seniaEff = cobroPorDefecto ? "" : senia;
+    const horaEntregaEff = cobroPorDefecto ? "" : horaEntrega;
+    const notasEff = cobroPorDefecto ? "" : notas;
+
+    const fechaFinal = fechaEntregaEff || hoyVenta;
+    const esPedido = fechaFinal > hoyVenta;
+    if (isVentaRole && esPedido) {
+      showToast("Con este usuario no está habilitado guardar pedidos futuros.");
+      return;
+    }
+
+    if (esPedido && !clienteEff) {
       showToast("Para pedidos es obligatorio elegir un cliente");
       return;
     }
 
-    if (!esPedido) {
-      const sinStock = cartItems.filter(
-        ({ receta, cantidad }) =>
-          ((stock || {})[receta.id] ?? 0) < (toCantidadNumber(cantidad) || 0),
-      );
-      if (sinStock.length > 0 && !(await confirm(`Stock insuficiente en ${sinStock.map((s) => s.receta.nombre).join(", ")}. ¿Registrar venta igual?`)))
-        return;
-    }
-
     setSaving(true);
+
     try {
-      const totalCarrito = cartItems.reduce((s, it) => {
-        const cant = toCantidadNumber(it.cantidad) || 0;
-        return s + (it.precio_unitario || 0) * cant;
-      }, 0);
+      const subtotalLista = cobroPorDefecto
+        ? cartItems.reduce(
+            (s, item) =>
+              s + (item.precio_unitario || 0) * (toCantidadNumber(item.cantidad) || 0),
+            0,
+          )
+        : cartPromos.subtotalLista;
 
       if (esPedido) {
         const pedidoId = generateTransaccionId();
-        const seniaNum = parseFloat(String(senia || "").replace(",", ".")) || 0;
+        const seniaNum = parseFloat(String(seniaEff || "").replace(",", ".")) || 0;
         const rows = cartItems.map(({ receta, cantidad, precio_unitario }, index) => {
           const cantNum = toCantidadNumber(cantidad) || 0;
           const precio = precio_unitario || 0;
           return {
             pedido_id: pedidoId,
-            cliente_id: clienteSel,
+            cliente_id: clienteEff,
             receta_id: receta.id,
             cantidad: cantNum,
             precio_unitario: precio,
             senia: index === 0 ? seniaNum : 0,
-            hora_entrega: index === 0 ? (horaEntrega || null) : null,
-            notas: index === 0 ? (notas || null) : null,
+            hora_entrega: index === 0 ? (horaEntregaEff || null) : null,
+            notas: index === 0 ? (notasEff || null) : null,
             estado: "pendiente",
             fecha_entrega: fechaFinal,
           };
         });
         await insertPedidos(rows, { skipToast: true });
         const fechaDisplay = new Date(fechaFinal).toLocaleDateString("es-AR");
-        showToast(`✅ Pedido guardado para ${fechaDisplay}: ${fmt(totalCarrito)}`);
+        showToast(`✅ Pedido guardado para ${fechaDisplay}: ${fmt(subtotalLista)}`);
       } else {
-        const override = parseFloat(String(chargeTotalOverride || "").replace(",", "."));
-        const usarOverride = !Number.isNaN(override) && override >= 0 && override !== totalCarrito && totalCarrito > 0;
-        if (totalCarrito === 0 && !Number.isNaN(override) && override > 0) {
+        const transaccionId = generateTransaccionId();
+        const built = buildVentaRowsConPromos({
+          cartItems,
+          promociones,
+          excludePromoIds: promosExclEff,
+          chargeTotalOverride: chargeOverrideEff,
+          fecha: fechaFinal,
+          transaccionId,
+          clienteId: clienteEff,
+          medioPago: medioPagoEff,
+          estadoPago: estadoPagoEff,
+        });
+        const { rows, promoResult, subtotalLista: subLista, totalCobrado } = built;
+        if (
+          subLista === 0 &&
+          chargeOverrideEff !== "" &&
+          !Number.isNaN(parseFloat(String(chargeOverrideEff).replace(",", "."))) &&
+          parseFloat(String(chargeOverrideEff).replace(",", ".")) > 0
+        ) {
           showToast("Para usar un total final distinto, asigná precios mayores a 0 en el carrito.");
           setSaving(false);
           return;
         }
-        let transaccionId = generateTransaccionId();
-        const rows = cartItems.map(({ receta, cantidad, precio_unitario }) => {
-          const cantNum = toCantidadNumber(cantidad) || 0;
-          const precio = precio_unitario || 0;
-          const subtotal = precio * cantNum;
-          return {
-            receta_id: receta.id,
-            cantidad: cantNum,
-            precio_unitario: precio,
-            subtotal,
-            descuento: 0,
-            total_final: subtotal,
-            fecha: fechaFinal,
-            transaccion_id: transaccionId,
-            cliente_id: clienteSel || null,
-            medio_pago: medioPago,
-            estado_pago: estadoPago,
-          };
-        });
-        if (usarOverride) {
-          const factor = override / totalCarrito;
-          let acumulado = 0;
-          for (let i = 0; i < rows.length; i++) {
-            const nuevoSubtotal = i === rows.length - 1 ? override - acumulado : Math.round(rows[i].subtotal * factor);
-            rows[i].precio_unitario = rows[i].cantidad > 0 ? nuevoSubtotal / rows[i].cantidad : rows[i].precio_unitario;
-            rows[i].subtotal = nuevoSubtotal;
-            rows[i].total_final = nuevoSubtotal;
-            acumulado += nuevoSubtotal;
-          }
-        }
+        const promoLabel = promoResult.aplicadas.map((a) => a.nombre).join(", ");
         if (typeof navigator !== "undefined" && !navigator.onLine) {
           await saveVentaPendiente(rows);
-          showToast(`✅ Venta guardada offline: ${fmt(usarOverride ? override : totalCarrito)}. Se sincronizará cuando vuelva la conexión.`);
+          showToast(
+            `✅ Venta guardada offline: ${fmt(totalCobrado)}${promoLabel ? ` (${promoLabel})` : ""}. Se sincronizará cuando vuelva la conexión.`,
+          );
         } else {
-          const { zeros } = await registrarVentaEnSupabase(rows, transaccionId);
-          showToast(`✅ Venta registrada: ${fmt(usarOverride ? override : totalCarrito)}`);
-          if (zeros && zeros.length > 0) {
-            setProductosEnCeroAviso(zeros);
-          }
+          await registrarVentaEnSupabase(rows, transaccionId);
+          showToast(
+            `✅ Venta registrada: ${fmt(totalCobrado)}${promoLabel ? ` · ${promoLabel}` : ""}`,
+          );
         }
       }
       resetNuevaVenta();
@@ -378,18 +423,57 @@ function Ventas({
   return (
     <div className="content">
       <p className="page-title">Ventas</p>
-      <p className="page-subtitle">Hoy: {fmt(ingresoHoy)}</p>
+      {isVentaRole ? (
+        <p className="page-subtitle">Últimas ventas registradas</p>
+      ) : ventasFiltroFecha?.desde && ventasFiltroFecha?.hasta ? (
+        <>
+          <p className="page-subtitle">
+            {ventasFiltroFecha.label?.trim() || "Período filtrado"}
+          </p>
+          <p className="page-subtitle">Total en período: {fmt(ingresoPeriodoFiltrado)}</p>
+        </>
+      ) : (
+        <p className="page-subtitle">Hoy: {fmt(ingresoHoy)}</p>
+      )}
+
+      {!isVentaRole && ventasFiltroFecha?.desde && ventasFiltroFecha?.hasta && (
+        <div className="card" style={{ marginBottom: 12 }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+              flexWrap: "wrap",
+            }}
+          >
+            <span style={{ fontSize: 13, lineHeight: 1.4 }}>
+              Fechas: <strong>{ventasFiltroFecha.desde}</strong> —{" "}
+              <strong>{ventasFiltroFecha.hasta}</strong>
+            </span>
+            <button
+              type="button"
+              className="card-link"
+              onClick={() => onClearVentasFiltroFecha?.()}
+            >
+              Quitar filtro
+            </button>
+          </div>
+        </div>
+      )}
 
       <VentasList
-        ventas={ventas}
+        ventas={ventasListado}
         hoy={hoy}
         recetas={recetas}
+        promociones={promociones}
         clientes={clientes}
         gruposConDeuda={gruposConDeuda}
         totalDeuda={totalDeuda}
         eliminarVenta={eliminarVenta}
         abrirEditar={abrirEditar}
         deletingId={deletingId}
+        isVentaRole={isVentaRole}
       />
 
       {!manualScreenOpen && (
@@ -415,12 +499,16 @@ function Ventas({
         updateCartPrice={updateCartPrice}
         setCartQuantity={setCartQuantity}
         recetas={recetas}
+        ventas={ventas}
         stock={stock}
         addToCart={edit.editGrupo ? edit.addToCartForEdit : addToCart}
         onCobrar={() => {
           if (cartItems.length === 0) return;
+          setPromosExcluidasCobro([]);
           openChargeModal();
         }}
+        onRegistrarRapida={() => registrarVentaCarrito({ cobroPorDefecto: true })}
+        savingVenta={saving}
         editCartItems={edit.editCartItems}
         editCartTotal={edit.editCartTotal}
         editUpdateQuantity={edit.editUpdateQuantity}
@@ -436,13 +524,19 @@ function Ventas({
         editSaving={edit.editSaving}
         editTotalOverride={edit.editTotalOverride}
         setEditTotalOverride={edit.setEditTotalOverride}
+        editCartPromos={edit.editCartPromos}
+        editPromosExcluidas={edit.editPromosExcluidas}
+        setEditPromosExcluidas={edit.setEditPromosExcluidas}
       />
 
       <VentasChargeModal
         open={chargeModalOpen}
-        onClose={closeChargeModal}
+        onClose={cerrarCobro}
         cartItems={cartItems}
         cartTotal={cartTotal}
+        cartPromos={cartPromos}
+        promosExcluidasCobro={promosExcluidasCobro}
+        setPromosExcluidasCobro={setPromosExcluidasCobro}
         clienteSel={clienteSel}
         setClienteSel={setClienteSel}
         medioPago={medioPago}
@@ -451,7 +545,7 @@ function Ventas({
         setEstadoPago={setEstadoPago}
         chargeTotalOverride={chargeTotalOverride}
         setChargeTotalOverride={setChargeTotalOverride}
-        onRegistrar={registrarVentaCarrito}
+        onRegistrar={() => registrarVentaCarrito()}
         saving={saving}
         clientes={clientes}
         insertCliente={insertCliente}
@@ -464,66 +558,8 @@ function Ventas({
         setHoraEntrega={setHoraEntrega}
         notas={notas}
         setNotas={setNotas}
+        allowPedidos={!isVentaRole}
       />
-
-      {productosEnCeroAviso && (
-        <div className="screen-overlay">
-          <div className="screen-header">
-            <button
-              className="screen-back"
-              onClick={() => setProductosEnCeroAviso(null)}
-            >
-              ← Volver
-            </button>
-            <span className="screen-title">Productos en 0</span>
-          </div>
-          <div className="screen-content">
-            <div className="card" style={{ marginBottom: 12 }}>
-              <div className="card-header">
-                <span className="card-title">Se agotó stock</span>
-              </div>
-              <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 8 }}>
-                Esta venta dejó algunos productos en 0. Si vas a producir, podés cargar stock ahora.
-              </p>
-            </div>
-            <div className="card" style={{ marginBottom: 16 }}>
-              <div className="card-header">
-                <span className="card-title">Productos</span>
-              </div>
-              {productosEnCeroAviso.map((r) => (
-                <div
-                  key={r.id}
-                  className="insumo-item"
-                  style={{ padding: "8px 0", borderBottom: "1px solid var(--border)" }}
-                >
-                  <div className="insumo-info" style={{ flex: 1 }}>
-                    <div className="insumo-nombre">
-                      {r.emoji || "🍞"} {r.nombre}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              <button
-                className="btn-primary"
-                onClick={() => {
-                  const recs = productosEnCeroAviso;
-                  setProductosEnCeroAviso(null);
-                  if (recs?.length) {
-                    onOpenCargarProduccion?.(recs.length === 1 ? recs[0] : recs);
-                  }
-                }}
-              >
-                Cargar stock
-              </button>
-              <button className="btn-secondary" onClick={() => setProductosEnCeroAviso(null)}>
-                Lo veo después
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

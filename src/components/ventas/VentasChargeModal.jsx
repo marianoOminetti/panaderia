@@ -6,6 +6,7 @@ import { fmtMonedaDecimal } from "../../lib/format";
 import { hoyLocalISO } from "../../lib/dates";
 import { SelectorCliente, SelectoresPago } from "./VentasSelectors";
 import VentasCart from "./VentasCart";
+import PromosEnVentaPanel from "./PromosEnVentaPanel";
 import { FormMoneyInput, FormInput, FormTextarea, DatePicker } from "../ui";
 
 export default function VentasChargeModal({
@@ -13,6 +14,9 @@ export default function VentasChargeModal({
   onClose,
   cartItems,
   cartTotal,
+  cartPromos,
+  promosExcluidasCobro,
+  setPromosExcluidasCobro,
   clienteSel,
   setClienteSel,
   medioPago,
@@ -34,13 +38,22 @@ export default function VentasChargeModal({
   setHoraEntrega,
   notas,
   setNotas,
+  allowPedidos = true,
 }) {
   if (!open) return null;
 
   const hoy = hoyLocalISO();
-  const esPedido = fechaEntrega && fechaEntrega > hoy;
+  const esPedido = allowPedidos && fechaEntrega && fechaEntrega > hoy;
+  const descuentoPromo = cartPromos?.descuentoTotal ?? 0;
+  const totalConPromo = cartPromos?.totalFinal ?? cartTotal;
+  const promosEnCobro = cartPromos?.promosEnCobro ?? [];
+  const hayPromosEnCarrito = !esPedido && promosEnCobro.length > 0;
 
   const handleRegistrar = () => {
+    if (!allowPedidos && fechaEntrega && fechaEntrega > hoy) {
+      showToast?.("Con este usuario solo se permiten ventas inmediatas.");
+      return;
+    }
     if (esPedido && !clienteSel) {
       showToast?.("Para pedidos es obligatorio elegir un cliente");
       return;
@@ -66,6 +79,13 @@ export default function VentasChargeModal({
             cartTotal={cartTotal}
             readOnly
           />
+          {hayPromosEnCarrito && (
+            <PromosEnVentaPanel
+              cartPromos={cartPromos}
+              promosExcluidas={promosExcluidasCobro}
+              setPromosExcluidas={setPromosExcluidasCobro}
+            />
+          )}
         </div>
 
         <div className="card" style={{ marginBottom: 16 }}>
@@ -78,7 +98,9 @@ export default function VentasChargeModal({
             className="form-hint"
             style={{ marginTop: -8, marginBottom: 12 }}
           >
-            Hoy = venta inmediata. Fecha futura = pedido.
+            {allowPedidos
+              ? "Hoy = venta inmediata. Fecha futura = pedido."
+              : "Con este usuario, solo se permiten ventas inmediatas."}
           </p>
 
           <SelectorCliente
@@ -124,10 +146,11 @@ export default function VentasChargeModal({
                 label="Total final (editable)"
                 value={chargeTotalOverride}
                 onChange={setChargeTotalOverride}
-                placeholder={fmtMonedaDecimal(cartTotal).replace("$", "").trim()}
+                placeholder={fmtMonedaDecimal(totalConPromo).replace("$", "").trim()}
               />
               <p className="form-hint">
-                Dejalo vacío para usar el total del carrito. Usalo para descuentos o redondeos.
+                Dejalo vacío para usar el total{descuentoPromo > 0 ? " con promos" : " del carrito"}.
+                Usalo para descuentos extra o redondeos.
               </p>
             </>
           )}

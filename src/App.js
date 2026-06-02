@@ -14,6 +14,7 @@ import { useSyncVentasPendientes } from "./hooks/useSyncVentasPendientes";
 import { usePushSubscription } from "./hooks/usePushSubscription";
 import { useScrollToHide } from "./hooks/useScrollToHide";
 import { MORE_MENU_ITEMS, NAV_TABS } from "./config/nav";
+import { canAccessTab, getAllowedTabs, getDefaultTabForRole, normalizeRole } from "./config/permissions";
 import Toast from "./components/ui/Toast";
 import ConfirmDialog from "./components/ui/ConfirmDialog";
 import ConfigMissing from "./components/auth/ConfigMissing";
@@ -26,7 +27,7 @@ import "./App.css";
 
 export default function App() {
   // --- Auth ---
-  const { session, authLoading, signIn, signOut } = useAuth();
+  const { session, authLoading, signIn, signOut, role, roleLoading } = useAuth();
   // --- Navegación y deep links ---
   const [tab, setTab] = useState(() => {
     if (typeof window === "undefined") return "dashboard";
@@ -49,6 +50,8 @@ export default function App() {
   const [ventasPreloadGrupoKey, setVentasPreloadGrupoKey] = useState(null);
   const [ventasNuevaFlag, setVentasNuevaFlag] = useState(false);
   const [ventasPedidoFlag, setVentasPedidoFlag] = useState(false);
+  /** Filtro de fechas en Ventas (p. ej. desde Analytics) */
+  const [ventasFiltroFecha, setVentasFiltroFecha] = useState(null);
   const [stockOpenManual, setStockOpenManual] = useState(false);
   const [insumosCompraPreload, setInsumosCompraPreload] = useState(null);
   const [toast, setToast] = useState(null);
@@ -74,6 +77,18 @@ export default function App() {
     setConfirmState(null);
   }, []);
 
+  const handleAbrirVentasPeriodo = useCallback(({ desde, hasta, label }) => {
+    if (!desde || !hasta) return;
+    setVentasFiltroFecha({
+      desde,
+      hasta,
+      label: label || "",
+    });
+    setTab("ventas");
+  }, []);
+
+  const clearVentasFiltroFecha = useCallback(() => setVentasFiltroFecha(null), []);
+
   // --- Datos (useAppData) ---
   const {
     insumos,
@@ -88,6 +103,7 @@ export default function App() {
     insumoComposicion,
     precioHistorial,
     gastosFijos,
+    promociones,
     loading,
     setStock,
     setInsumoStock,
@@ -97,7 +113,7 @@ export default function App() {
     planSemanalVersion,
     setPlanSemanalVersion,
     loadData,
-  } = useAppData({ showToast });
+  } = useAppData({ showToast, role });
 
   const { actualizarStock, actualizarStockBatch, registrarMovimientoInsumo, consumirInsumosPorStock, consumirComponentesDeInsumo } =
     useStockMutations({
@@ -135,17 +151,24 @@ export default function App() {
     showToast,
   });
 
+  const normalizedRole = normalizeRole(role);
+  const roleReady = !session || !roleLoading;
+  const allowedTabs = getAllowedTabs(normalizedRole);
+  const navTabs = NAV_TABS.filter((t) => allowedTabs.includes(t.id));
+  const moreMenuItems = MORE_MENU_ITEMS.filter((m) => allowedTabs.includes(m.id));
+  const defaultTab = getDefaultTabForRole(normalizedRole);
+
   // Deep link: al cargar o al ganar foco, si la URL tiene ?tab=ventas&venta=KEY, abrir tab Ventas y esa venta
   const applyDeepLink = useCallback(() => {
     if (typeof window === "undefined" || !window.location.search) return;
     const params = new URLSearchParams(window.location.search);
     const tabParam = params.get("tab");
     const ventaKey = params.get("venta");
-    if (tabParam === "ventas" && ventaKey) {
+    if (tabParam === "ventas" && ventaKey && canAccessTab(normalizedRole, "ventas")) {
       setTab("ventas");
       setVentasPreloadGrupoKey(ventaKey);
     }
-  }, []);
+  }, [normalizedRole]);
 
   useEffect(() => {
     applyDeepLink();
@@ -173,10 +196,7 @@ export default function App() {
   // Persistir tab actual en hash + localStorage
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const allTabIds = new Set([
-      ...NAV_TABS.map((t) => t.id),
-      ...MORE_MENU_ITEMS.map((m) => m.id),
-    ]);
+    const allTabIds = new Set(allowedTabs);
     if (!allTabIds.has(tab)) return;
     const desiredHash = `#${tab}`;
     if (window.location.hash !== desiredHash) {
@@ -187,15 +207,12 @@ export default function App() {
     } catch {
       // ignore storage errors
     }
-  }, [tab]);
+  }, [allowedTabs, tab]);
 
   // Soporte para back/forward del navegador via hashchange
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const allTabIds = new Set([
-      ...NAV_TABS.map((t) => t.id),
-      ...MORE_MENU_ITEMS.map((m) => m.id),
-    ]);
+    const allTabIds = new Set(allowedTabs);
     const handleHashChange = () => {
       const rawHash = window.location.hash || "";
       const next = rawHash.startsWith("#") ? rawHash.slice(1) : rawHash;
@@ -210,7 +227,14 @@ export default function App() {
     };
     window.addEventListener("hashchange", handleHashChange);
     return () => window.removeEventListener("hashchange", handleHashChange);
-  }, []);
+  }, [allowedTabs]);
+
+  useEffect(() => {
+    if (!roleReady) return;
+    if (!canAccessTab(normalizedRole, tab)) {
+      setTab(defaultTab);
+    }
+  }, [defaultTab, normalizedRole, roleReady, tab]);
 
   useEffect(() => {
     if (session) loadData();
@@ -221,7 +245,7 @@ export default function App() {
   const { headerVisible, navVisible } = useScrollToHide();
 
   if (!SUPABASE_CONFIG_OK) return <ConfigMissing />;
-  if (authLoading) {
+  if (authLoading || (session && !roleReady)) {
     return (
       <div
         className="app"
@@ -235,12 +259,32 @@ export default function App() {
     );
   }
   if (!session) return <AuthScreen signIn={signIn} />;
+  if (!normalizedRole) {
+    return (
+      <div className="app" style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh" }}>
+        <div className="auth-card">
+          <h2 className="auth-title" style={{ marginBottom: 8 }}>Acceso sin rol asignado</h2>
+          <p className="page-subtitle" style={{ marginBottom: 12 }}>
+            Tu usuario no tiene permisos configurados. Pedí al administrador que te asigne un rol.
+          </p>
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={() => signOut().catch(() => showToast("Error al cerrar sesión"))}
+          >
+            Cerrar sesión
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="app">
-      <AppHeader visible={headerVisible} setErrorLogOpen={setErrorLogOpen} signOut={signOut} showToast={showToast} onGoHome={() => setTab("dashboard")} />
+      <AppHeader visible={headerVisible} setErrorLogOpen={setErrorLogOpen} signOut={signOut} showToast={showToast} onGoHome={() => setTab(defaultTab)} />
       {errorLogOpen && <ErrorLogOverlay onClose={() => setErrorLogOpen(false)} />}
       <AppContent
+        role={normalizedRole}
         tab={tab}
         setTab={setTab}
         stockProductionPreloadRecetas={stockProductionPreloadRecetas}
@@ -281,7 +325,7 @@ export default function App() {
           setTab("insumos");
         }}
         loading={loading}
-        moreMenuItems={MORE_MENU_ITEMS}
+        moreMenuItems={moreMenuItems}
         insumos={insumos}
         recetas={recetas}
         ventas={ventas}
@@ -294,6 +338,7 @@ export default function App() {
         insumoComposicion={insumoComposicion}
         precioHistorial={precioHistorial}
         gastosFijos={gastosFijos}
+        promociones={promociones}
         resumenPlanSemanal={resumenPlanSemanal}
         actualizarStock={actualizarStock}
         actualizarStockBatch={actualizarStockBatch}
@@ -306,6 +351,9 @@ export default function App() {
         recetasFilterIds={recetasFilterIds}
         setRecetasFilterIds={setRecetasFilterIds}
         setPlanSemanalVersion={setPlanSemanalVersion}
+        ventasFiltroFecha={ventasFiltroFecha}
+        onClearVentasFiltroFecha={clearVentasFiltroFecha}
+        onAbrirVentasPeriodo={handleAbrirVentasPeriodo}
       />
       <AppNav
         visible={navVisible}
@@ -313,6 +361,7 @@ export default function App() {
         setTab={setTab}
         isMoreSection={isMoreSection}
         sinStockCount={sinStockCount}
+        navTabs={navTabs}
       />
       {toast && <Toast msg={toast} onDone={() => setToast(null)} />}
       {confirmState && (

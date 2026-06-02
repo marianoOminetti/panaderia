@@ -1,7 +1,7 @@
 /**
- * Detalle del mes: proyección, pico, cliente, productos sin venta, tops. Con navegación.
+ * Detalle del año calendario: KPIs, ingreso por mes, tops y drill.
  */
-import { fmt } from "../../lib/format";
+import { fmt, pctFmt } from "../../lib/format";
 import AnalyticsNavPeriodo from "./AnalyticsNavPeriodo";
 
 function arrow(dir) {
@@ -10,27 +10,23 @@ function arrow(dir) {
   return "→";
 }
 
-export default function AnalyticsDetalleMes({
+export default function AnalyticsDetalleAnio({
   data,
-  offsetMes,
+  offsetAnio,
   onPrev,
   onNext,
   onIrActual,
   onDrill,
   onAbrirVentasPeriodo,
 }) {
-  const esActual = offsetMes === 0;
-  const recetasSinVenta =
-    offsetMes === 0
-      ? (data.recetasSinVenta7 || [])
-      : (data.recetasSinVentaMes || []);
+  const esActual = offsetAnio === 0;
 
   return (
     <div className="analytics-section">
       <div className="card">
         <AnalyticsNavPeriodo
-          tipo="mes"
-          label={data.mesLabel}
+          tipo="año"
+          label={data.anioLabel}
           esActual={esActual}
           onPrev={onPrev}
           onNext={onNext}
@@ -38,86 +34,152 @@ export default function AnalyticsDetalleMes({
         />
       </div>
 
-      {/* Proyección del mes - grid 2x2 */}
-      {data.proyeccionAplicable && (
+      {data.proyeccionAnioAplicable && (
         <div className="card">
           <div className="card-header">
-            <span className="card-title">Proyección del mes</span>
+            <span className="card-title">Proyección del año</span>
           </div>
           <div className="analytics-kpi-grid">
             <div className="analytics-kpi-card">
               <div className="analytics-kpi-label">Ingreso proyectado</div>
               <div className="analytics-kpi-value">
-                {fmt(data.proyIngresoMes || 0)}
+                {fmt(data.proyIngresoAnio || 0)}
               </div>
               <div className="analytics-kpi-sub">
-                Acumulado: {fmt(data.ingresoMes ?? 0)} en {data.diasTranscurridos} {data.diasTranscurridos === 1 ? "día" : "días"}
+                Acumulado: {fmt(data.ingresoAnio ?? 0)} en{" "}
+                {data.diasTranscurridosAnio}{" "}
+                {data.diasTranscurridosAnio === 1 ? "día" : "días"}
               </div>
             </div>
             <div className="analytics-kpi-card">
               <div className="analytics-kpi-label">Ganancia proyectada</div>
               <div className="analytics-kpi-value">
-                {fmt(data.proyGananciaMesNeta || 0)}
+                {fmt(data.proyGananciaAnioNeta || 0)}
               </div>
               <div className="analytics-kpi-sub">
-                Acumulado: {fmt(data.gananciaMesNeta ?? 0)}
+                Acumulado: {fmt(data.gananciaAnioNeta ?? 0)}
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Mes cerrado: mismo KPI que antes estaba solo como "acumulado" bajo proyección */}
-      {!data.proyeccionAplicable && (
+      {!data.proyeccionAnioAplicable && (
         <div className="card">
           <div className="card-header">
-            <span className="card-title">Resultado del mes</span>
+            <span className="card-title">Resultado del año</span>
           </div>
           <div className="analytics-kpi-grid">
             <div className="analytics-kpi-card">
               <div className="analytics-kpi-label">Ingreso</div>
               <div className="analytics-kpi-value">
-                {fmt(data.ingresoMes ?? 0)}
+                {fmt(data.ingresoAnio ?? 0)}
               </div>
             </div>
             <div className="analytics-kpi-card">
               <div className="analytics-kpi-label">Costo</div>
               <div className="analytics-kpi-value">
-                {fmt(data.costoMes ?? 0)}
+                {fmt(data.costoAnio ?? 0)}
               </div>
             </div>
             <div className="analytics-kpi-card">
               <div className="analytics-kpi-label">Ganancia neta</div>
               <div className="analytics-kpi-value">
-                {fmt(data.gananciaMesNeta ?? 0)}
+                {fmt(data.gananciaAnioNeta ?? 0)}
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Pico de ventas y cliente del mes - grid 2x2 */}
+      {!data.proyeccionAnioAplicable && (
       <div className="card">
         <div className="card-header">
-          <span className="card-title">Pico de ventas y cliente del mes</span>
+          <span className="card-title">Comparativo anual</span>
         </div>
         <div className="analytics-kpi-grid">
           <div className="analytics-kpi-card">
-            <div className="analytics-kpi-label">Semana con más ventas</div>
-            <div className="analytics-kpi-value">{data.semanaPicoLabel || "—"}</div>
-            <div className="analytics-kpi-sub">
-              Día pico: {data.diaPicoLabel || "—"} {data.horaPicoLabel || ""}
+            <div className="analytics-kpi-label">Ingreso</div>
+            <div className="analytics-kpi-value">
+              {fmt(data.ingresoAnio ?? 0)}
+              <span
+                className={`analytics-trend analytics-trend-${data.trendIngresoAnio?.dir || "flat"}`}
+              >
+                {arrow(data.trendIngresoAnio?.dir)}{" "}
+                {data.trendIngresoAnio?.label || "—"}
+              </span>
             </div>
+            <div className="analytics-kpi-sub">
+              Año anterior: {fmt(data.ingresoAnioAnterior ?? 0)}
+            </div>
+          </div>
+          <div className="analytics-kpi-card">
+            <div className="analytics-kpi-label">Costo</div>
+            <div className="analytics-kpi-value">
+              {fmt(data.costoAnio ?? 0)}
+              <span
+                className={`analytics-trend analytics-trend-${data.trendCostoAnio?.dir || "flat"}`}
+              >
+                {arrow(data.trendCostoAnio?.dir)}{" "}
+                {data.trendCostoAnio?.label || "—"}
+              </span>
+            </div>
+            <div className="analytics-kpi-sub">
+              Año anterior: {fmt(data.costoAnioAnterior ?? 0)}
+            </div>
+          </div>
+          <div className="analytics-kpi-card">
+            <div className="analytics-kpi-label">Ganancia</div>
+            <div className="analytics-kpi-value">
+              {fmt(data.gananciaAnioNeta ?? 0)}
+              <span
+                className={`analytics-trend analytics-trend-${data.trendGananciaAnio?.dir || "flat"}`}
+              >
+                {arrow(data.trendGananciaAnio?.dir)}{" "}
+                {data.trendGananciaAnio?.label || "—"}
+              </span>
+            </div>
+            <div className="analytics-kpi-sub">
+              Año anterior: {fmt(data.gananciaAnioNetaAnterior ?? 0)}
+            </div>
+          </div>
+          <div className="analytics-kpi-card">
+            <div className="analytics-kpi-label">Margen</div>
+            <div className="analytics-kpi-value">
+              {data.margenAnioActual != null
+                ? pctFmt(data.margenAnioActual)
+                : "—"}
+              <span
+                className={`analytics-trend analytics-trend-${data.trendMargenAnio?.dir || "flat"}`}
+              >
+                {arrow(data.trendMargenAnio?.dir)}{" "}
+                {data.trendMargenAnio?.label || "—"}
+              </span>
+            </div>
+            <div className="analytics-kpi-sub">Sobre ingreso anual (bruto)</div>
+          </div>
+        </div>
+      </div>
+      )}
+
+      <div className="card">
+        <div className="card-header">
+          <span className="card-title">Pico del año</span>
+        </div>
+        <div className="analytics-kpi-grid">
+          <div className="analytics-kpi-card">
+            <div className="analytics-kpi-label">Mes con más ventas</div>
+            <div className="analytics-kpi-value">{data.mesPicoAnioLabel || "—"}</div>
           </div>
           <div className="analytics-kpi-card">
             <div className="analytics-kpi-label">Cliente que más compró</div>
             <div className="analytics-kpi-value">
-              {data.mejorCliente ? data.mejorCliente.nombre : "—"}
+              {data.mejorClienteAnio ? data.mejorClienteAnio.nombre : "—"}
             </div>
             <div className="analytics-kpi-sub">
-              {data.mejorCliente
-                ? `Total: ${fmt(data.mejorClienteTotal)}`
-                : "Sin compras este mes"}
+              {data.mejorClienteAnio
+                ? `Total: ${fmt(data.mejorClienteAnioTotal)}`
+                : "Sin compras este año"}
             </div>
           </div>
         </div>
@@ -133,39 +195,80 @@ export default function AnalyticsDetalleMes({
           <button
             type="button"
             className="card-link"
-            onClick={() => onDrill?.({ tipo: "ingreso-dia-mes" })}
-          >
-            Ver ingreso por día de la semana (en el mes) →
-          </button>
-          <button
-            type="button"
-            className="card-link"
             onClick={() => onDrill?.({ tipo: "clientes" })}
           >
-            Ver todos los clientes del mes →
+            Ver todos los clientes del año →
           </button>
         </div>
       </div>
 
-      {/* TOP 5 productos más vendidos (mes) */}
+      <button
+        type="button"
+        className="analytics-drill-card"
+        onClick={() => onDrill?.({ tipo: "ingreso-por-mes-anio" })}
+        aria-label="Ver ingreso por mes del año"
+      >
+        <div className="card-header">
+          <span className="card-title">Ingreso por mes</span>
+        </div>
+        {(data.maxIngresoMesAnio || 0) === 0 ? (
+          <div className="empty">
+            <div className="empty-icon">📊</div>
+            <p>No hay ventas este año.</p>
+          </div>
+        ) : (
+          <>
+            <div className="bar-chart bar-chart-12">
+              {(data.ingresoPorMesAnio || []).map((row, idx) => {
+                const maxH = 70;
+                const h =
+                  (data.maxIngresoMesAnio || 0) > 0
+                    ? Math.max(
+                        (row.ingreso / data.maxIngresoMesAnio) * maxH,
+                        4
+                      )
+                    : 4;
+                return (
+                  <div key={idx} className="bar-chart-col">
+                    <div className="bar-chart-value">
+                      {row.ingreso > 0
+                        ? row.ingreso >= 1000
+                          ? Math.round(row.ingreso / 1000) + "k"
+                          : Math.round(row.ingreso)
+                        : ""}
+                    </div>
+                    <div
+                      className="bar-chart-bar"
+                      style={{ height: `${h}px` }}
+                    />
+                    <div className="bar-chart-label">{row.label}</div>
+                  </div>
+                );
+              })}
+            </div>
+            <span className="analytics-drill-hint">Ver tabla de ingresos por mes</span>
+          </>
+        )}
+      </button>
+
       <button
         type="button"
         className="analytics-drill-card"
         onClick={() => onDrill?.({ tipo: "productos-vendidos" })}
-        aria-label="Ver todos los productos vendidos en el mes"
+        aria-label="Ver todos los productos vendidos en el año"
       >
         <div className="card-header">
-          <span className="card-title">TOP 5 productos más vendidos (mes)</span>
+          <span className="card-title">TOP 5 productos más vendidos (año)</span>
         </div>
-        {(data.topMasVendidosMes || []).length === 0 ? (
+        {(data.topMasVendidosAnio || []).length === 0 ? (
           <div className="empty">
             <div className="empty-icon">🥐</div>
-            <p>No hay ventas este mes.</p>
+            <p>No hay ventas este año.</p>
           </div>
         ) : (
           <>
             <div className="analytics-list">
-              {(data.topMasVendidosMes || []).map((row) => (
+              {(data.topMasVendidosAnio || []).map((row) => (
                 <div key={row.receta_id} className="analytics-item">
                   <span className="venta-emoji">{row.receta?.emoji || "🍞"}</span>
                   <div className="analytics-item-main">
@@ -191,25 +294,24 @@ export default function AnalyticsDetalleMes({
         )}
       </button>
 
-      {/* TOP 5 productos más rentables (mes) */}
       <button
         type="button"
         className="analytics-drill-card"
         onClick={() => onDrill?.({ tipo: "productos-rentables" })}
-        aria-label="Ver rentabilidad de todos los productos en el mes"
+        aria-label="Ver rentabilidad de todos los productos en el año"
       >
         <div className="card-header">
-          <span className="card-title">TOP 5 productos más rentables (mes)</span>
+          <span className="card-title">TOP 5 productos más rentables (año)</span>
         </div>
-        {(data.topMasRentablesMes || []).length === 0 ? (
+        {(data.topMasRentablesAnio || []).length === 0 ? (
           <div className="empty">
             <div className="empty-icon">💸</div>
-            <p>Todavía no hay datos de ganancia este mes.</p>
+            <p>Todavía no hay datos de ganancia este año.</p>
           </div>
         ) : (
           <>
             <div className="analytics-list">
-              {(data.topMasRentablesMes || []).map((row) => (
+              {(data.topMasRentablesAnio || []).map((row) => (
                 <div key={row.receta_id} className="analytics-item">
                   <span className="venta-emoji">{row.receta?.emoji || "🍞"}</span>
                   <div className="analytics-item-main">
@@ -232,7 +334,7 @@ export default function AnalyticsDetalleMes({
         type="button"
         className="analytics-drill-card"
         onClick={() => onDrill?.({ tipo: "ventas" })}
-        aria-label="Ver ventas agrupadas del mes"
+        aria-label="Ver ventas agrupadas del año"
       >
         <div className="card-header">
           <span className="card-title">Ventas agrupadas</span>
@@ -246,23 +348,23 @@ export default function AnalyticsDetalleMes({
             lineHeight: 1.4,
           }}
         >
-          Tickets y totales del mes seleccionado.
+          Tickets y totales del año seleccionado.
         </span>
         <span className="analytics-drill-hint">Abrir listado</span>
       </button>
 
       {onAbrirVentasPeriodo &&
-        data.periodoMesDesdeStr &&
-        data.periodoMesHastaStr && (
+        data.periodoAnioDesdeStr &&
+        data.periodoAnioHastaStr && (
           <div className="card" style={{ paddingTop: 10, paddingBottom: 10 }}>
             <button
               type="button"
               className="card-link"
               onClick={() =>
                 onAbrirVentasPeriodo({
-                  desde: data.periodoMesDesdeStr,
-                  hasta: data.periodoMesHastaStr,
-                  label: `Mes · ${data.mesLabel || ""}`,
+                  desde: data.periodoAnioDesdeStr,
+                  hasta: data.periodoAnioHastaStr,
+                  label: `Año · ${data.anioLabel || ""}`,
                 })
               }
             >
@@ -271,16 +373,11 @@ export default function AnalyticsDetalleMes({
           </div>
         )}
 
-      {/* Productos sin ventas */}
       <div className="card">
         <div className="card-header">
-          <span className="card-title">
-            {offsetMes === 0
-              ? "Productos sin ventas (últimos 7 días)"
-              : "Productos sin ventas (mes)"}
-          </span>
+          <span className="card-title">Productos sin ventas (año)</span>
         </div>
-        {recetasSinVenta.length === 0 ? (
+        {(data.recetasSinVentaAnio || []).length === 0 ? (
           <div className="empty">
             <div className="empty-icon">✅</div>
             <p>Todos los productos tuvieron al menos una venta.</p>
@@ -297,17 +394,17 @@ export default function AnalyticsDetalleMes({
               Revisá si siguen teniendo sentido en la carta.
             </p>
             <div className="analytics-chips">
-              {recetasSinVenta.slice(0, 10).map((r) => (
+              {(data.recetasSinVentaAnio || []).slice(0, 10).map((r) => (
                 <span key={r.id} className="analytics-chip">
                   {r.emoji || "🍞"} {r.nombre}
                 </span>
               ))}
-              {recetasSinVenta.length > 10 && (
+              {(data.recetasSinVentaAnio || []).length > 10 && (
                 <span
                   className="analytics-chip"
                   style={{ color: "var(--text-muted)" }}
                 >
-                  +{recetasSinVenta.length - 10} más
+                  +{data.recetasSinVentaAnio.length - 10} más
                 </span>
               )}
             </div>

@@ -53,7 +53,6 @@ async function loadVentasDesde(fechaGte) {
  * Carga y mantiene todos los datos de la app (insumos, recetas, ventas, clientes, pedidos, stock, etc.).
  * Usado solo por App.js. loadData() re-fetcha todo; ventas desde hace 36 meses (paginado ante max_rows PostgREST), pedidos 1000, insumo_movimientos 100.
  * @param {{ showToast?: (msg: string) => void, role?: string }} options
- * @returns {{ insumos, recetas, ventas, recetaIngredientes, clientes, pedidos, stock, insumoStock, insumoMovimientos, insumoComposicion, precioHistorial, gastosFijos, promociones, loading, loadData, setStock, setInsumoStock, setInsumoMovimientos, recetasFilterIds, setRecetasFilterIds, planSemanalVersion, setPlanSemanalVersion }}
  */
 export function useAppData({ showToast, role } = {}) {
   const [insumos, setInsumos] = useState([]);

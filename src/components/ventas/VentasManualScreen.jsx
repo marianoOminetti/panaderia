@@ -1,8 +1,11 @@
+import { useMemo } from "react";
 import { fmt, fmtMonedaDecimal, fmtStock } from "../../lib/format";
+import { prepararRecetasParaVenta } from "../../lib/recetasParaVenta";
 import VentasCart from "./VentasCart";
 import { SelectorCliente, SelectoresPago } from "./VentasSelectors";
 import { DatePicker, ProductSearchInput, FormMoneyInput } from "../ui";
 import { useFilterBySearch } from "../../hooks/useFilterBySearch";
+import PromosEnVentaPanel from "./PromosEnVentaPanel";
 
 export default function VentasManualScreen({
   open,
@@ -17,9 +20,12 @@ export default function VentasManualScreen({
   updateCartPrice,
   setCartQuantity,
   recetas,
+  ventas = [],
   stock,
   addToCart,
   onCobrar,
+  onRegistrarRapida,
+  savingVenta = false,
   // Editar venta
   editCartItems,
   editCartTotal,
@@ -36,23 +42,36 @@ export default function VentasManualScreen({
   editSaving,
   editTotalOverride = "",
   setEditTotalOverride,
+  editCartPromos,
+  editPromosExcluidas = [],
+  setEditPromosExcluidas,
 }) {
+  const recetasParaLista = useMemo(
+    () => prepararRecetasParaVenta(recetas, ventas),
+    [recetas, ventas],
+  );
+
   const { search, setSearch, filteredItems: filteredRecetas } = useFilterBySearch(
-    recetas ?? [],
-    "nombre"
+    recetasParaLista,
+    "nombre",
   );
 
   if (!open) return null;
 
   const isEdit = mode === "edit";
   const items = isEdit ? editCartItems : cartItems;
-  const totalBase = isEdit ? editCartTotal : cartTotal;
+  const totalLista = isEdit ? editCartTotal : cartTotal;
+  const totalConPromoEdit =
+    isEdit && (editCartPromos?.descuentoTotal ?? 0) > 0
+      ? editCartPromos.totalFinal
+      : totalLista;
   const overrideNum =
     isEdit &&
     editTotalOverride !== "" &&
     !Number.isNaN(parseFloat(String(editTotalOverride).replace(",", ".")))
       ? parseFloat(String(editTotalOverride).replace(",", "."))
       : null;
+  const totalBase = isEdit ? totalConPromoEdit : totalLista;
   const total =
     isEdit && overrideNum != null && overrideNum >= 0 ? overrideNum : totalBase;
   const hasItems = (isEdit ? editCartItems : cartItems)?.length > 0;
@@ -117,11 +136,11 @@ export default function VentasManualScreen({
               label="Total final (editable)"
               value={editTotalOverride}
               onChange={(v) => setEditTotalOverride?.(v)}
-              placeholder={fmtMonedaDecimal(editCartTotal).replace("$", "").trim()}
+              placeholder={fmtMonedaDecimal(totalConPromoEdit).replace("$", "").trim()}
               style={{ marginTop: 12 }}
             />
             <p className="form-hint" style={{ marginTop: -8 }}>
-              Dejalo vacío para usar el total del carrito. Usalo para descuentos o redondeos.
+              Dejalo vacío para usar el total con promos. Usalo para descuentos extra o redondeos.
             </p>
           </div>
         )}
@@ -131,7 +150,7 @@ export default function VentasManualScreen({
           </div>
           <VentasCart
             cartItems={items}
-            cartTotal={total}
+            cartTotal={totalLista}
             updateCartQuantity={isEdit ? editUpdateQuantity : updateCartQuantity}
             removeFromCart={isEdit ? editRemoveItem : removeFromCart}
             updateCartPrice={isEdit ? editUpdatePrice : updateCartPrice}
@@ -139,6 +158,13 @@ export default function VentasManualScreen({
             quantityIntegerOnly={false}
             priceEditable
           />
+          {isEdit && (editCartPromos?.promosEnCobro?.length ?? 0) > 0 && (
+            <PromosEnVentaPanel
+              cartPromos={editCartPromos}
+              promosExcluidas={editPromosExcluidas}
+              setPromosExcluidas={setEditPromosExcluidas}
+            />
+          )}
         </div>
         <div className="card">
           <div className="card-header">
@@ -264,15 +290,40 @@ export default function VentasManualScreen({
               {editSaving ? "Guardando…" : "Guardar"}
             </button>
           ) : (
-            <button
-              type="button"
-              className="btn-primary"
-              onClick={onCobrar}
-              disabled={!hasItems}
-              style={{ width: 180 }}
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 8,
+                flex: 1,
+                minWidth: 0,
+                maxWidth: 220,
+              }}
             >
-              Ir a cobro
-            </button>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={onRegistrarRapida}
+                disabled={!hasItems || savingVenta || isPedidoFlow}
+                title={
+                  isPedidoFlow
+                    ? "Para pedidos usá Ir a cobro"
+                    : "Efectivo, consumidor final, pagado, hoy"
+                }
+                style={{ width: "100%", marginTop: 0, padding: "12px 10px", fontSize: 14 }}
+              >
+                {savingVenta ? "Registrando…" : "Registrar venta"}
+              </button>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={onCobrar}
+                disabled={!hasItems || savingVenta}
+                style={{ width: "100%", marginTop: 0, padding: "10px", fontSize: 13 }}
+              >
+                Ir a cobro
+              </button>
+            </div>
           )}
         </div>
       </div>

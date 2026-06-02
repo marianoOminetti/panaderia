@@ -6,7 +6,7 @@ import { CATEGORIAS, CAT_COLORS } from "../config/appConfig";
 
 /**
  * Calcula todos los datos derivados para Analytics: semanas, métricas actual vs anterior,
- * tops (más vendidos, más rentables), picos día/hora, proyecciones mes, datos para gráficos (pie, barras).
+ * tops (más vendidos/rentables por semana seleccionada o por mes), picos día/hora, proyecciones mes, gráficos.
  * Usado por Analytics.jsx. No modifica datos; solo transforma ventas/recetas/etc. en estructuras para las vistas.
  * @param {{ ventas: Array, recetas: Array, clientes: Array, recetaIngredientes: Array, insumos: Array, gastosFijos: Array }}
  * @returns {Object} Objeto con todas las props que AnalyticsSemana, AnalyticsProductos y AnalyticsGraficos necesitan
@@ -14,6 +14,11 @@ import { CATEGORIAS, CAT_COLORS } from "../config/appConfig";
 const MESES = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
   "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
+];
+
+const MESES_CORTO = [
+  "Ene", "Feb", "Mar", "Abr", "May", "Jun",
+  "Jul", "Ago", "Sep", "Oct", "Nov", "Dic",
 ];
 
 export function useAnalyticsData({
@@ -26,6 +31,7 @@ export function useAnalyticsData({
   offsetSemanas = 0,
   offsetMeses = 0,
   offsetDias = 0,
+  offsetAnios = 0,
 }) {
   return useMemo(() => {
     const hoy = new Date();
@@ -67,6 +73,11 @@ export function useAnalyticsData({
     const thisWeekEnd = endOfWeek(thisWeekStart);
     const prevWeekEnd = new Date(thisWeekStart.getTime() - 1);
     const prevWeekStart = startOfWeek(prevWeekEnd);
+
+    const ymd = (d) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const periodoSemanaDesdeStr = ymd(thisWeekStart);
+    const periodoSemanaHastaStr = ymd(thisWeekEnd);
 
     const fmtDiaMes = (d) => `${d.getDate()} ${MESES[d.getMonth()].slice(0, 3)}`;
     const semanaLabel =
@@ -302,6 +313,7 @@ export function useAnalyticsData({
       });
     }
 
+    const ventasSemanaCount = ventasSemanaActual.length;
     const ingresoSemanaActual = sumMetric(ventasSemanaActual);
     const ingresoSemanaAnterior = sumMetric(ventasSemanaAnterior);
     const costoSemanaActual = sumMetric(ventasSemanaActual, getCostoLinea);
@@ -360,18 +372,8 @@ export function useAnalyticsData({
         return { ...row, receta: rec, trend: t };
       });
 
-    const ahora = new Date();
-    const hace30dias = new Date(
-      ahora.getFullYear(),
-      ahora.getMonth(),
-      ahora.getDate() - 30
-    );
-    const ventas30dias = ventasConFecha.filter(
-      (v) => v._fecha && v._fecha.getTime() >= hace30dias.getTime()
-    );
-
-    const porReceta30 = topBy(ventas30dias);
-    const topMasRentables = porReceta30
+    // Misma ventana que ventasSemanaActual (lunes–domingo, con offsetSemanas)
+    const topMasRentables = semActPorReceta
       .map((row) => ({ ...row, ganancia: row.ingreso - row.costo }))
       .filter((row) => row.ganancia > 0)
       .sort((a, b) => b.ganancia - a.ganancia)
@@ -381,6 +383,7 @@ export function useAnalyticsData({
         return { ...row, receta: rec };
       });
 
+    const ahora = new Date();
     const hace7dias = new Date(
       ahora.getFullYear(),
       ahora.getMonth(),
@@ -431,6 +434,8 @@ export function useAnalyticsData({
       999
     );
     const mesLabel = `${MESES[targetMonth.getMonth()]} ${targetMonth.getFullYear()}`;
+    const periodoMesDesdeStr = ymd(startOfMonth);
+    const periodoMesHastaStr = ymd(endOfMonth);
     const proyeccionAplicable = offsetMeses === 0;
     const ventasMes = ventasConFecha.filter(
       (v) => v._fecha && isBetween(v._fecha, startOfMonth, endOfMonth)
@@ -473,9 +478,25 @@ export function useAnalyticsData({
         ? `${horaPicoIdx.toString().padStart(2, "0")}:00`
         : "—";
 
+    const diasLunADomEtiquetas = [
+      "Lunes",
+      "Martes",
+      "Miércoles",
+      "Jueves",
+      "Viernes",
+      "Sábado",
+      "Domingo",
+    ];
+    const jsDowDesdeLunes = [1, 2, 3, 4, 5, 6, 0];
+    const ingresoPorDiaMesLunDom = jsDowDesdeLunes.map((dow, i) => ({
+      label: diasLunADomEtiquetas[i],
+      ingreso: ingresoPorDiaMes[dow] || 0,
+    }));
+
     const ingresoMes = sumMetric(ventasMes);
     const costoMes = sumMetric(ventasMes, getCostoLinea);
     const gananciaMesBruta = ingresoMes - costoMes;
+    const ventasMesCount = ventasMes.length;
 
     const recetasConVentaMes = new Set(
       ventasMes.map((v) => v.receta_id).filter((id) => id != null)
@@ -516,6 +537,188 @@ export function useAnalyticsData({
         mejorCliente = clientes.find((c) => c.id === id) || null;
       }
     }
+
+    const mesPorReceta = topBy(ventasMes);
+    const prevMonthStart = new Date(
+      targetMonth.getFullYear(),
+      targetMonth.getMonth() - 1,
+      1,
+      0,
+      0,
+      0,
+      0
+    );
+    const prevMonthEnd = new Date(
+      targetMonth.getFullYear(),
+      targetMonth.getMonth(),
+      0,
+      23,
+      59,
+      59,
+      999
+    );
+    const ventasMesAnterior = ventasConFecha.filter(
+      (v) => v._fecha && isBetween(v._fecha, prevMonthStart, prevMonthEnd)
+    );
+    const ingresoMesAnterior = sumMetric(ventasMesAnterior);
+    const trendIngresoMes = trendInfo(ingresoMes, ingresoMesAnterior);
+    const mesAntPorReceta = topBy(ventasMesAnterior);
+    const mapMesAnt = new Map(mesAntPorReceta.map((r) => [r.receta_id, r]));
+
+    const topMasVendidosMes = mesPorReceta
+      .slice()
+      .sort((a, b) => b.unidades - a.unidades)
+      .slice(0, 5)
+      .map((row) => {
+        const rec = recetas.find((r) => r.id === row.receta_id) || {};
+        const prev = mapMesAnt.get(row.receta_id) || { unidades: 0, ingreso: 0 };
+        const t = trendInfo(row.unidades, prev.unidades);
+        return { ...row, receta: rec, trend: t };
+      });
+
+    const topMasRentablesMes = mesPorReceta
+      .map((row) => ({ ...row, ganancia: row.ingreso - row.costo }))
+      .filter((row) => row.ganancia > 0)
+      .sort((a, b) => b.ganancia - a.ganancia)
+      .slice(0, 5)
+      .map((row) => {
+        const rec = recetas.find((r) => r.id === row.receta_id) || {};
+        return { ...row, receta: rec };
+      });
+
+    const targetYear = hoy.getFullYear() + offsetAnios;
+    const startOfYear = new Date(targetYear, 0, 1, 0, 0, 0, 0);
+    const endOfYear = new Date(targetYear, 11, 31, 23, 59, 59, 999);
+    const anioLabel = String(targetYear);
+    const periodoAnioDesdeStr = ymd(startOfYear);
+    const periodoAnioHastaStr = ymd(endOfYear);
+    const proyeccionAnioAplicable = offsetAnios === 0;
+    const isLeapYear =
+      (targetYear % 4 === 0 && targetYear % 100 !== 0) ||
+      targetYear % 400 === 0;
+    const totalDiasAnio = isLeapYear ? 366 : 365;
+    const startOfYearDay = new Date(targetYear, 0, 1);
+    const diasTranscurridosAnio = proyeccionAnioAplicable
+      ? Math.floor((hoy.getTime() - startOfYearDay.getTime()) / (24 * 60 * 60 * 1000)) + 1
+      : totalDiasAnio;
+
+    const ventasAnio = ventasConFecha.filter(
+      (v) => v._fecha && isBetween(v._fecha, startOfYear, endOfYear)
+    );
+    const ventasAnioCount = ventasAnio.length;
+    const ingresoAnio = sumMetric(ventasAnio);
+    const costoAnio = sumMetric(ventasAnio, getCostoLinea);
+    const gananciaAnioBruta = ingresoAnio - costoAnio;
+
+    const { anio: gastosAnio } = calcularGastosTotales(gastosFijos, startOfYear);
+    const gastosProrrateadosAnio =
+      proyeccionAnioAplicable && diasTranscurridosAnio > 0
+        ? (gastosAnio || 0) * (diasTranscurridosAnio / totalDiasAnio)
+        : (gastosAnio || 0);
+    const gananciaAnioNeta = gananciaAnioBruta - gastosProrrateadosAnio;
+
+    const factorProyAnio =
+      proyeccionAnioAplicable && diasTranscurridosAnio > 0
+        ? totalDiasAnio / diasTranscurridosAnio
+        : 1;
+    const proyIngresoAnio = ingresoAnio * factorProyAnio;
+    const proyGananciaAnioNeta = gananciaAnioNeta * factorProyAnio;
+
+    const prevYearStart = new Date(targetYear - 1, 0, 1, 0, 0, 0, 0);
+    const prevYearEnd = new Date(targetYear - 1, 11, 31, 23, 59, 59, 999);
+    const ventasAnioAnterior = ventasConFecha.filter(
+      (v) => v._fecha && isBetween(v._fecha, prevYearStart, prevYearEnd)
+    );
+    const ingresoAnioAnterior = sumMetric(ventasAnioAnterior);
+    const costoAnioAnterior = sumMetric(ventasAnioAnterior, getCostoLinea);
+    const gananciaAnioBrutaAnterior = ingresoAnioAnterior - costoAnioAnterior;
+    const { anio: gastosAnioAnterior } = calcularGastosTotales(
+      gastosFijos,
+      prevYearStart
+    );
+    const gananciaAnioNetaAnterior =
+      gananciaAnioBrutaAnterior - (gastosAnioAnterior || 0);
+    const trendIngresoAnio = trendInfo(ingresoAnio, ingresoAnioAnterior);
+    const trendCostoAnio = trendInfo(costoAnio, costoAnioAnterior);
+    const trendGananciaAnio = trendInfo(gananciaAnioNeta, gananciaAnioNetaAnterior);
+    const margenAnioActual =
+      ingresoAnio > 0 ? gananciaAnioBruta / ingresoAnio : null;
+    const margenAnioAnterior =
+      ingresoAnioAnterior > 0
+        ? gananciaAnioBrutaAnterior / ingresoAnioAnterior
+        : null;
+    const trendMargenAnio = trendInfo(
+      margenAnioActual ?? 0,
+      margenAnioAnterior ?? 0,
+      true
+    );
+
+    const ingresoPorMesAnio = MESES_CORTO.map((label, idx) => ({
+      label,
+      ingreso: 0,
+    }));
+    for (const v of ventasAnio) {
+      const f = v._fecha;
+      if (!f) continue;
+      ingresoPorMesAnio[f.getMonth()].ingreso += montoVenta(v);
+    }
+    const maxIngresoMesAnio = ingresoPorMesAnio.reduce(
+      (m, x) => (x.ingreso > m ? x.ingreso : m),
+      0
+    );
+    const mesPicoAnioIdx = ingresoPorMesAnio.reduce(
+      (bestIdx, x, idx, arr) => (x.ingreso > arr[bestIdx].ingreso ? idx : bestIdx),
+      0
+    );
+    const mesPicoAnioLabel =
+      ingresoPorMesAnio[mesPicoAnioIdx].ingreso > 0
+        ? MESES[mesPicoAnioIdx]
+        : "—";
+
+    const gastoPorClienteAnio = new Map();
+    for (const v of ventasAnio) {
+      if (v.cliente_id == null) continue;
+      const prev = gastoPorClienteAnio.get(v.cliente_id) || 0;
+      gastoPorClienteAnio.set(v.cliente_id, prev + montoVenta(v));
+    }
+    let mejorClienteAnio = null;
+    let mejorClienteAnioTotal = 0;
+    for (const [id, total] of gastoPorClienteAnio.entries()) {
+      if (total > mejorClienteAnioTotal) {
+        mejorClienteAnioTotal = total;
+        mejorClienteAnio = clientes.find((c) => c.id === id) || null;
+      }
+    }
+
+    const anioPorReceta = topBy(ventasAnio);
+    const anioAntPorReceta = topBy(ventasAnioAnterior);
+    const mapAnioAnt = new Map(anioAntPorReceta.map((r) => [r.receta_id, r]));
+    const topMasVendidosAnio = anioPorReceta
+      .slice()
+      .sort((a, b) => b.unidades - a.unidades)
+      .slice(0, 5)
+      .map((row) => {
+        const rec = recetas.find((r) => r.id === row.receta_id) || {};
+        const prev = mapAnioAnt.get(row.receta_id) || { unidades: 0, ingreso: 0 };
+        const t = trendInfo(row.unidades, prev.unidades);
+        return { ...row, receta: rec, trend: t };
+      });
+    const topMasRentablesAnio = anioPorReceta
+      .map((row) => ({ ...row, ganancia: row.ingreso - row.costo }))
+      .filter((row) => row.ganancia > 0)
+      .sort((a, b) => b.ganancia - a.ganancia)
+      .slice(0, 5)
+      .map((row) => {
+        const rec = recetas.find((r) => r.id === row.receta_id) || {};
+        return { ...row, receta: rec };
+      });
+
+    const recetasConVentaAnio = new Set(
+      ventasAnio.map((v) => v.receta_id).filter((id) => id != null)
+    );
+    const recetasSinVentaAnio = (recetas || []).filter(
+      (r) => !recetasConVentaAnio.has(r.id)
+    );
 
     const ultimo7diasFechas = [];
     for (let i = 6; i >= 0; i--) {
@@ -645,6 +848,9 @@ export function useAnalyticsData({
       diasTranscurridos,
       proyGananciaMesNeta,
       gananciaMesNeta,
+      costoMes,
+      topMasVendidosMes,
+      topMasRentablesMes,
       recetasSinVenta7,
       recetasSinVentaMes,
       semanaLabel,
@@ -656,6 +862,47 @@ export function useAnalyticsData({
       totalUnidadesSemana,
       pieDataWithColorSemana,
       pieGradientSemana,
+      ventasPeriodoSemana: ventasSemanaActual,
+      ventasPeriodoMes: ventasMes,
+      ingresoPorDiaMesLunDom,
+      periodoSemanaDesdeStr,
+      periodoSemanaHastaStr,
+      periodoMesDesdeStr,
+      periodoMesHastaStr,
+      ventasMesCount,
+      ingresoMesAnterior,
+      trendIngresoMes,
+      ventasSemanaCount,
+      ingresoAnio,
+      costoAnio,
+      gananciaAnioNeta,
+      ventasAnioCount,
+      ingresoAnioAnterior,
+      costoAnioAnterior,
+      gananciaAnioNetaAnterior,
+      trendIngresoAnio,
+      trendCostoAnio,
+      trendGananciaAnio,
+      trendMargenAnio,
+      margenAnioActual,
+      margenAnioAnterior,
+      proyeccionAnioAplicable,
+      proyIngresoAnio,
+      proyGananciaAnioNeta,
+      diasTranscurridosAnio,
+      totalDiasAnio,
+      ingresoPorMesAnio,
+      maxIngresoMesAnio,
+      mesPicoAnioLabel,
+      mejorClienteAnio,
+      mejorClienteAnioTotal,
+      topMasVendidosAnio,
+      topMasRentablesAnio,
+      recetasSinVentaAnio,
+      ventasPeriodoAnio: ventasAnio,
+      periodoAnioDesdeStr,
+      periodoAnioHastaStr,
+      anioLabel,
     };
   }, [
     ventas,
@@ -667,5 +914,6 @@ export function useAnalyticsData({
     offsetSemanas,
     offsetMeses,
     offsetDias,
+    offsetAnios,
   ]);
 }

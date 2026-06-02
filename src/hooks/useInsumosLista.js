@@ -1,5 +1,7 @@
 import { useState, useCallback, useMemo } from "react";
 import { reportError } from "../utils/errorReport";
+import { costoReceta } from "../lib/costos";
+import { parseDecimal } from "../lib/format";
 
 const FORM_INITIAL = {
   nombre: "",
@@ -17,9 +19,12 @@ const FORM_INITIAL = {
 export function useInsumosLista({
   insumos,
   insumoStock,
+  recetas,
+  recetaIngredientes,
   updateInsumo,
   insertInsumo,
   insertPrecioHistorial,
+  updateRecetaCostos,
   registrarMovimientoInsumo,
   deleteInsumo,
   onRefresh,
@@ -87,10 +92,10 @@ export function useInsumosLista({
   }, []);
 
   const save = useCallback(async () => {
-    const precio = parseFloat(form.precio);
+    const precio = parseDecimal(form.precio);
     const cantidad_presentacion =
-      parseFloat(form.cantidad_presentacion) || 0;
-    if (Number.isNaN(precio) || precio <= 0) {
+      parseDecimal(form.cantidad_presentacion) ?? 0;
+    if (precio == null || !Number.isFinite(precio) || precio <= 0) {
       showToast("⚠️ Precio inválido");
       return;
     }
@@ -108,7 +113,7 @@ export function useInsumosLista({
       isUpdate && editando
         ? typeof editando.precio === "number"
           ? editando.precio
-          : Number(editando.precio) || 0
+          : parseDecimal(editando.precio) ?? 0
         : null;
     try {
       if (isUpdate) {
@@ -121,13 +126,29 @@ export function useInsumosLista({
       setSaving(false);
       return;
     }
-    let successMessage = isUpdate ? "✅ Precio actualizado" : "✅ Insumo agregado";
-    if (
+    const insumoId = isUpdate ? editando.id : null;
+    const precioChanged =
       isUpdate &&
       precioAnterior != null &&
-      Math.abs(precio - precioAnterior) >= 0.01
-    ) {
-      const insumoId = editando.id;
+      Math.abs(precio - precioAnterior) >= 0.01;
+    const cantidadAnterior =
+      isUpdate && editando
+        ? parseDecimal(editando.cantidad_presentacion) ?? 0
+        : null;
+    const cantidadChanged =
+      isUpdate && cantidadAnterior != null
+        ? Math.abs(cantidad_presentacion - cantidadAnterior) >= 0.0001
+        : false;
+    const unidadAnterior = isUpdate && editando ? String(editando.unidad || "") : "";
+    const unidadChanged = isUpdate ? String(form.unidad || "") !== unidadAnterior : false;
+
+    let successMessage = isUpdate
+      ? precioChanged
+        ? "✅ Precio actualizado"
+        : "✅ Insumo actualizado"
+      : "✅ Insumo agregado";
+
+    if (isUpdate && precioChanged) {
       try {
         await insertPrecioHistorial({
           insumo_id: insumoId,
@@ -140,6 +161,106 @@ export function useInsumosLista({
         successMessage = "✅ Insumo guardado (no se pudo registrar historial de precio)";
       }
     }
+
+    const shouldRecalc = Boolean(
+      isUpdate && insumoId && (precioChanged || cantidadChanged || unidadChanged),
+    );
+    if (shouldRecalc) {
+      try {
+        const recetasPorId = Object.fromEntries(
+          (recetas || []).map((r) => [r.id, r]),
+        );
+
+        // 1) Recetas directas que usan el insumo
+        const directRecetasAfectadas = (recetaIngredientes || [])
+          .filter((ri) => String(ri.insumo_id) === String(insumoId))
+          .map((ri) => ri.receta_id)
+          .filter(Boolean);
+
+        // 2) BFS transitive: agregar recetas "padre" que dependen vía `receta_id_precursora`
+        const padresPorPrecursora = new Map();
+        for (const ri of recetaIngredientes || []) {
+          if (!ri.receta_id_precursora) continue;
+          const precKey = String(ri.receta_id_precursora);
+          if (!padresPorPrecursora.has(precKey)) padresPorPrecursora.set(precKey, []);
+          padresPorPrecursora.get(precKey).push(ri.receta_id);
+        }
+
+        const recetasAfectadasIds = new Set(directRecetasAfectadas.map((id) => String(id)));
+        const queue = [...directRecetasAfectadas];
+        while (queue.length) {
+          const current = queue.shift();
+          const padres = padresPorPrecursora.get(String(current)) || [];
+          for (const p of padres) {
+            if (!p) continue;
+            if (!recetasAfectadasIds.has(String(p))) {
+              recetasAfectadasIds.add(String(p));
+              queue.push(p);
+            }
+          }
+        }
+
+        if (recetasAfectadasIds.size > 0) {
+          // Para `costoReceta` necesitamos parchear *precio + presentación + unidad* del insumo.
+          const insumosById = Object.fromEntries((insumos || []).map((i) => [i.id, i]));
+          const insumosAfter = Object.values(insumosById).map((i) => ({
+            ...i,
+            precio: String(i.id) === String(insumoId) ? precio : i.precio,
+            cantidad_presentacion:
+              String(i.id) === String(insumoId)
+                ? cantidad_presentacion
+                : i.cantidad_presentacion,
+            unidad: String(i.id) === String(insumoId) ? form.unidad : i.unidad,
+          }));
+
+          let recetasOk = 0;
+          const erroresRecetas = [];
+
+          for (const recIdKey of recetasAfectadasIds) {
+            const receta = recetasPorId[recIdKey];
+            const recId = receta?.id ?? recIdKey;
+            const rindeNum = parseDecimal(receta?.rinde) ?? 1;
+            const costoDespues = costoReceta(
+              recId,
+              recetaIngredientes || [],
+              insumosAfter,
+              recetas || [],
+            );
+            const costoUnitDespues =
+              rindeNum > 0 ? costoDespues / rindeNum : 0;
+
+            try {
+              await updateRecetaCostos(recId, {
+                costo_lote: costoDespues,
+                costo_unitario: costoUnitDespues,
+              });
+              recetasOk += 1;
+            } catch (err) {
+              console.error("[insumosLista/updateRecetaCostos]", err);
+              erroresRecetas.push(receta?.nombre || recIdKey);
+            }
+          }
+
+          if (recetasOk > 0) {
+            successMessage =
+              `✅ Insumo actualizado y costos recalculados en ${recetasOk} receta(s)`;
+          }
+
+          if (erroresRecetas.length > 0) {
+            showToast(
+              `⚠️ No se pudo actualizar costo de: ${erroresRecetas
+                .slice(0, 2)
+                .join(", ")}${erroresRecetas.length > 2 ? "…" : ""}`,
+            );
+          }
+        }
+      } catch (err) {
+        console.error("[insumosLista/recalcularCostosRecetas]", err);
+        showToast(
+          "⚠️ Se actualizó el insumo pero no se pudieron recalcular algunas recetas",
+        );
+      }
+    }
     showToast(successMessage);
     setSaving(false);
     setModal(false);
@@ -147,15 +268,19 @@ export function useInsumosLista({
   }, [
     form,
     editando,
+    insumos,
+    recetas,
+    recetaIngredientes,
     updateInsumo,
     insertInsumo,
     insertPrecioHistorial,
+    updateRecetaCostos,
     showToast,
     onRefresh,
   ]);
 
   const guardarMovimiento = useCallback(async () => {
-    const cant = parseFloat(movCantidad);
+    const cant = parseDecimal(movCantidad);
     if (!movInsumo || !cant || cant <= 0) return;
     setMovSaving(true);
     try {
@@ -166,7 +291,7 @@ export function useInsumosLista({
         movTipo === "ajuste_baja"
           ? null
           : movValor
-          ? parseFloat(movValor)
+          ? parseDecimal(movValor)
           : null
       );
       showToast(

@@ -3,7 +3,7 @@
  * y composición (useInsumosComposicion + InsumosComposicion). CRUD vía useInsumos.
  */
 import { useEffect } from "react";
-import { fmt, fmtDecimal } from "../../lib/format";
+import { fmt, fmtDecimal, parseDecimal } from "../../lib/format";
 import { costoReceta } from "../../lib/costos";
 import { useInsumos } from "../../hooks/useInsumos";
 import { useInsumosCompra } from "../../hooks/useInsumosCompra";
@@ -46,6 +46,8 @@ function Insumos({
   const lista = useInsumosLista({
     insumos,
     insumoStock,
+    recetas,
+    recetaIngredientes,
     updateInsumo,
     insertInsumo,
     insertPrecioHistorial,
@@ -54,6 +56,7 @@ function Insumos({
     onRefresh,
     showToast,
     confirm,
+    updateRecetaCostos,
   });
 
   const composicion = useInsumosComposicion();
@@ -211,9 +214,10 @@ function Insumos({
           onActualizarPrecioPremezcla={async (nuevoPrecio) => {
             const ins = lista.detalleInsumo;
             if (!ins || !ins.id) return;
-            const precioAnterior = Number(ins.precio) || 0;
-            const precioNuevo = Number(nuevoPrecio) || 0;
-            if (!precioNuevo || Math.abs(precioNuevo - precioAnterior) < 0.01) return;
+            const precioAnterior = parseDecimal(ins.precio) ?? 0;
+            const precioNuevo = parseDecimal(nuevoPrecio) ?? 0;
+            if (precioNuevo <= 0) return;
+            if (Math.abs(precioNuevo - precioAnterior) < 0.01) return;
             try {
               await updateInsumo(ins.id, { precio: precioNuevo });
               try {
@@ -231,27 +235,52 @@ function Insumos({
                 const recetasPorId = Object.fromEntries(
                   (recetas || []).map((r) => [r.id, r]),
                 );
-                const recetasAfectadasIds = new Set(
-                  (recetaIngredientes || [])
-                    .filter((ri) => ri.insumo_id === ins.id)
-                    .map((ri) => ri.receta_id)
-                    .filter(Boolean),
-                );
+                // Recetas directas (insumo aparece como ingrediente)
+                const directRecetasAfectadas = (recetaIngredientes || [])
+                  .filter((ri) => String(ri.insumo_id) === String(ins.id))
+                  .map((ri) => ri.receta_id)
+                  .filter(Boolean);
+
+                // BFS transitive: agregar recetas padre que dependen vía `receta_id_precursora`
+                const padresPorPrecursora = new Map();
+                for (const ri of recetaIngredientes || []) {
+                  if (!ri.receta_id_precursora) continue;
+                  const precKey = String(ri.receta_id_precursora);
+                  if (!padresPorPrecursora.has(precKey)) {
+                    padresPorPrecursora.set(precKey, []);
+                  }
+                  padresPorPrecursora.get(precKey).push(ri.receta_id);
+                }
+
+                const recetasAfectadasIds = new Set(directRecetasAfectadas.map((id) => String(id)));
+                const queue = [...directRecetasAfectadas];
+                while (queue.length) {
+                  const current = queue.shift();
+                  const padres = padresPorPrecursora.get(String(current)) || [];
+                  for (const p of padres) {
+                    if (!p) continue;
+                    if (!recetasAfectadasIds.has(String(p))) {
+                      recetasAfectadasIds.add(String(p));
+                      queue.push(p);
+                    }
+                  }
+                }
 
                 const insumosById = Object.fromEntries(
                   (insumos || []).map((i) => [i.id, i]),
                 );
                 const insumosAfter = Object.values(insumosById).map((i) => ({
                   ...i,
-                  precio: i.id === ins.id ? precioNuevo : i.precio,
+                  precio: String(i.id) === String(ins.id) ? precioNuevo : i.precio,
                 }));
 
                 let recetasOk = 0;
                 const erroresRecetas = [];
-                for (const recId of recetasAfectadasIds) {
-                  const receta = recetasPorId[recId];
+                for (const recIdKey of recetasAfectadasIds) {
+                  const receta = recetasPorId[recIdKey];
                   if (!receta) continue;
-                  const rindeNum = Number(receta.rinde) || 1;
+                  const recId = receta?.id ?? recIdKey;
+                  const rindeNum = parseDecimal(receta.rinde) ?? 1;
                   const costoDespues = costoReceta(
                     recId,
                     recetaIngredientes || [],
@@ -267,7 +296,7 @@ function Insumos({
                     recetasOk += 1;
                   } catch (err) {
                     console.error("[insumos/premezclaUpdateRecetaCostos]", err);
-                    erroresRecetas.push(receta.nombre || recId);
+                    erroresRecetas.push(receta.nombre || recIdKey);
                   }
                 }
 
