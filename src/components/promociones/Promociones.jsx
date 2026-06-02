@@ -256,21 +256,28 @@ export default function Promociones({ promociones, recetas, onRefresh, showToast
                 Sin productos asignados
               </p>
             )}
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <button type="button" className="btn-secondary btn-sm" onClick={() => abrirEditar(p)}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <button type="button" className="btn-secondary" style={{ marginTop: 0 }} onClick={() => abrirEditar(p)}>
                 Editar
               </button>
-              <button
-                type="button"
-                className={p.activa !== false ? "btn-danger" : "btn-secondary"}
-                style={{ width: "auto", marginTop: 0, padding: "8px 14px", fontSize: 13 }}
-                onClick={() => toggleConValidacion(p)}
-              >
-                {p.activa !== false ? "Desactivar" : "Activar"}
-              </button>
-              <button type="button" className="btn-remove btn-sm" onClick={() => eliminar(p)}>
-                Eliminar
-              </button>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                <button
+                  type="button"
+                  className={p.activa !== false ? "btn-danger" : "btn-secondary"}
+                  style={{ marginTop: 0 }}
+                  onClick={() => toggleConValidacion(p)}
+                >
+                  {p.activa !== false ? "Desactivar" : "Activar"}
+                </button>
+                <button
+                  type="button"
+                  className="btn-danger"
+                  style={{ marginTop: 0 }}
+                  onClick={() => eliminar(p)}
+                >
+                  Eliminar
+                </button>
+              </div>
             </div>
           </div>
         ))
