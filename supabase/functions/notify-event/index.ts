@@ -197,9 +197,7 @@ async function handleVenta(
 
   const url = grupoKey ? `/?tab=ventas&venta=${encodeURIComponent(grupoKey)}` : "/?tab=ventas";
 
-  const tag = grupoKey
-    ? `venta-${grupoKey}-${Date.now()}`
-    : `venta-${crypto.randomUUID()}`;
+  const tag = grupoKey ? `venta-${grupoKey}` : `venta-${crypto.randomUUID()}`;
 
   const { data, error: pushError } = await supabase.functions.invoke("send-push", {
     body: { title, body, url, tag },

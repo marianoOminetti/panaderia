@@ -4,28 +4,8 @@
  */
 import { supabase } from "./supabaseClient";
 
-// Registrar siempre /sw.js (sin query): ?v= duplicaba registrations y rompía pushes subsiguientes.
-const SW_PATH = "/sw.js";
-
-function canonicalSwScriptUrl() {
-  return new URL(SW_PATH, window.location.origin).href;
-}
-
-/** Desregistra SW viejos (/sw.js?v=...) que dejaron la suscripción push colgada. */
-export async function cleanupLegacyPushServiceWorkers() {
-  if (typeof navigator === "undefined" || !navigator.serviceWorker) return;
-  const canonical = canonicalSwScriptUrl();
-  const regs = await navigator.serviceWorker.getRegistrations();
-  await Promise.all(
-    regs
-      .filter((r) => {
-        const script =
-          r.active?.scriptURL || r.installing?.scriptURL || r.waiting?.scriptURL || "";
-        return script.includes("/sw.js") && script !== canonical;
-      })
-      .map((r) => r.unregister().catch(() => {})),
-  );
-}
+// Bump al cambiar lógica de push en public/sw.js (los clientes cachean el SW).
+const SW_PATH = "/sw.js?v=push-stack-icon-1";
 
 /**
  * Registra el Service Worker para push. Debe llamarse una vez al cargar la app (ej. desde usePushSubscription).
@@ -34,37 +14,12 @@ export async function cleanupLegacyPushServiceWorkers() {
 export async function registerServiceWorker() {
   if (typeof window === "undefined" || !("serviceWorker" in navigator)) return null;
   try {
-    await cleanupLegacyPushServiceWorkers();
     const reg = await navigator.serviceWorker.register(SW_PATH, { scope: "/" });
-    await reg.update();
     return reg;
   } catch (err) {
     console.error("[pushNotifications] registerServiceWorker", err);
     return null;
   }
-}
-
-/**
- * Asegura SW canónico + suscripción push guardada en Supabase (upsert).
- * Re-ejecutar al abrir la app recupera filas borradas por 410 en el servidor.
- */
-export async function syncPushSubscription(userId, vapidPublicKey) {
-  if (!userId || !vapidPublicKey || typeof window === "undefined") return null;
-  if (!("PushManager" in window) || !("serviceWorker" in navigator)) return null;
-  if (typeof Notification === "undefined" || Notification.permission !== "granted") return null;
-
-  await registerServiceWorker();
-  const reg = await navigator.serviceWorker.ready;
-  if (!reg.pushManager) return null;
-
-  let sub = await reg.pushManager.getSubscription();
-  if (!sub) {
-    sub = await subscribeUser(vapidPublicKey);
-  }
-  if (sub) {
-    await saveSubscriptionToSupabase(sub, userId);
-  }
-  return sub;
 }
 
 /**
@@ -107,18 +62,20 @@ export async function saveSubscriptionToSupabase(subscription, userId) {
   const p256dh = btoa(String.fromCharCode.apply(null, new Uint8Array(key)));
   const authSecret = btoa(String.fromCharCode.apply(null, new Uint8Array(auth)));
 
-  // Upsert: re-guardar al abrir la app recupera suscripciones borradas por 410 en el servidor.
-  const { error } = await supabase.from("push_subscriptions").upsert(
-    {
-      user_id: userId,
-      endpoint,
-      p256dh: p256dh,
-      auth: authSecret,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "user_id,endpoint" },
-  );
+  // Insertamos una fila por dispositivo (endpoint). Si ya existe (error 23505), lo ignoramos.
+  const { error } = await supabase.from("push_subscriptions").insert({
+    user_id: userId,
+    endpoint,
+    p256dh: p256dh,
+    auth: authSecret,
+    updated_at: new Date().toISOString(),
+  });
   if (error) {
+    // 23505 = unique_violation (ya existe fila para (user_id, endpoint)).
+    if (error.code === "23505") {
+      console.warn("[pushNotifications] subscription already exists for endpoint", endpoint);
+      return;
+    }
     console.error("[pushNotifications] saveSubscriptionToSupabase", error);
     throw error;
   }
