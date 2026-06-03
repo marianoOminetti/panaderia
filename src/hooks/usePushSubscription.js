@@ -6,6 +6,7 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "../lib/supabaseClient";
 import {
   registerServiceWorker,
+  getExistingPushSubscription,
   syncPushSubscription,
 } from "../lib/pushNotifications";
 
@@ -45,15 +46,12 @@ export function usePushSubscription(userId) {
     registerServiceWorker().catch(() => {});
   }, [userId]);
 
-  // Comprobar si ya hay suscripción activa (getSubscription)
+  // Comprobar si ya hay suscripción activa (SW registrado; evita InvalidStateError en iOS)
   useEffect(() => {
     if (!userId || permission !== "granted" || !navigator.serviceWorker) return;
     let cancelled = false;
-    navigator.serviceWorker.ready.then((reg) => {
-      if (!reg.pushManager || cancelled) return;
-      return reg.pushManager.getSubscription().then((sub) => {
-        if (!cancelled) setIsSubscribed(!!sub);
-      });
+    getExistingPushSubscription().then((sub) => {
+      if (!cancelled) setIsSubscribed(!!sub);
     });
     return () => { cancelled = true; };
   }, [userId, permission]);
@@ -100,8 +98,7 @@ export function usePushSubscription(userId) {
     if (typeof navigator === "undefined" || !navigator.serviceWorker) return;
     setLoading(true);
     try {
-      const reg = await navigator.serviceWorker.ready;
-      const sub = await reg.pushManager.getSubscription();
+      const sub = await getExistingPushSubscription();
       if (sub) await sub.unsubscribe();
       if (userId) {
         await supabase.from("push_subscriptions").delete().eq("user_id", userId);

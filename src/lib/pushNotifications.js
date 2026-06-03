@@ -44,6 +44,30 @@ export async function registerServiceWorker() {
   }
 }
 
+/** Registro con SW activo (listo para pushManager). */
+async function getActivePushRegistration() {
+  const reg = await registerServiceWorker();
+  if (!reg) return null;
+  await navigator.serviceWorker.ready;
+  return reg;
+}
+
+/**
+ * Lee la suscripción push existente. Requiere SW registrado; en iOS Safari sin PWA puede fallar con InvalidStateError.
+ * @returns {Promise<PushSubscription|null>}
+ */
+export async function getExistingPushSubscription() {
+  try {
+    const reg = await getActivePushRegistration();
+    if (!reg?.pushManager) return null;
+    return await reg.pushManager.getSubscription();
+  } catch (err) {
+    if (err?.name === "InvalidStateError") return null;
+    console.warn("[pushNotifications] getExistingPushSubscription", err);
+    return null;
+  }
+}
+
 /**
  * Asegura SW canónico + suscripción push guardada en Supabase (upsert).
  * Re-ejecutar al abrir la app recupera filas borradas por 410 en el servidor.
@@ -53,18 +77,19 @@ export async function syncPushSubscription(userId, vapidPublicKey) {
   if (!("PushManager" in window) || !("serviceWorker" in navigator)) return null;
   if (typeof Notification === "undefined" || Notification.permission !== "granted") return null;
 
-  await registerServiceWorker();
-  const reg = await navigator.serviceWorker.ready;
-  if (!reg.pushManager) return null;
-
-  let sub = await reg.pushManager.getSubscription();
-  if (!sub) {
-    sub = await subscribeUser(vapidPublicKey);
+  try {
+    let sub = await getExistingPushSubscription();
+    if (!sub) {
+      sub = await subscribeUser(vapidPublicKey);
+    }
+    if (sub) {
+      await saveSubscriptionToSupabase(sub, userId);
+    }
+    return sub;
+  } catch (err) {
+    if (err?.name === "InvalidStateError") return null;
+    throw err;
   }
-  if (sub) {
-    await saveSubscriptionToSupabase(sub, userId);
-  }
-  return sub;
 }
 
 /**
@@ -75,8 +100,8 @@ export async function syncPushSubscription(userId, vapidPublicKey) {
 export async function subscribeUser(vapidPublicKey) {
   if (!vapidPublicKey || typeof window === "undefined") return null;
   if (!("PushManager" in window) || !("serviceWorker" in navigator)) return null;
-  const reg = await navigator.serviceWorker.ready;
-  if (!reg.pushManager) return null;
+  const reg = await getActivePushRegistration();
+  if (!reg?.pushManager) return null;
   try {
     const sub = await reg.pushManager.subscribe({
       userVisibleOnly: true,
