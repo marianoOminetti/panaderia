@@ -14,7 +14,10 @@ import {
   getTransaccionIdFromGrupo,
   facturaListaParaPdf,
   facturaPuedeReintentarAfip,
+  facturaNecesitaConfirmarAfip,
   buildFacturaFiscalData,
+  buildGrupoLineasLista,
+  buildGrupoTotalesConPromo,
 } from "../../lib/facturaFiscal";
 
 function formatRelDia(d, hoyDate) {
@@ -95,22 +98,13 @@ export default function VentasList({
   const buildShareData = (grupo) => {
     const ejemplo = grupo.rawItems?.[0] || grupo.items[0];
     const cliente = (clientes || []).find((c) => c.id === grupo.cliente_id);
-    const items = grupo.items.map((v) => {
-      const r = (recetas || []).find((r2) => r2.id === v.receta_id);
-      return {
-        receta_id: v.receta_id,
-        receta: r ? { nombre: r.nombre, emoji: r.emoji } : null,
-        cantidad: v.cantidad,
-        precio_unitario: v.precio_unitario,
-      };
-    });
-    const subtotal = items.reduce(
-      (sum, it) => sum + (it.precio_unitario || 0) * (it.cantidad || 0),
-      0
+    const items = buildGrupoLineasLista(grupo, recetas);
+    const { subtotal, descuento, descuentoLabel, total } = buildGrupoTotalesConPromo(
+      grupo,
+      items,
+      promociones,
+      grupo.total,
     );
-    const descuento = subtotal - grupo.total;
-    const promoId = grupo.rawItems?.find((r) => r.promocion_id)?.promocion_id;
-    const promo = (promociones || []).find((p) => p.id === promoId);
     return {
       fecha: ejemplo?.fecha,
       created_at: ejemplo?.created_at,
@@ -118,9 +112,9 @@ export default function VentasList({
       medio_pago: ejemplo?.medio_pago || "efectivo",
       estado_pago: ejemplo?.estado_pago || "pagado",
       subtotal,
-      descuento: descuento > 0 ? descuento : 0,
-      descuentoLabel: promo?.nombre ? `Promo: ${promo.nombre}` : undefined,
-      total: grupo.total,
+      descuento,
+      descuentoLabel,
+      total,
       items,
     };
   };
@@ -396,7 +390,13 @@ export default function VentasList({
                         e.stopPropagation();
                         e.preventDefault();
                         setFacturaFiscalData(
-                          buildFacturaFiscalData(grupo, factura, recetas, clientes),
+                          buildFacturaFiscalData(
+                            grupo,
+                            factura,
+                            recetas,
+                            clientes,
+                            promociones,
+                          ),
                         );
                       }}
                     >
@@ -410,20 +410,26 @@ export default function VentasList({
                       <button
                         type="button"
                         className="btn-venta-action"
-                        title="Registrar en AFIP"
+                        title={
+                          facturaNecesitaConfirmarAfip(factura)
+                            ? "Confirmar comprobante AFIP"
+                            : "Registrar en AFIP"
+                        }
                         disabled={afipLoadingTx === transaccionId}
                         onClick={async (e) => {
                           e.stopPropagation();
                           e.preventDefault();
                           if (!confirm) return;
                           const receptorAfip = factura?.receptor_razon_social?.trim();
-                          const msg = [
-                            `¿Registrar en AFIP esta venta por ${fmt(grupo.total)}?`,
-                            `Cliente: ${cliente?.nombre || "Consumidor final"}`,
-                            receptorAfip ? `Factura a: ${receptorAfip}` : null,
-                          ]
-                            .filter(Boolean)
-                            .join("\n");
+                          const msg = facturaNecesitaConfirmarAfip(factura)
+                            ? `¿Confirmar en el sistema el comprobante AFIP (CAE ${factura.cae}) por ${fmt(grupo.total)}?`
+                            : [
+                                `¿Registrar en AFIP esta venta por ${fmt(grupo.total)}?`,
+                                `Cliente: ${cliente?.nombre || "Consumidor final"}`,
+                                receptorAfip ? `Factura a: ${receptorAfip}` : null,
+                              ]
+                                .filter(Boolean)
+                                .join("\n");
                           const ok = await confirm(msg);
                           if (!ok) return;
                           setAfipLoadingTx(transaccionId);

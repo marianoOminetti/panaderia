@@ -23,8 +23,7 @@ export default function AfipReceptorFields({
   if (!puedeRegistrar && facturaEstado === "error") {
     return (
       <p className="form-hint" style={{ marginTop: 12, color: "var(--danger)" }}>
-        AFIP en estado de error con CAE o bloqueo. Revisá en la lista o contactá
-        soporte antes de reintentar.
+        Error al registrar en AFIP. Reintentá desde la lista con el botón AFIP.
       </p>
     );
   }

@@ -1,7 +1,16 @@
 import {
   resolveReceptorComprobante,
   buildFacturaFiscalData,
+  buildGrupoTotalesConPromo,
+  buildGrupoLineasLista,
+  formatComprobanteNumero,
 } from "./facturaFiscal";
+
+describe("formatComprobanteNumero", () => {
+  test("formatea pto vta y número con ceros", () => {
+    expect(formatComprobanteNumero(1, 42)).toBe("00001-00000042");
+  });
+});
 
 describe("resolveReceptorComprobante", () => {
   test("snapshot con CUIT", () => {
@@ -72,6 +81,35 @@ describe("buildFacturaFiscalData", () => {
     expect(data.receptorRazon).toBe("Empresa");
     expect(data.receptorCuit).toBe("20-12345678-6");
     expect(data.esConsumidorFinal).toBe(false);
+    expect(data.comprobanteNumero).toBe("00001-00000042");
+  });
+
+  test("líneas a precio lista y bloque subtotal/promo/total", () => {
+    const grupo = {
+      total: 1840,
+      items: [
+        { receta_id: "r1", cantidad: 3, precio_unitario: 250, total_final: 500 },
+        { receta_id: "r2", cantidad: 1, precio_unitario: 150, total_final: 150 },
+      ],
+      rawItems: [{ promocion_id: "p1", fecha: "2026-06-04" }],
+    };
+    const items = buildGrupoLineasLista(grupo, []);
+    expect(items[0]._lineTotal).toBe(750);
+    const tot = buildGrupoTotalesConPromo(grupo, items, [{ id: "p1", nombre: "5x4" }], 1840);
+    expect(tot.subtotal).toBe(900);
+    expect(tot.descuento).toBe(0);
+
+    const grupoPromo = { ...grupo, total: 750, items: [{ receta_id: "r1", cantidad: 3, precio_unitario: 250 }] };
+    const tot2 = buildGrupoTotalesConPromo(
+      grupoPromo,
+      buildGrupoLineasLista(grupoPromo, []),
+      [{ id: "p1", nombre: "5x4" }],
+      500,
+    );
+    expect(tot2.subtotal).toBe(750);
+    expect(tot2.descuento).toBe(250);
+    expect(tot2.descuentoLabel).toBe("Promo: 5x4");
+    expect(tot2.total).toBe(500);
   });
 
   test("genera qrUrl con emisor_cuit de la factura", () => {
