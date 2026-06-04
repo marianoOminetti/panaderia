@@ -345,34 +345,32 @@ export default function VentasList({
                     </div>
                   );
                 })}
-                {!isVentaRole && (
-                  <div className="venta-grupo-total">
-                    Total: {fmt(grupo.total)}
-                    {factura?.estado === "autorizada" && (
-                      <span
-                        style={{
-                          marginLeft: 8,
-                          fontSize: 10,
-                          color: "var(--green)",
-                          fontWeight: 600,
-                        }}
-                      >
-                        AFIP
-                      </span>
-                    )}
-                    {factura?.estado === "mock" && (
-                      <span
-                        style={{
-                          marginLeft: 8,
-                          fontSize: 10,
-                          color: "var(--text-muted)",
-                        }}
-                      >
-                        AFIP prueba
-                      </span>
-                    )}
-                  </div>
-                )}
+                <div className="venta-grupo-total">
+                  Total: {fmt(grupo.total)}
+                  {!isVentaRole && factura?.estado === "autorizada" && (
+                    <span
+                      style={{
+                        marginLeft: 8,
+                        fontSize: 10,
+                        color: "var(--green)",
+                        fontWeight: 600,
+                      }}
+                    >
+                      AFIP
+                    </span>
+                  )}
+                  {!isVentaRole && factura?.estado === "mock" && (
+                    <span
+                      style={{
+                        marginLeft: 8,
+                        fontSize: 10,
+                        color: "var(--text-muted)",
+                      }}
+                    >
+                      AFIP prueba
+                    </span>
+                  )}
+                </div>
                 <div className="venta-grupo-actions">
                   {!isVentaRole && (
                     <button
