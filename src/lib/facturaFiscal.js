@@ -4,6 +4,7 @@ import {
   maskCuit,
   normalizeCuitInput,
 } from "./cuit";
+import { resolveEmisorComprobante } from "./afipEmisor";
 import {
   AFIP_DOC_CONSUMIDOR_FINAL,
   AFIP_DOC_CUIT,
@@ -172,6 +173,7 @@ export function buildFacturaFiscalData(
     totalFiscal,
   );
   const receptor = resolveReceptorComprobante(factura, cliente);
+  const emisor = resolveEmisorComprobante(factura);
   const esMock = factura?.estado === "mock";
   const tipoDocRec = receptor.cuit
     ? AFIP_DOC_CUIT
@@ -200,6 +202,9 @@ export function buildFacturaFiscalData(
     fecha: ejemplo?.fecha,
     created_at: ejemplo?.created_at,
     cliente: formatClienteFiscalLabel(factura, cliente?.nombre, cliente),
+    emisorCuit: emisor.cuitDisplay,
+    emisorDomicilio: emisor.domicilioComercial,
+    emisorInicioActividades: emisor.inicioActividades,
     receptorRazon: receptor.razon_social,
     receptorCuit: receptor.cuit_display,
     esConsumidorFinal: receptor.es_consumidor_final,
