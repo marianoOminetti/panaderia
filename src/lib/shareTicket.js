@@ -34,10 +34,16 @@ Nombre: Micaela Mirabile
 export async function shareViaWhatsApp(
   imageBlob,
   filename = "ticket.png",
-  messageText = ""
+  messageText = "",
+  { appendTransfer = true } = {},
 ) {
   const file = new File([imageBlob], filename, { type: "image/png" });
-  const text = messageText ? `${messageText}\n\n${MENSAJE_TRANSFERENCIA}` : MENSAJE_TRANSFERENCIA;
+  let text = "";
+  if (messageText) {
+    text = appendTransfer ? `${messageText}\n\n${MENSAJE_TRANSFERENCIA}` : messageText;
+  } else if (appendTransfer) {
+    text = MENSAJE_TRANSFERENCIA;
+  }
 
   if (navigator.canShare?.({ files: [file], text })) {
     try {

@@ -1,6 +1,7 @@
 /**
- * Hook para ocultar header al hacer scroll hacia arriba y nav (footer) al hacer scroll hacia abajo.
- * En la parte superior de la página el header siempre visible; cerca del final la nav siempre visible.
+ * Hook para ocultar header al hacer scroll hacia arriba y atenuar la nav al bajar el scroll
+ * (fondo ~5% violeta, iconos/texto ~20%; tab activo un poco más legible).
+ * En la parte superior el header siempre visible; cerca del final la nav a plena opacidad.
  * Usado por App.js para AppHeader y AppNav.
  */
 import { useState, useEffect, useRef } from "react";

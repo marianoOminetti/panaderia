@@ -7,7 +7,7 @@ import { hoyLocalISO } from "../../lib/dates";
 import { SelectorCliente, SelectoresPago } from "./VentasSelectors";
 import VentasCart from "./VentasCart";
 import PromosEnVentaPanel from "./PromosEnVentaPanel";
-import { FormMoneyInput, FormInput, FormTextarea, DatePicker } from "../ui";
+import { FormMoneyInput, FormInput, FormTextarea, DatePicker, FormCheckbox } from "../ui";
 
 export default function VentasChargeModal({
   open,
@@ -39,6 +39,8 @@ export default function VentasChargeModal({
   notas,
   setNotas,
   allowPedidos = true,
+  registrarEnAfip,
+  setRegistrarEnAfip,
 }) {
   if (!open) return null;
 
@@ -48,6 +50,7 @@ export default function VentasChargeModal({
   const totalConPromo = cartPromos?.totalFinal ?? cartTotal;
   const promosEnCobro = cartPromos?.promosEnCobro ?? [];
   const hayPromosEnCarrito = !esPedido && promosEnCobro.length > 0;
+  const online = typeof navigator === "undefined" ? true : navigator.onLine;
 
   const handleRegistrar = () => {
     if (!allowPedidos && fechaEntrega && fechaEntrega > hoy) {
@@ -152,6 +155,17 @@ export default function VentasChargeModal({
                 Dejalo vacío para usar el total{descuentoPromo > 0 ? " con promos" : " del carrito"}.
                 Usalo para descuentos extra o redondeos.
               </p>
+              <FormCheckbox
+                label="Registrar en AFIP"
+                checked={registrarEnAfip}
+                onChange={setRegistrarEnAfip}
+                disabled={!online}
+              />
+              {!online && (
+                <p className="form-hint" style={{ marginTop: -8 }}>
+                  Sin conexión: no se puede registrar en AFIP.
+                </p>
+              )}
             </>
           )}
         </div>
