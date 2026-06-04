@@ -4,6 +4,7 @@ export const TIPOS_PROMO = {
   NXM: "nxm",
   PORCENTAJE_PRODUCTOS: "porcentaje_productos",
   PORCENTAJE_MONTO_MINIMO: "porcentaje_monto_minimo",
+  DESCUENTO_FIJO_UNIDAD: "descuento_fijo_unidad",
 };
 
 /**
@@ -68,8 +69,31 @@ function descuentoPorcentaje(montoBase, porcentaje) {
   return Math.round((base * pct) / 100);
 }
 
+/** $ fijos por cada unidad entera de productos elegidos (no supera el subtotal de la línea). */
+function descuentoFijoPorUnidad(cartItems, recetaIdsSet, montoPorUnidad) {
+  const monto = Number(montoPorUnidad);
+  if (!Number.isFinite(monto) || monto <= 0 || recetaIdsSet.size === 0) return 0;
+
+  let descuento = 0;
+  for (const item of cartItems || []) {
+    const rid = item.receta?.id;
+    if (!rid || !recetaIdsSet.has(rid)) continue;
+    const cant = Math.floor(toCantidadNumber(item.cantidad) || 0);
+    if (cant <= 0) continue;
+    const precio = Number(item.precio_unitario) || 0;
+    const lineSubtotal = precio * cant;
+    descuento += Math.min(lineSubtotal, monto * cant);
+  }
+  return Math.round(descuento);
+}
+
 function calcularDescuentoPromo(promo, cartItems, subtotalLista) {
   const tipo = promo.tipo || TIPOS_PROMO.NXM;
+
+  if (tipo === TIPOS_PROMO.DESCUENTO_FIJO_UNIDAD) {
+    const recetaIdsSet = new Set(promo.receta_ids || []);
+    return descuentoFijoPorUnidad(cartItems, recetaIdsSet, promo.descuento_fijo);
+  }
 
   if (tipo === TIPOS_PROMO.PORCENTAJE_PRODUCTOS) {
     const recetaIdsSet = new Set(promo.receta_ids || []);
@@ -197,6 +221,12 @@ export function etiquetaPromo(promo) {
     const minFmt = min.toLocaleString("es-AR");
     return `${pct}% comprando $${minFmt} o más`;
   }
+  if (tipo === TIPOS_PROMO.DESCUENTO_FIJO_UNIDAD) {
+    const monto = Number(promo.descuento_fijo) || 0;
+    const montoFmt = monto.toLocaleString("es-AR");
+    const n = (promo.receta_ids || []).length;
+    return `$${montoFmt} off por unidad en ${n} producto${n === 1 ? "" : "s"}`;
+  }
   return etiquetaPromoNxm(promo);
 }
 
@@ -204,6 +234,7 @@ export function promoUsaProductos(tipo) {
   return (
     tipo === TIPOS_PROMO.NXM ||
     tipo === TIPOS_PROMO.PORCENTAJE_PRODUCTOS ||
+    tipo === TIPOS_PROMO.DESCUENTO_FIJO_UNIDAD ||
     !tipo
   );
 }

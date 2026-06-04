@@ -79,6 +79,7 @@ export default function VentasList({
   isVentaRole = false,
   facturasByTransaccion = {},
   onRegistrarAfip,
+  confirm,
 }) {
   const hoyDate = new Date(hoy);
   const gruposAll = agruparVentas(ventas || []);
@@ -414,6 +415,17 @@ export default function VentasList({
                         onClick={async (e) => {
                           e.stopPropagation();
                           e.preventDefault();
+                          if (!confirm) return;
+                          const receptorAfip = factura?.receptor_razon_social?.trim();
+                          const msg = [
+                            `¿Registrar en AFIP esta venta por ${fmt(grupo.total)}?`,
+                            `Cliente: ${cliente?.nombre || "Consumidor final"}`,
+                            receptorAfip ? `Factura a: ${receptorAfip}` : null,
+                          ]
+                            .filter(Boolean)
+                            .join("\n");
+                          const ok = await confirm(msg);
+                          if (!ok) return;
                           setAfipLoadingTx(transaccionId);
                           try {
                             await onRegistrarAfip(transaccionId);

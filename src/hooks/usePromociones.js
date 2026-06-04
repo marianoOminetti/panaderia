@@ -27,6 +27,7 @@ export function usePromociones({ onRefresh, showToast } = {}) {
       pagar,
       porcentaje,
       monto_minimo,
+      descuento_fijo,
       activa,
       receta_ids,
     }) => {
@@ -44,6 +45,9 @@ export function usePromociones({ onRefresh, showToast } = {}) {
         monto_minimo:
           tipoFinal === "porcentaje_monto_minimo" ? Number(monto_minimo) : null,
       };
+      if (tipoFinal === "descuento_fijo_unidad") {
+        payload.descuento_fijo = Number(descuento_fijo);
+      }
       let promoId = id;
       if (id) {
         const { error } = await supabase.from("promociones").update(payload).eq("id", id);

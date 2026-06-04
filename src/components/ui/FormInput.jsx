@@ -20,6 +20,7 @@ export default function FormInput({
   inputClassName = "",
   style,
   autoFocus = false,
+  inputMode,
 }) {
   const id = useId();
 
@@ -45,6 +46,7 @@ export default function FormInput({
         max={max}
         step={step}
         autoFocus={autoFocus}
+        inputMode={inputMode}
       />
     </div>
   );

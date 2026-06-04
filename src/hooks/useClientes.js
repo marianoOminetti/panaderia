@@ -7,11 +7,45 @@ import { supabase } from "../lib/supabaseClient";
  * @returns {{ insertCliente, updateVentasClienteId, deleteCliente, ... }}
  */
 export function useClientes({ onRefresh, showToast } = {}) {
+  const updateClienteDatosFiscales = useCallback(
+    async (id, { cuit, razon_social }) => {
+      const cuitNorm = cuit ? String(cuit).replace(/\D/g, "").slice(0, 11) : null;
+      const razon = (razon_social ?? "").trim() || null;
+      const { error } = await supabase
+        .from("clientes")
+        .update({
+          cuit: cuitNorm || null,
+          razon_social: razon,
+        })
+        .eq("id", id);
+      if (error) {
+        console.error("[clientes/updateClienteDatosFiscales]", error);
+        const msg = error.message || "";
+        if (/cuit|razon_social|schema cache/i.test(msg)) {
+          const err = new Error(
+            "Faltan columnas fiscales en la base. Ejecutá scripts/aplicar_migracion_afip_receptor.sql en Supabase.",
+          );
+          err.cause = error;
+          throw err;
+        }
+        throw error;
+      }
+      await onRefresh?.();
+    },
+    [onRefresh],
+  );
+
   const insertCliente = useCallback(
-    async ({ nombre, telefono }, options = {}) => {
+    async ({ nombre, telefono, cuit, razon_social }, options = {}) => {
+      const cuitNorm = cuit ? String(cuit).replace(/\D/g, "").slice(0, 11) : null;
       const { data, error } = await supabase
         .from("clientes")
-        .insert({ nombre: nombre.trim(), telefono: telefono || null })
+        .insert({
+          nombre: nombre.trim(),
+          telefono: telefono || null,
+          cuit: cuitNorm || null,
+          razon_social: (razon_social ?? "").trim() || null,
+        })
         .select("id")
         .single();
       if (error) {
@@ -157,6 +191,7 @@ export function useClientes({ onRefresh, showToast } = {}) {
   );
 
   return {
+    updateClienteDatosFiscales,
     insertCliente,
     updateVentasClienteId,
     updatePedidosClienteId,

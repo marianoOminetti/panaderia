@@ -113,6 +113,44 @@ describe("porcentaje por monto mínimo", () => {
   });
 });
 
+describe("descuento fijo por unidad", () => {
+  const promoFijo = {
+    id: "p4",
+    nombre: "Tarta -1000",
+    tipo: TIPOS_PROMO.DESCUENTO_FIJO_UNIDAD,
+    descuento_fijo: 1000,
+    activa: true,
+    receta_ids: ["a"],
+  };
+
+  it("1 unidad: descuenta el monto fijo", () => {
+    const cart = [{ receta: recetaA, cantidad: 1, precio_unitario: 8500 }];
+    const r = calcularPromosEnCarrito(cart, [promoFijo]);
+    expect(r.descuentoTotal).toBe(1000);
+    expect(r.totalFinal).toBe(7500);
+  });
+
+  it("varias unidades: descuento por unidad", () => {
+    const cart = [{ receta: recetaA, cantidad: 2, precio_unitario: 8500 }];
+    const r = calcularPromosEnCarrito(cart, [promoFijo]);
+    expect(r.descuentoTotal).toBe(2000);
+    expect(r.totalFinal).toBe(15000);
+  });
+
+  it("no supera el subtotal de la línea", () => {
+    const cart = [{ receta: recetaA, cantidad: 1, precio_unitario: 500 }];
+    const r = calcularPromosEnCarrito(cart, [{ ...promoFijo, descuento_fijo: 1000 }]);
+    expect(r.descuentoTotal).toBe(500);
+    expect(r.totalFinal).toBe(0);
+  });
+
+  it("productos fuera de la promo no cuentan", () => {
+    const cart = [{ receta: recetaB, cantidad: 1, precio_unitario: 8500 }];
+    const r = calcularPromosEnCarrito(cart, [promoFijo]);
+    expect(r.descuentoTotal).toBe(0);
+  });
+});
+
 describe("excluir promos en cobro", () => {
   it("no aplica promo excluida", () => {
     const cart = [{ receta: recetaA, cantidad: 5, precio_unitario: 100 }];
