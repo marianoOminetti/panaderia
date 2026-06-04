@@ -60,7 +60,9 @@ function lineTotal(v: VentaRow): number {
   return Number(v.precio_unitario || 0) * Number(v.cantidad || 0);
 }
 
-const AFIP_ALLOW_MOCK = Deno.env.get("AFIP_ALLOW_MOCK") === "true";
+const AFIP_PRODUCTION = Deno.env.get("AFIP_PRODUCTION") === "true";
+const AFIP_ALLOW_MOCK =
+  Deno.env.get("AFIP_ALLOW_MOCK") === "true" && !AFIP_PRODUCTION;
 
 function resolveProvider(): "mock" | "tusfacturas" | "wsfe" | null {
   if (AFIP_PROVIDER === "wsfe" && AFIP_CUIT && AFIP_CERT && AFIP_KEY) {
@@ -75,6 +77,19 @@ function resolveProvider(): "mock" | "tusfacturas" | "wsfe" | null {
   }
   if (AFIP_ALLOW_MOCK) return "mock";
   return null;
+}
+
+async function requireAdminRole(userId: string): Promise<boolean> {
+  const { data, error } = await supabaseAdmin!
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error) {
+    console.error("[registrar-en-afip/role]", error);
+    return false;
+  }
+  return data?.role === "admin";
 }
 
 async function emitMock(importeTotal: number): Promise<EmitResult> {
@@ -203,6 +218,13 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({ error: "Unauthorized" }),
       { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  }
+
+  if (!(await requireAdminRole(userData.user.id))) {
+    return new Response(
+      JSON.stringify({ error: "Forbidden: solo administradores pueden facturar" }),
+      { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
 
