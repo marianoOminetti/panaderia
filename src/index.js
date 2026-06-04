@@ -3,7 +3,13 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import "./index.css";
 import App from "./App";
+import FacturaFiscalPreviewDev from "./components/dev/FacturaFiscalPreviewDev";
 import reportWebVitals from "./reportWebVitals";
+
+const isFacturaPreviewDev =
+  process.env.NODE_ENV === "development" &&
+  typeof window !== "undefined" &&
+  new URLSearchParams(window.location.search).get("preview") === "factura";
 
 const sentryDsn = process.env.REACT_APP_SENTRY_DSN;
 const sentryEnvironment =
@@ -54,9 +60,11 @@ function SentryCrashFallback({ resetError }) {
   );
 }
 
+const RootApp = isFacturaPreviewDev ? FacturaFiscalPreviewDev : App;
+
 const appTree = (
   <React.StrictMode>
-    <App />
+    <RootApp />
   </React.StrictMode>
 );
 

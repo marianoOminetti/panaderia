@@ -69,7 +69,19 @@ const AFIP_PRODUCTION = Deno.env.get("AFIP_PRODUCTION") === "true";
 const AFIP_ALLOW_MOCK =
   Deno.env.get("AFIP_ALLOW_MOCK") === "true" && !AFIP_PRODUCTION;
 
+/** Si quedó en pendiente tras timeout/crash, permitir reintento. */
+const PENDIENTE_STALE_MS = 90_000;
+
+function pendienteEsViejo(updatedAt: string | null | undefined): boolean {
+  if (!updatedAt) return true;
+  const t = new Date(updatedAt).getTime();
+  if (!Number.isFinite(t)) return true;
+  return Date.now() - t > PENDIENTE_STALE_MS;
+}
+
 function resolveProvider(): "mock" | "tusfacturas" | "wsfe" | null {
+  // Mock primero en dev (AFIP_ALLOW_MOCK + no producción), aunque existan certificados WSFE
+  if (AFIP_ALLOW_MOCK) return "mock";
   if (AFIP_PROVIDER === "wsfe" && AFIP_CUIT && AFIP_CERT && AFIP_KEY) {
     return "wsfe";
   }
@@ -80,8 +92,92 @@ function resolveProvider(): "mock" | "tusfacturas" | "wsfe" | null {
   ) {
     return "tusfacturas";
   }
-  if (AFIP_ALLOW_MOCK) return "mock";
   return null;
+}
+
+type FacturaRow = {
+  estado: string;
+  cae: string | null;
+  cae_vencimiento?: string | null;
+  numero_comprobante?: number | null;
+  punto_venta?: number | null;
+  importe_total?: number | null;
+  error_mensaje?: string | null;
+  updated_at?: string | null;
+  receptor_cuit?: string | null;
+  receptor_razon_social?: string | null;
+  tipo_comprobante?: number | null;
+};
+
+function estadoDesdeCae(cae: string, provider: "mock" | "tusfacturas" | "wsfe"): string {
+  if (provider === "mock" || String(cae).toUpperCase().startsWith("MOCK")) {
+    return "mock";
+  }
+  return "autorizada";
+}
+
+/** Persiste CAE emitido; si falla emisor_cuit, reintenta sin esa columna. */
+async function persistirComprobanteEmitido(
+  transaccionId: string,
+  emit: EmitResult,
+  estadoFinal: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const base = {
+    estado: estadoFinal,
+    cae: emit.cae,
+    cae_vencimiento: emit.cae_vencimiento || null,
+    tipo_comprobante: emit.tipo_comprobante ?? null,
+    punto_venta: emit.punto_venta ?? null,
+    numero_comprobante: emit.numero_comprobante ?? null,
+    importe_total: emit.importe_total,
+    error_mensaje: null,
+    updated_at: new Date().toISOString(),
+  };
+
+  let { error } = await supabaseAdmin!
+    .from("facturas_electronicas")
+    .update({ ...base, emisor_cuit: AFIP_EMISOR_CUIT })
+    .eq("transaccion_id", transaccionId);
+
+  if (error && /emisor_cuit/i.test(String(error.message || ""))) {
+    ({ error } = await supabaseAdmin!
+      .from("facturas_electronicas")
+      .update(base)
+      .eq("transaccion_id", transaccionId));
+  }
+
+  if (error) {
+    console.error("[registrar-en-afip/update]", error);
+    return { ok: false, error: error.message };
+  }
+  return { ok: true };
+}
+
+/** Confirma en DB un CAE ya obtenido (estado error por fallo de guardado). */
+async function confirmarCaeExistente(
+  transaccionId: string,
+  existente: FacturaRow,
+  importeTotal: number,
+  provider: "mock" | "tusfacturas" | "wsfe",
+): Promise<{ ok: boolean; estado?: string; error?: string }> {
+  if (!existente.cae) {
+    return { ok: false, error: "Sin CAE para confirmar" };
+  }
+  const estadoFinal = estadoDesdeCae(existente.cae, provider);
+  const emit: EmitResult = {
+    ok: true,
+    cae: existente.cae,
+    cae_vencimiento: existente.cae_vencimiento ?? undefined,
+    tipo_comprobante: existente.tipo_comprobante ?? 11,
+    punto_venta: existente.punto_venta ?? AFIP_PUNTO_VENTA,
+    numero_comprobante: existente.numero_comprobante ?? undefined,
+    importe_total: Number(existente.importe_total) || importeTotal,
+  };
+  const saved = await persistirComprobanteEmitido(transaccionId, emit, estadoFinal);
+  if (!saved.ok) {
+    return { ok: false, error: saved.error || "No se pudo confirmar el comprobante" };
+  }
+  return { ok: true, estado: estadoFinal };
 }
 
 async function requireAdminRole(userId: string): Promise<boolean> {
@@ -284,12 +380,12 @@ Deno.serve(async (req) => {
   const { data: existente } = await supabaseAdmin
     .from("facturas_electronicas")
     .select(
-      "estado, cae, cae_vencimiento, numero_comprobante, punto_venta, importe_total, error_mensaje, updated_at, receptor_cuit, receptor_razon_social",
+      "estado, cae, cae_vencimiento, numero_comprobante, punto_venta, importe_total, error_mensaje, updated_at, receptor_cuit, receptor_razon_social, tipo_comprobante",
     )
     .eq("transaccion_id", transaccionId)
     .maybeSingle();
 
-  if (existente?.estado === "pendiente") {
+  if (existente?.estado === "pendiente" && !pendienteEsViejo(existente.updated_at)) {
     return new Response(
       JSON.stringify({
         ok: false,
@@ -388,7 +484,26 @@ Deno.serve(async (req) => {
     );
   }
 
-  const emit = await emitirComprobante(ventas as VentaRow[], receptor, provider);
+  let emit: EmitResult;
+  try {
+    emit = await emitirComprobante(ventas as VentaRow[], receptor, provider);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[registrar-en-afip/emit/crash]", transaccionId, msg);
+    await supabaseAdmin
+      .from("facturas_electronicas")
+      .update({
+        estado: "error",
+        error_mensaje: msg.slice(0, 500),
+        importe_total: importeTotal,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("transaccion_id", transaccionId);
+    return new Response(
+      JSON.stringify({ ok: false, estado: "error", error: msg }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  }
 
   if (!emit.ok) {
     console.error("[registrar-en-afip/emit]", transaccionId, emit.error);
@@ -413,27 +528,11 @@ Deno.serve(async (req) => {
     );
   }
 
-  const estadoFinal = provider === "mock" ? "mock" : "autorizada";
+  const estadoFinal = estadoDesdeCae(emit.cae!, provider);
+  const saved = await persistirComprobanteEmitido(transaccionId, emit, estadoFinal);
 
-  const { error: updateErr } = await supabaseAdmin
-    .from("facturas_electronicas")
-    .update({
-      estado: estadoFinal,
-      cae: emit.cae,
-      cae_vencimiento: emit.cae_vencimiento || null,
-      tipo_comprobante: emit.tipo_comprobante ?? null,
-      punto_venta: emit.punto_venta ?? null,
-      numero_comprobante: emit.numero_comprobante ?? null,
-      importe_total: emit.importe_total,
-      emisor_cuit: AFIP_EMISOR_CUIT,
-      error_mensaje: null,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("transaccion_id", transaccionId);
-
-  if (updateErr) {
-    console.error("[registrar-en-afip/update]", updateErr);
-    await supabaseAdmin
+  if (!saved.ok) {
+    await supabaseAdmin!
       .from("facturas_electronicas")
       .update({
         estado: "error",
@@ -443,8 +542,7 @@ Deno.serve(async (req) => {
         punto_venta: emit.punto_venta ?? null,
         numero_comprobante: emit.numero_comprobante ?? null,
         importe_total: emit.importe_total,
-        emisor_cuit: AFIP_EMISOR_CUIT,
-        error_mensaje: "CAE obtenido; falló guardado final. No reintentar sin revisar.",
+        error_mensaje: `CAE obtenido; falló guardado: ${(saved.error || "").slice(0, 200)}. Tocá AFIP de nuevo para confirmar.`,
         updated_at: new Date().toISOString(),
       })
       .eq("transaccion_id", transaccionId);
@@ -453,7 +551,8 @@ Deno.serve(async (req) => {
       JSON.stringify({
         ok: false,
         estado: "error",
-        error: "CAE obtenido pero no se pudo confirmar. No reintentar automáticamente.",
+        error:
+          "CAE obtenido pero no se guardó. Tocá AFIP en la venta otra vez para confirmar.",
         cae: emit.cae,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },

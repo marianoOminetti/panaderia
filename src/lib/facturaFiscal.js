@@ -81,6 +81,14 @@ export function formatClienteFiscalLabel(factura, clienteNombre, cliente) {
 }
 
 /** transaccion_id del grupo de ventas, o null si es venta suelta sin agrupar */
+/** Pto. vta. y número AFIP (00001-00000150). */
+export function formatComprobanteNumero(punto_venta, numero) {
+  if (punto_venta == null || numero == null) return null;
+  const pv = String(punto_venta).padStart(5, "0");
+  const nro = String(numero).padStart(8, "0");
+  return `${pv}-${nro}`;
+}
+
 export function getTransaccionIdFromGrupo(grupo) {
   const tid = grupo?.rawItems?.[0]?.transaccion_id;
   return tid || null;
@@ -95,32 +103,74 @@ export function facturaListaParaPdf(factura) {
   );
 }
 
+/** CAE guardado pero estado quedó en error (falló confirmación en DB). */
+export function facturaNecesitaConfirmarAfip(factura) {
+  return factura?.estado === "error" && !!factura?.cae;
+}
+
 export function facturaPuedeReintentarAfip(factura) {
   if (!factura) return true;
   if (factura.estado === "pendiente") return true;
-  if (factura.estado === "error" && !factura.cae) return true;
+  if (factura.estado === "error") return true;
   return false;
 }
 
-export function buildFacturaFiscalData(grupo, factura, recetas, clientes) {
-  const ejemplo = grupo.rawItems?.[0] || grupo.items?.[0];
-  const cliente = (clientes || []).find((c) => c.id === grupo.cliente_id);
-  const lineas = grupo.rawItems?.length ? grupo.rawItems : grupo.items;
-  const items = lineas.map((v) => {
+/** Ítems del comprobante a precio de lista (como ticket WhatsApp), no total_final repartido. */
+export function buildGrupoLineasLista(grupo, recetas) {
+  return (grupo.items || []).map((v) => {
     const r = (recetas || []).find((r2) => r2.id === v.receta_id);
+    const cant = Number(v.cantidad) || 0;
+    const precio = Number(v.precio_unitario) || 0;
     return {
       receta_id: v.receta_id,
       receta: r ? { nombre: r.nombre, emoji: r.emoji } : null,
       cantidad: v.cantidad,
-      precio_unitario: v.precio_unitario,
-      _lineTotal:
-        v.total_final != null
-          ? v.total_final
-          : (v.precio_unitario || 0) * (v.cantidad || 0),
+      precio_unitario: precio,
+      _lineTotal: precio * cant,
     };
   });
+}
+
+export function buildGrupoTotalesConPromo(grupo, items, promociones, totalCobrado) {
+  const subtotal = (items || []).reduce(
+    (s, it) => s + (Number(it._lineTotal) || 0),
+    0,
+  );
+  const total =
+    totalCobrado != null ? Number(totalCobrado) : Number(grupo.total) || 0;
+  const descuento = Math.max(0, subtotal - total);
+  const promoId = grupo.rawItems?.find((r) => r.promocion_id)?.promocion_id;
+  const promo = (promociones || []).find((p) => p.id === promoId);
+  return {
+    subtotal,
+    descuento,
+    descuentoLabel: promo?.nombre
+      ? `Promo: ${promo.nombre}`
+      : descuento > 0
+        ? "Descuento"
+        : undefined,
+    total,
+  };
+}
+
+export function buildFacturaFiscalData(
+  grupo,
+  factura,
+  recetas,
+  clientes,
+  promociones = [],
+) {
+  const ejemplo = grupo.rawItems?.[0] || grupo.items?.[0];
+  const cliente = (clientes || []).find((c) => c.id === grupo.cliente_id);
+  const items = buildGrupoLineasLista(grupo, recetas);
   const totalFiscal =
     factura?.importe_total != null ? Number(factura.importe_total) : grupo.total;
+  const { subtotal, descuento, descuentoLabel, total } = buildGrupoTotalesConPromo(
+    grupo,
+    items,
+    promociones,
+    totalFiscal,
+  );
   const receptor = resolveReceptorComprobante(factura, cliente);
   const esMock = factura?.estado === "mock";
   const tipoDocRec = receptor.cuit
@@ -153,9 +203,16 @@ export function buildFacturaFiscalData(grupo, factura, recetas, clientes) {
     receptorRazon: receptor.razon_social,
     receptorCuit: receptor.cuit_display,
     esConsumidorFinal: receptor.es_consumidor_final,
-    total: totalFiscal,
+    subtotal,
+    descuento,
+    descuentoLabel,
+    total,
     items,
     tipoLabel: "Factura C",
+    comprobanteNumero: formatComprobanteNumero(
+      factura?.punto_venta,
+      factura?.numero_comprobante,
+    ),
     punto_venta: factura?.punto_venta,
     numero: factura?.numero_comprobante,
     cae: factura?.cae,

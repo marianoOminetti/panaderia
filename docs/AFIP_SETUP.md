@@ -15,6 +15,20 @@
 | **Staging** (`develop`) | `xdiggsdjmmylkvephyod` | `npm run db:push:dev`, `npm run functions:deploy:afip`, `npm run afip:setup:local` |
 | **Producción** (`master`) | `clgxrxlccjjqxzvapfav` | `npm run db:push:prod`, deploy función en prod, `npm run afip:setup:prod` |
 
+## Modo mock (local / staging sin ARCA)
+
+En el proyecto **dev** (`xdiggsdjmmylkvephyod`):
+
+```bash
+npm run secrets:set:afip-mock
+supabase secrets set AFIP_PRODUCTION=false --project-ref xdiggsdjmmylkvephyod
+npm run functions:deploy:afip
+```
+
+Con `AFIP_ALLOW_MOCK=true` y **sin** `AFIP_PRODUCTION=true`, la edge usa mock aunque existan certificados WSFE. El comprobante queda `estado=mock` (banner «prueba»); el QR AFIP real no aplica en mock.
+
+`npm start` debe apuntar al mismo proyecto (`.env.development.local` → dev). Usuario **admin** para facturar.
+
 ## Deploy (staging)
 
 ```bash

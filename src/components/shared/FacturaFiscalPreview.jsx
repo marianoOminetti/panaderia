@@ -2,6 +2,8 @@ import { forwardRef, useEffect, useState } from "react";
 import QRCode from "qrcode";
 import { fmt } from "../../lib/format";
 
+const LOGO_SIN_TACC = `${process.env.PUBLIC_URL || ""}/logo-sin-tacc.png`;
+
 const styles = {
   container: {
     width: "100%",
@@ -33,15 +35,64 @@ const styles = {
   item: {
     display: "flex",
     justifyContent: "space-between",
+    alignItems: "center",
+    gap: 8,
     marginBottom: 8,
     fontSize: 13,
+  },
+  itemLeft: {
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+    flex: 1,
+    minWidth: 0,
+  },
+  itemText: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 4,
+    minWidth: 0,
+    maxWidth: "100%",
+  },
+  itemName: {
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+  logoProducto: {
+    width: 20,
+    height: 20,
+    flexShrink: 0,
+    objectFit: "contain",
+  },
+  itemPrice: {
+    flexShrink: 0,
+    fontWeight: 500,
+  },
+  facturaLine: {
+    fontSize: 12,
+    fontWeight: 600,
+    color: "#1a1a1a",
+    marginTop: 2,
+  },
+  totals: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTop: "1px dashed #e0e0e0",
+  },
+  totalRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    fontSize: 12,
+    color: "#666",
+    marginBottom: 4,
   },
   total: {
     display: "flex",
     justifyContent: "space-between",
     fontSize: 16,
     fontWeight: 700,
-    marginTop: 8,
+    marginTop: 6,
     paddingTop: 8,
     borderTop: "2px solid #1a1a1a",
   },
@@ -98,9 +149,11 @@ const FacturaFiscalPreview = forwardRef(function FacturaFiscalPreview(
     <div ref={ref} style={styles.container}>
       <div style={styles.header}>
         <h2 style={styles.title}>Gluten Free</h2>
-        <div style={styles.subtitle}>
-          {data.tipoLabel || "Comprobante fiscal"}
+        <div style={styles.facturaLine}>
+          {data.tipoLabel || "Factura C"}
+          {data.comprobanteNumero ? ` · ${data.comprobanteNumero}` : ""}
         </div>
+        <div style={styles.subtitle}>Comprobante fiscal electrónico</div>
       </div>
 
       <div style={styles.fiscalBox}>
@@ -131,17 +184,42 @@ const FacturaFiscalPreview = forwardRef(function FacturaFiscalPreview(
 
       {(data.items || []).map((item, idx) => (
         <div key={item.receta_id || idx} style={styles.item}>
-          <span>
-            {item.receta?.emoji || "🍞"}{" "}
-            {item.receta?.nombre || "Producto"} x{item.cantidad}
+          <span style={styles.itemLeft}>
+            <span>{item.receta?.emoji || "🍞"}</span>
+            <span style={styles.itemText}>
+              <span style={styles.itemName}>
+                {item.receta?.nombre || "Producto"} x{item.cantidad}
+              </span>
+              <img
+                src={LOGO_SIN_TACC}
+                alt="Sin T.A.C.C."
+                style={styles.logoProducto}
+                width={20}
+                height={20}
+              />
+            </span>
           </span>
-          <span>{fmt(item._lineTotal)}</span>
+          <span style={styles.itemPrice}>{fmt(item._lineTotal)}</span>
         </div>
       ))}
 
-      <div style={styles.total}>
-        <span>TOTAL</span>
-        <span>{fmt(data.total)}</span>
+      <div style={styles.totals}>
+        {data.subtotal != null && data.subtotal !== data.total && (
+          <div style={styles.totalRow}>
+            <span>Subtotal</span>
+            <span>{fmt(data.subtotal)}</span>
+          </div>
+        )}
+        {data.descuento > 0 && (
+          <div style={styles.totalRow}>
+            <span>{data.descuentoLabel || "Descuento"}</span>
+            <span style={{ color: "#4a7c59" }}>-{fmt(data.descuento)}</span>
+          </div>
+        )}
+        <div style={styles.total}>
+          <span>TOTAL</span>
+          <span>{fmt(data.total)}</span>
+        </div>
       </div>
 
       {qrDataUrl && (

@@ -2,6 +2,24 @@ import { useRef, useState } from "react";
 import FacturaFiscalPreview from "./FacturaFiscalPreview";
 import { generateTicketImage, shareViaWhatsApp } from "../../lib/shareTicket";
 
+function waitForImagesInElement(root) {
+  const imgs = [...(root?.querySelectorAll("img") || [])];
+  if (imgs.length === 0) return Promise.resolve();
+  return Promise.all(
+    imgs.map(
+      (img) =>
+        new Promise((resolve) => {
+          if (img.complete) {
+            resolve();
+            return;
+          }
+          img.addEventListener("load", () => resolve(), { once: true });
+          img.addEventListener("error", () => resolve(), { once: true });
+        }),
+    ),
+  );
+}
+
 /**
  * Vista previa de factura fiscal (CAE ya registrado) para compartir como imagen.
  */
@@ -17,7 +35,8 @@ export default function FacturaFiscalModal({ data, onClose }) {
     setResult(null);
     try {
       setCapturing(true);
-      await new Promise((r) => setTimeout(r, 100));
+      await waitForImagesInElement(previewRef.current);
+      await new Promise((r) => setTimeout(r, 50));
       const blob = await generateTicketImage(previewRef.current);
       setCapturing(false);
       const filename = `factura-${data.numero || Date.now()}.png`;
