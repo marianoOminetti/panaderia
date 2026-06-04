@@ -3,7 +3,7 @@ import FacturaFiscalPreview from "./FacturaFiscalPreview";
 import { generateTicketImage, shareViaWhatsApp } from "../../lib/shareTicket";
 
 /**
- * Vista previa de factura fiscal (CAE ya registrado) para compartir como imagen/PDF informal.
+ * Vista previa de factura fiscal (CAE ya registrado) para compartir como imagen.
  */
 export default function FacturaFiscalModal({ data, onClose }) {
   const previewRef = useRef(null);
@@ -47,36 +47,36 @@ export default function FacturaFiscalModal({ data, onClose }) {
         </button>
         <span className="screen-title">Factura AFIP</span>
       </div>
-      <div className="screen-content" style={{ alignItems: "center" }}>
-        <FacturaFiscalPreview ref={previewRef} data={data} />
-        {result && (
-          <p
-            className="form-hint"
-            style={{
-              marginTop: 12,
-              color: result.type === "error" ? "var(--danger)" : undefined,
-            }}
-          >
-            {result.message}
-          </p>
-        )}
-        <button
-          type="button"
-          className="btn-primary"
-          style={{ marginTop: 16, width: "100%", maxWidth: 320 }}
-          onClick={handleShare}
-          disabled={sharing || capturing}
-        >
-          {sharing ? "Generando…" : "Compartir / descargar"}
-        </button>
-        <button
-          type="button"
-          className="btn-secondary"
-          style={{ marginTop: 8, width: "100%", maxWidth: 320 }}
-          onClick={onClose}
-        >
-          Cerrar
-        </button>
+      <div className="screen-content">
+        <div className="factura-fiscal-layout">
+          <div className="factura-fiscal-preview-wrap">
+            <FacturaFiscalPreview ref={previewRef} data={data} />
+          </div>
+
+          {result && (
+            <p
+              className={`form-hint factura-fiscal-feedback${
+                result.type === "error" ? " factura-fiscal-feedback--error" : ""
+              }`}
+            >
+              {result.message}
+            </p>
+          )}
+
+          <div className="factura-fiscal-actions">
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={handleShare}
+              disabled={sharing || capturing}
+            >
+              {sharing ? "Generando…" : "Compartir"}
+            </button>
+            <button type="button" className="btn-secondary" onClick={onClose}>
+              Cerrar
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -30,12 +30,18 @@ if [[ "$MOD_CRT" != "$MOD_KEY" ]]; then
 fi
 echo "✓ Certificado y clave privada coinciden"
 
-npm run supabase:link --silent 2>/dev/null || npm run supabase:link
+if [[ "${AFIP_SETUP_PROD:-}" == "1" || "$PROD" == "true" ]]; then
+  npm run supabase:link:prod --silent 2>/dev/null || npm run supabase:link:prod
+  PROJECT_MSG="clgxrxlccjjqxzvapfav (producción)"
+else
+  npm run supabase:link --silent 2>/dev/null || npm run supabase:link
+  PROJECT_MSG="xdiggsdjmmylkvephyod (staging)"
+fi
 
 CERT_B64=$(base64 < "$CRT" | tr -d '\n')
 KEY_B64=$(base64 < "$KEY" | tr -d '\n')
 
-echo "Subiendo secrets (proyecto xdiggsdjmmylkvephyod)..."
+echo "Subiendo secrets (proyecto ${PROJECT_MSG})..."
 supabase secrets set AFIP_PROVIDER=wsfe
 supabase secrets set "AFIP_CUIT=${CUIT}"
 supabase secrets set "AFIP_PUNTO_VENTA=${PV}"
@@ -45,7 +51,11 @@ supabase secrets set "AFIP_KEY_B64=${KEY_B64}"
 supabase secrets unset AFIP_ALLOW_MOCK 2>/dev/null || true
 
 echo "Desplegando registrar-en-afip..."
-npm run functions:deploy:afip
+if [[ "${AFIP_SETUP_PROD:-}" == "1" || "$PROD" == "true" ]]; then
+  supabase functions deploy registrar-en-afip
+else
+  npm run functions:deploy:afip
+fi
 
 echo ""
 echo "✅ Listo. Probá una venta con «Registrar en AFIP»."

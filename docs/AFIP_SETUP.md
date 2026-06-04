@@ -13,7 +13,7 @@
 | Ambiente | Project ref | Comandos típicos |
 |----------|-------------|------------------|
 | **Staging** (`develop`) | `xdiggsdjmmylkvephyod` | `npm run db:push:dev`, `npm run functions:deploy:afip`, `npm run afip:setup:local` |
-| **Producción** (`master`) | `clgxrxlccjjqxzvapfav` | `npm run db:push:prod`, deploy función en prod, `AFIP_PRODUCTION=true npm run afip:setup:local` |
+| **Producción** (`master`) | `clgxrxlccjjqxzvapfav` | `npm run db:push:prod`, deploy función en prod, `npm run afip:setup:prod` |
 
 ## Deploy (staging)
 
@@ -29,7 +29,7 @@ npm run afip:setup:local   # homologación (default)
 npm run db:push:prod
 supabase link --project-ref clgxrxlccjjqxzvapfav
 supabase functions deploy registrar-en-afip
-AFIP_PRODUCTION=true npm run afip:setup:local
+npm run afip:setup:prod
 supabase secrets unset AFIP_ALLOW_MOCK   # si existiera
 ```
 

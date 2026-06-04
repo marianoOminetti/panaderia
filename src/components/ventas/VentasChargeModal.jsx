@@ -39,6 +39,7 @@ export default function VentasChargeModal({
   notas,
   setNotas,
   allowPedidos = true,
+  showAfip = true,
   registrarEnAfip,
   setRegistrarEnAfip,
 }) {
@@ -155,16 +156,20 @@ export default function VentasChargeModal({
                 Dejalo vacío para usar el total{descuentoPromo > 0 ? " con promos" : " del carrito"}.
                 Usalo para descuentos extra o redondeos.
               </p>
-              <FormCheckbox
-                label="Registrar en AFIP"
-                checked={registrarEnAfip}
-                onChange={setRegistrarEnAfip}
-                disabled={!online}
-              />
-              {!online && (
-                <p className="form-hint" style={{ marginTop: -8 }}>
-                  Sin conexión: no se puede registrar en AFIP.
-                </p>
+              {showAfip && (
+                <>
+                  <FormCheckbox
+                    label="Registrar en AFIP"
+                    checked={registrarEnAfip}
+                    onChange={setRegistrarEnAfip}
+                    disabled={!online}
+                  />
+                  {!online && (
+                    <p className="form-hint" style={{ marginTop: -8 }}>
+                      Sin conexión: no se puede registrar en AFIP.
+                    </p>
+                  )}
+                </>
               )}
             </>
           )}
