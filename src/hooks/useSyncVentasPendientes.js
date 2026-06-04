@@ -1,6 +1,7 @@
 import { useCallback, useEffect } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { deleteVentaPendiente, getVentasPendientes } from "../lib/offlineVentas";
+import { notifyEvent } from "../lib/notifyEvent";
 import { reportError } from "../utils/errorReport";
 
 /**
@@ -68,6 +69,15 @@ export function useSyncVentasPendientes({
           }
           await deleteVentaPendiente(item.id);
           totalLineasSincronizadas += rows.length;
+
+          const ventaIds = (inserted || []).map((r) => r.id).filter(Boolean);
+          const transaccionId = rows[0]?.transaccion_id || null;
+          if (ventaIds.length || transaccionId) {
+            notifyEvent("venta", {
+              transaccion_id: transaccionId,
+              venta_ids: ventaIds,
+            });
+          }
         } catch (err) {
           reportError(err, { action: "syncVentasPendientes.item", id: item.id });
         }

@@ -30,6 +30,7 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { executeSendPush } from "../_shared/sendPushCore.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -47,19 +48,23 @@ const supabaseAdmin = SERVICE_ROLE_KEY
   ? createClient(SUPABASE_URL, SERVICE_ROLE_KEY)
   : null;
 
+type VentaPayload = {
+  transaccion_id?: string;
+  venta_ids?: string[];
+  /** Solo venta_eliminada: datos del grupo ya borrado en DB */
+  snapshot?: { total: number; cliente_id?: string | null; tiene_deuda?: boolean };
+};
+
 type NotifyBody =
-  | {
-      type: "venta";
-      payload: { transaccion_id?: string; venta_ids?: string[] };
-    }
-  | {
-      type: "stock_zero";
-      payload: { receta_id: string };
-    }
+  | { type: "venta"; payload: VentaPayload }
+  | { type: "venta_modificada"; payload: VentaPayload }
+  | { type: "venta_eliminada"; payload: VentaPayload }
+  | { type: "stock_zero"; payload: { receta_id: string } }
   | {
       type: "ingreso_mercaderia";
       payload: { insumo_id?: string; movimiento_id?: string; cantidad?: number };
-    };
+    }
+  | { type: "test"; payload: Record<string, never> };
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -91,8 +96,12 @@ Deno.serve(async (req) => {
   }
 
   try {
-    if (body.type === "venta") {
-      const result = await handleVenta(body.payload, supabaseAdmin);
+    if (
+      body.type === "venta" ||
+      body.type === "venta_modificada" ||
+      body.type === "venta_eliminada"
+    ) {
+      const result = await handleVentaNotify(body.payload, supabaseAdmin, body.type);
       return new Response(JSON.stringify(result), {
         status: result.status || 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -115,6 +124,14 @@ Deno.serve(async (req) => {
       });
     }
 
+    if (body.type === "test") {
+      const result = await handleTestPush();
+      return new Response(JSON.stringify(result), {
+        status: result.status || 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     return new Response(
       JSON.stringify({ error: "Unsupported type" }),
       { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
@@ -128,25 +145,80 @@ Deno.serve(async (req) => {
   }
 });
 
-async function handleVenta(
-  payload: { transaccion_id?: string; venta_ids?: string[] },
+async function handleTestPush() {
+  const title = "Prueba push · Panadería";
+  const body = `Test ${new Date().toISOString()}`;
+  const tag = `test-${crypto.randomUUID()}`;
+
+  const push = await executeSendPush({ title, body, url: "/?tab=mas", tag }, supabaseAdmin!);
+  if (!push.ok) {
+    return { status: 500, error: push.error };
+  }
+
+  return { ok: true, push: { sent: push.sent, total: push.total, message: push.message } };
+}
+
+async function pushVentaFromSnapshot(
+  snapshot: { total: number; cliente_id?: string | null; tiene_deuda?: boolean },
   supabase: ReturnType<typeof createClient>,
+  kind: "venta_eliminada",
+  transaccion_id?: string,
+  venta_ids?: string[],
 ) {
-  const { transaccion_id, venta_ids } = payload || {};
+  const fmt = new Intl.NumberFormat("es-AR", {
+    style: "currency",
+    currency: "ARS",
+    maximumFractionDigits: 0,
+  });
+  const title = `Venta eliminada ${fmt.format(snapshot.total)}`;
+
+  let clienteNombre = "Consumidor final";
+  if (snapshot.cliente_id) {
+    const { data: cliente } = await supabase
+      .from("clientes")
+      .select("nombre")
+      .eq("id", snapshot.cliente_id)
+      .maybeSingle();
+    if (cliente?.nombre) clienteNombre = cliente.nombre;
+  }
+
+  const estadoTxt = snapshot.tiene_deuda ? "Debe" : "Pagado";
+  const body = `${clienteNombre} · ${estadoTxt}`;
+  const grupoKey = transaccion_id || (venta_ids && venta_ids[0]) || "grupo";
+  const tag = `${kind}-${grupoKey}-${Date.now()}`;
+
+  const push = await executeSendPush({ title, body, url: "/?tab=ventas", tag }, supabase);
+  if (!push.ok) return { status: 500, error: push.error };
+  return { ok: true, push: { sent: push.sent, total: push.total, message: push.message } };
+}
+
+async function handleVentaNotify(
+  payload: VentaPayload,
+  supabase: ReturnType<typeof createClient>,
+  kind: "venta" | "venta_modificada" | "venta_eliminada",
+) {
+  const { transaccion_id, venta_ids, snapshot } = payload || {};
+
+  if (
+    kind === "venta_eliminada" &&
+    snapshot &&
+    typeof snapshot.total === "number"
+  ) {
+    return await pushVentaFromSnapshot(snapshot, supabase, kind, transaccion_id, venta_ids);
+  }
 
   if (!transaccion_id && (!venta_ids || !Array.isArray(venta_ids) || !venta_ids.length)) {
     return { status: 400, error: "venta payload must include transaccion_id or venta_ids" };
   }
 
-  // Traer ventas del grupo
   let query = supabase
     .from("ventas")
     .select("id, total_final, precio_unitario, cantidad, cliente_id, estado_pago, transaccion_id");
 
-  if (transaccion_id) {
-    query = query.eq("transaccion_id", transaccion_id);
-  } else if (venta_ids?.length) {
+  if (venta_ids?.length) {
     query = query.in("id", venta_ids);
+  } else if (transaccion_id) {
+    query = query.eq("transaccion_id", transaccion_id);
   }
 
   const { data: ventas, error } = await query;
@@ -158,13 +230,12 @@ async function handleVenta(
     return { status: 404, error: "No ventas found for event" };
   }
 
-  // Calcular monto total de la transacción
-  const montoVenta = (v: any) =>
+  const montoVenta = (v: { total_final: unknown; precio_unitario: unknown; cantidad: unknown }) =>
     v.total_final != null
       ? Number(v.total_final)
       : (Number(v.precio_unitario) || 0) * (Number(v.cantidad) || 0);
 
-  const total = ventas.reduce((s: number, v: any) => s + montoVenta(v), 0);
+  const total = ventas.reduce((s: number, v) => s + montoVenta(v), 0);
 
   const fmt = new Intl.NumberFormat("es-AR", {
     style: "currency",
@@ -172,9 +243,13 @@ async function handleVenta(
     maximumFractionDigits: 0,
   });
 
-  const title = `Venta ${fmt.format(total)}`;
+  const titleLabels = {
+    venta: "Venta",
+    venta_modificada: "Venta modificada",
+    venta_eliminada: "Venta eliminada",
+  } as const;
+  const title = `${titleLabels[kind]} ${fmt.format(total)}`;
 
-  // Cliente: tomar el primero; si no hay, Consumidor final
   const clienteId = ventas[0]?.cliente_id;
   let clienteNombre = "Consumidor final";
   if (clienteId) {
@@ -188,29 +263,28 @@ async function handleVenta(
     }
   }
 
-  const tieneDeuda = ventas.some((v: any) => v.estado_pago === "debe");
+  const tieneDeuda = ventas.some((v) => v.estado_pago === "debe");
   const estadoTxt = tieneDeuda ? "Debe" : "Pagado";
   const body = `${clienteNombre} · ${estadoTxt}`;
 
   const grupoKey =
     ventas[0]?.transaccion_id || ventas[0]?.id || transaccion_id || (venta_ids && venta_ids[0]);
 
-  const url = grupoKey ? `/?tab=ventas&venta=${encodeURIComponent(grupoKey)}` : "/?tab=ventas";
+  const url =
+    kind === "venta_eliminada"
+      ? "/?tab=ventas"
+      : grupoKey
+        ? `/?tab=ventas&venta=${encodeURIComponent(grupoKey)}`
+        : "/?tab=ventas";
 
-  const tag = grupoKey
-    ? `venta-${grupoKey}-${Date.now()}`
-    : `venta-${crypto.randomUUID()}`;
+  const tag = `${kind}-${grupoKey || "grupo"}-${Date.now()}`;
 
-  const { data, error: pushError } = await supabase.functions.invoke("send-push", {
-    body: { title, body, url, tag },
-  });
-
-  if (pushError) {
-    console.error("[notify-event] send-push error", pushError);
-    return { status: 500, error: "Failed to send push", push: data };
+  const push = await executeSendPush({ title, body, url, tag }, supabase);
+  if (!push.ok) {
+    return { status: 500, error: push.error };
   }
 
-  return { ok: true, push: data };
+  return { ok: true, push: { sent: push.sent, total: push.total, message: push.message } };
 }
 
 async function handleStockZero(
@@ -239,16 +313,12 @@ async function handleStockZero(
 
   const tag = `stock-zero-${receta_id}-${Date.now()}`;
 
-  const { data, error: pushError } = await supabase.functions.invoke("send-push", {
-    body: { title, body, tag },
-  });
-
-  if (pushError) {
-    console.error("[notify-event] send-push error", pushError);
-    return { status: 500, error: "Failed to send push", push: data };
+  const push = await executeSendPush({ title, body, tag }, supabase);
+  if (!push.ok) {
+    return { status: 500, error: push.error };
   }
 
-  return { ok: true, push: data };
+  return { ok: true, push: { sent: push.sent, total: push.total, message: push.message } };
 }
 
 async function handleIngresoMercaderia(
@@ -283,15 +353,11 @@ async function handleIngresoMercaderia(
       ? `ingreso-${insumo_id}-${Date.now()}`
       : `ingreso-${crypto.randomUUID()}`;
 
-  const { data, error: pushError } = await supabase.functions.invoke("send-push", {
-    body: { title, body, tag },
-  });
-
-  if (pushError) {
-    console.error("[notify-event] send-push error", pushError);
-    return { status: 500, error: "Failed to send push", push: data };
+  const push = await executeSendPush({ title, body, tag }, supabase);
+  if (!push.ok) {
+    return { status: 500, error: push.error };
   }
 
-  return { ok: true, push: data };
+  return { ok: true, push: { sent: push.sent, total: push.total, message: push.message } };
 }
 

@@ -8,6 +8,7 @@ import { generateTransaccionId } from "../lib/ventas";
 import { buildVentaRowsConPromos } from "../lib/buildVentaRowsConPromos";
 import { calcularPromosEnCarrito } from "../lib/promociones";
 import { useCartConPromos } from "./useCartConPromos";
+import { notifyEvent } from "../lib/notifyEvent";
 import { reportError } from "../utils/errorReport";
 
 export function useVentasEdit({
@@ -351,11 +352,27 @@ export function useVentasEdit({
         if (idsToDelete.length > 0) {
           await deleteVentas(idsToDelete);
         }
+        let insertedNew = [];
         if (Object.keys(addByReceta).length > 0) {
           const rows = Object.keys(addByReceta)
             .map((receta_id) => rowByReceta[receta_id])
             .filter(Boolean);
-          if (rows.length > 0) await insertVentas(rows);
+          if (rows.length > 0) insertedNew = await insertVentas(rows);
+        }
+
+        if (typeof navigator !== "undefined" && navigator.onLine) {
+          const ventaIds = [
+            ...Object.keys(rawByReceta)
+              .map((rid) => rawByReceta[rid]?.[0]?.id)
+              .filter(Boolean),
+            ...(insertedNew || []).map((r) => r.id).filter(Boolean),
+          ];
+          await notifyEvent("venta_modificada", {
+            venta_ids: ventaIds,
+            ...(ventaIds.length === 0 && transaccionId
+              ? { transaccion_id: transaccionId }
+              : {}),
+          });
         }
       } catch (ventaErr) {
         if (stockDeltas.length > 0) {

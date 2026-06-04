@@ -164,9 +164,11 @@ function Ventas({
     // Notificación push (venta): fire-and-forget, solo si estamos online
     if (typeof navigator !== "undefined" && navigator.onLine) {
       const ventaIds = (inserted || []).map((r) => r.id).filter(Boolean);
-      notifyEvent("venta", {
-        transaccion_id: transaccionId || null,
+      await notifyEvent("venta", {
         venta_ids: ventaIds,
+        ...(ventaIds.length === 0 && transaccionId
+          ? { transaccion_id: transaccionId }
+          : {}),
       });
     }
 
@@ -231,6 +233,19 @@ function Ventas({
       }
 
       await deleteVentas(ids);
+
+      if (typeof navigator !== "undefined" && navigator.onLine) {
+        await notifyEvent("venta_eliminada", {
+          venta_ids: ids,
+          transaccion_id:
+            rawItems[0]?.transaccion_id || grupo?.key || null,
+          snapshot: {
+            total: grupo?.total ?? 0,
+            cliente_id: grupo?.cliente_id ?? null,
+            tiene_deuda: rawItems.some((v) => v.estado_pago === "debe"),
+          },
+        });
+      }
       showToast("✅ Venta eliminada");
       onRefresh();
     } catch (err) {

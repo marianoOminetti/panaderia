@@ -19,17 +19,9 @@ export function usePushSubscription(userId) {
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // Pedir permiso al montar si hay usuario y permiso aún no decidido (reemplaza el useEffect de App.js)
   useEffect(() => {
     if (typeof window === "undefined" || typeof Notification === "undefined") return;
-    if (!userId) return;
-    if (Notification.permission === "default") {
-      Notification.requestPermission()
-        .then((p) => setPermission(p))
-        .catch(() => {});
-    } else {
-      setPermission(Notification.permission);
-    }
+    setPermission(Notification.permission);
   }, [userId]);
 
   const requestPermission = useCallback(() => {
@@ -74,6 +66,7 @@ export function usePushSubscription(userId) {
       })
       .catch((err) => {
         console.error("[usePushSubscription] sync", err);
+        if (!cancelled) setIsSubscribed(false);
       });
 
     return () => {
@@ -89,6 +82,7 @@ export function usePushSubscription(userId) {
       setIsSubscribed(!!sub);
     } catch (err) {
       console.error("[usePushSubscription] subscribe", err);
+      setIsSubscribed(false);
     } finally {
       setLoading(false);
     }
@@ -99,9 +93,10 @@ export function usePushSubscription(userId) {
     setLoading(true);
     try {
       const sub = await getExistingPushSubscription();
+      const endpoint = sub?.endpoint;
       if (sub) await sub.unsubscribe();
-      if (userId) {
-        await supabase.from("push_subscriptions").delete().eq("user_id", userId);
+      if (userId && endpoint) {
+        await supabase.from("push_subscriptions").delete().eq("endpoint", endpoint);
       }
       setIsSubscribed(false);
     } catch (err) {

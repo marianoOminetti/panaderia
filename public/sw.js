@@ -5,7 +5,7 @@
  * No usamos `tag`: en Android, tags + renotify:false pueden silenciar avisos nuevos.
  * Cada push debe apilarse como notificación independiente.
  */
-const SW_VERSION = "push-repeat-fix-1";
+const SW_VERSION = "push-gf-icon-2";
 const DEFAULT_ICON = "/notification-icon-192.png";
 const DEFAULT_BADGE = "/notification-badge-72.png";
 
