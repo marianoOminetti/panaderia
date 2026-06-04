@@ -620,6 +620,7 @@ function Ventas({
         notas={notas}
         setNotas={setNotas}
         allowPedidos={!isVentaRole}
+        showAfip={!isVentaRole}
         registrarEnAfip={registrarEnAfip}
         setRegistrarEnAfip={setRegistrarEnAfip}
       />
