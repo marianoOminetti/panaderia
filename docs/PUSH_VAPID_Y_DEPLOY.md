@@ -63,7 +63,18 @@ supabase db push
 
 O desde el Dashboard: SQL Editor → ejecutar el contenido de `supabase/migrations/20260304100010_push_subscriptions.sql`.
 
-## 5. Probar el flujo (Etapa 1)
+## 5. Probar push en prod sin cargar una venta
+
+```bash
+cp .env.push.local.example .env.push.local
+# Pegá SUPABASE_PROD_SERVICE_KEY (service_role, Dashboard → API)
+
+npm run push:test:prod
+```
+
+El script lista `push_subscriptions`, invoca `send-push` y muestra `sent` / `total`. Si `sent=0`, revisá VAPID y que alguien haya activado notificaciones en **Más**.
+
+## 6. Probar el flujo en la app (Etapa 1)
 
 1. App con `REACT_APP_VAPID_PUBLIC_KEY` configurada.
 2. Iniciar sesión → el hook pide permiso de notificaciones (si está en "default").

@@ -3,6 +3,7 @@
  * No contiene claves privadas; el envío de push se hace solo desde el backend (Edge Function).
  */
 import { supabase } from "./supabaseClient";
+import { extractPushSubscriptionKeys } from "./pushSubscriptionKeys";
 
 // Registrar siempre /sw.js (sin query): ?v= duplicaba registrations y rompía pushes subsiguientes.
 const SW_PATH = "/sw.js";
@@ -82,9 +83,8 @@ export async function syncPushSubscription(userId, vapidPublicKey) {
     if (!sub) {
       sub = await subscribeUser(vapidPublicKey);
     }
-    if (sub) {
-      await saveSubscriptionToSupabase(sub, userId);
-    }
+    if (!sub) return null;
+    await saveSubscriptionToSupabase(sub, userId);
     return sub;
   } catch (err) {
     if (err?.name === "InvalidStateError") return null;
@@ -123,22 +123,20 @@ export async function subscribeUser(vapidPublicKey) {
 export async function saveSubscriptionToSupabase(subscription, userId) {
   if (!subscription || !userId) return;
   const endpoint = subscription.endpoint;
-  const key = subscription.getKey("p256dh");
-  const auth = subscription.getKey("auth");
-  if (!endpoint || !key || !auth) {
-    console.error("[pushNotifications] subscription missing keys");
-    return;
+  const keys = extractPushSubscriptionKeys(subscription);
+  if (!endpoint || !keys) {
+    const err = new Error("Push subscription missing keys");
+    console.error("[pushNotifications]", err);
+    throw err;
   }
-  const p256dh = btoa(String.fromCharCode.apply(null, new Uint8Array(key)));
-  const authSecret = btoa(String.fromCharCode.apply(null, new Uint8Array(auth)));
 
   // Upsert: re-guardar al abrir la app recupera suscripciones borradas por 410 en el servidor.
   const { error } = await supabase.from("push_subscriptions").upsert(
     {
       user_id: userId,
       endpoint,
-      p256dh: p256dh,
-      auth: authSecret,
+      p256dh: keys.p256dh,
+      auth: keys.auth,
       updated_at: new Date().toISOString(),
     },
     { onConflict: "user_id,endpoint" },

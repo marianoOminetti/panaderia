@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 72 72" width="72" height="72">
+  <!-- Android badge: solo blanco sobre transparente (silueta GF) -->
+  <text
+    x="36"
+    y="48"
+    text-anchor="middle"
+    font-family="Outfit, Arial, sans-serif"
+    font-size="40"
+    font-weight="700"
+    font-style="italic"
+    fill="#FFFFFF"
+  >GF</text>
+</svg>
