@@ -9,7 +9,7 @@ import {
   AFIP_DOC_CUIT,
   AFIP_TIPO_FACTURA_C,
   buildAfipQrUrl,
-  getAfipCuitEmisor,
+  resolveEmisorCuit,
 } from "./afipQr";
 
 function buildReceptorResult(razon, cuitRaw) {
@@ -133,7 +133,7 @@ export function buildFacturaFiscalData(grupo, factura, recetas, clientes) {
     !esMock && factura?.cae
       ? buildAfipQrUrl({
           fecha: ejemplo?.fecha || ejemplo?.created_at,
-          cuitEmisor: getAfipCuitEmisor(),
+          cuitEmisor: resolveEmisorCuit(factura),
           ptoVta: factura?.punto_venta,
           tipoCmp: factura?.tipo_comprobante ?? AFIP_TIPO_FACTURA_C,
           nroCmp: factura?.numero_comprobante,

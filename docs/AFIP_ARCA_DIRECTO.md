@@ -126,7 +126,21 @@ Te pide: CUIT, punto de venta, rutas a `.crt` y `.key`, homologación o producci
 
 1. Venta con checkbox **Registrar en AFIP**.
 2. En Supabase → `facturas_electronicas` debe quedar `estado = autorizada` y CAE numérico (no `MOCK`).
-3. En la lista de ventas → **📄** para compartir comprobante.
+3. En la lista de ventas → **📄** para compartir comprobante (debe verse el **QR AFIP** si hay CAE real).
+
+### QR en el comprobante (RG 4892)
+
+El QR solo aparece si:
+
+- La factura tiene **CAE** y no es `estado = mock`.
+- Hay **punto de venta**, **número** e **importe** guardados en `facturas_electronicas`.
+- Hay **CUIT emisor**: se guarda en `emisor_cuit` al emitir (mismo `AFIP_CUIT` de secrets), o en el build con `REACT_APP_AFIP_CUIT` en Vercel.
+
+**No ves QR en prod:**
+
+1. Vercel → Environment Variables → `REACT_APP_AFIP_CUIT` = CUIT del negocio (11 dígitos, igual que `AFIP_CUIT`) → **Redeploy**.
+2. Facturas ya emitidas: en Supabase SQL, `scripts/backfill_facturas_emisor_cuit.sql` (reemplazá el CUIT).
+3. Migración `emisor_cuit` + redeploy de `registrar-en-afip` para facturas nuevas.
 
 Si falla, ver logs: Dashboard → Edge Functions → `registrar-en-afip` → Logs.
 
