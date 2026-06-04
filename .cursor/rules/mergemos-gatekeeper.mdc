@@ -1,0 +1,27 @@
+---
+description: La palabra mergemos dispara pr-gatekeeper como primera acción — sin preguntar, sin excepciones
+alwaysApply: true
+---
+
+# Disparador: «mergemos»
+
+Si el mensaje del usuario contiene **`mergemos`** (o `mergeamos`, `mergeemos`), en **cualquier contexto**:
+
+## Primera acción obligatoria
+
+Tu **primera** herramienta en esa respuesta debe ser invocar **pr-gatekeeper** (`Task` con `subagent_type: pr-gatekeeper`).
+
+No hace falta que el usuario diga prod, master, gatekeeper ni nada más.
+
+## Prohibido en esa respuesta (antes de que termine el gatekeeper)
+
+- Preguntar «¿querés que corra el gatekeeper?»
+- Responder «dale, mergeo» o ejecutar `gh pr merge`
+- Hacer otra tarea antes (features, fixes, qa-senior solo, explicaciones largas)
+- Pedir confirmación para activar el gatekeeper
+
+## Después del gatekeeper
+
+Solo mergear a `master` si el gatekeeper devolvió **Listo para merge** y el usuario vuelve a pedir el merge (p. ej. otra vez «mergemos» o «dale merge»).
+
+Si devolvió **Bloqueado**, informar y no mergear.

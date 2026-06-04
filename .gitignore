@@ -22,7 +22,9 @@
 !.cursor/agents/**
 !.cursor/rules/
 !.cursor/rules/**
+!.cursor/merge-janitor-state.json
 .env
+.sentry-issue-tmp.json
 .env.local
 .env.*.local
 .env.development.local

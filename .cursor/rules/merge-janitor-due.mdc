@@ -1,0 +1,24 @@
+---
+description: Contador 5 merges a master; gatekeeper muestra y bloquea si janitorDue
+alwaysApply: true
+---
+
+# Code janitor (cada 5 merges a `master`)
+
+Archivo: `.cursor/merge-janitor-state.json` — lo actualiza GitHub Actions al mergear PRs a `master`.
+
+## pr-gatekeeper (cada «mergemos»)
+
+El gatekeeper **siempre** lee el state y muestra `N/threshold` y `janitorDue` en su reporte.
+
+- Si `janitorDue: true` → **no** «Listo para merge» a prod; primero **code-janitor**.
+- Si `mergesSinceLastRun >= 4` → advertir que el próximo merge a master dispara janitor.
+
+## code-janitor (cuando toca)
+
+Si `janitorDue: true` (o el usuario pide janitor):
+
+1. Invocar **code-janitor** (estándares en `.cursor/agents/code-janitor.md` — sin choclos, límites de líneas).
+2. PR a `develop`; al mergear el PR de janitor, `janitorDue: false` en el state.
+
+No arrancar features grandes con `janitorDue: true` salvo urgencia explícita.
