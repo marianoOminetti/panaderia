@@ -3,8 +3,30 @@
  * No contiene claves privadas; el envío de push se hace solo desde el backend (Edge Function).
  */
 import { supabase } from "./supabaseClient";
+import { extractPushSubscriptionKeys } from "./pushSubscriptionKeys";
 
+// Registrar siempre /sw.js (sin query): ?v= duplicaba registrations y rompía pushes subsiguientes.
 const SW_PATH = "/sw.js";
+
+function canonicalSwScriptUrl() {
+  return new URL(SW_PATH, window.location.origin).href;
+}
+
+/** Desregistra SW viejos (/sw.js?v=...) que dejaron la suscripción push colgada. */
+export async function cleanupLegacyPushServiceWorkers() {
+  if (typeof navigator === "undefined" || !navigator.serviceWorker) return;
+  const canonical = canonicalSwScriptUrl();
+  const regs = await navigator.serviceWorker.getRegistrations();
+  await Promise.all(
+    regs
+      .filter((r) => {
+        const script =
+          r.active?.scriptURL || r.installing?.scriptURL || r.waiting?.scriptURL || "";
+        return script.includes("/sw.js") && script !== canonical;
+      })
+      .map((r) => r.unregister().catch(() => {})),
+  );
+}
 
 /**
  * Registra el Service Worker para push. Debe llamarse una vez al cargar la app (ej. desde usePushSubscription).
@@ -13,11 +35,60 @@ const SW_PATH = "/sw.js";
 export async function registerServiceWorker() {
   if (typeof window === "undefined" || !("serviceWorker" in navigator)) return null;
   try {
+    await cleanupLegacyPushServiceWorkers();
     const reg = await navigator.serviceWorker.register(SW_PATH, { scope: "/" });
+    await reg.update();
     return reg;
   } catch (err) {
     console.error("[pushNotifications] registerServiceWorker", err);
     return null;
+  }
+}
+
+/** Registro con SW activo (listo para pushManager). */
+async function getActivePushRegistration() {
+  const reg = await registerServiceWorker();
+  if (!reg) return null;
+  await navigator.serviceWorker.ready;
+  return reg;
+}
+
+/**
+ * Lee la suscripción push existente. Requiere SW registrado; en iOS Safari sin PWA puede fallar con InvalidStateError.
+ * @returns {Promise<PushSubscription|null>}
+ */
+export async function getExistingPushSubscription() {
+  try {
+    const reg = await getActivePushRegistration();
+    if (!reg?.pushManager) return null;
+    return await reg.pushManager.getSubscription();
+  } catch (err) {
+    if (err?.name === "InvalidStateError") return null;
+    console.warn("[pushNotifications] getExistingPushSubscription", err);
+    return null;
+  }
+}
+
+/**
+ * Asegura SW canónico + suscripción push guardada en Supabase (upsert).
+ * Re-ejecutar al abrir la app recupera filas borradas por 410 en el servidor.
+ */
+export async function syncPushSubscription(userId, vapidPublicKey) {
+  if (!userId || !vapidPublicKey || typeof window === "undefined") return null;
+  if (!("PushManager" in window) || !("serviceWorker" in navigator)) return null;
+  if (typeof Notification === "undefined" || Notification.permission !== "granted") return null;
+
+  try {
+    let sub = await getExistingPushSubscription();
+    if (!sub) {
+      sub = await subscribeUser(vapidPublicKey);
+    }
+    if (!sub) return null;
+    await saveSubscriptionToSupabase(sub, userId);
+    return sub;
+  } catch (err) {
+    if (err?.name === "InvalidStateError") return null;
+    throw err;
   }
 }
 
@@ -29,8 +100,8 @@ export async function registerServiceWorker() {
 export async function subscribeUser(vapidPublicKey) {
   if (!vapidPublicKey || typeof window === "undefined") return null;
   if (!("PushManager" in window) || !("serviceWorker" in navigator)) return null;
-  const reg = await navigator.serviceWorker.ready;
-  if (!reg.pushManager) return null;
+  const reg = await getActivePushRegistration();
+  if (!reg?.pushManager) return null;
   try {
     const sub = await reg.pushManager.subscribe({
       userVisibleOnly: true,
@@ -52,29 +123,25 @@ export async function subscribeUser(vapidPublicKey) {
 export async function saveSubscriptionToSupabase(subscription, userId) {
   if (!subscription || !userId) return;
   const endpoint = subscription.endpoint;
-  const key = subscription.getKey("p256dh");
-  const auth = subscription.getKey("auth");
-  if (!endpoint || !key || !auth) {
-    console.error("[pushNotifications] subscription missing keys");
-    return;
+  const keys = extractPushSubscriptionKeys(subscription);
+  if (!endpoint || !keys) {
+    const err = new Error("Push subscription missing keys");
+    console.error("[pushNotifications]", err);
+    throw err;
   }
-  const p256dh = btoa(String.fromCharCode.apply(null, new Uint8Array(key)));
-  const authSecret = btoa(String.fromCharCode.apply(null, new Uint8Array(auth)));
 
-  // Insertamos una fila por dispositivo (endpoint). Si ya existe (error 23505), lo ignoramos.
-  const { error } = await supabase.from("push_subscriptions").insert({
-    user_id: userId,
-    endpoint,
-    p256dh: p256dh,
-    auth: authSecret,
-    updated_at: new Date().toISOString(),
-  });
+  // Upsert: re-guardar al abrir la app recupera suscripciones borradas por 410 en el servidor.
+  const { error } = await supabase.from("push_subscriptions").upsert(
+    {
+      user_id: userId,
+      endpoint,
+      p256dh: keys.p256dh,
+      auth: keys.auth,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "user_id,endpoint" },
+  );
   if (error) {
-    // 23505 = unique_violation (ya existe fila para (user_id, endpoint)).
-    if (error.code === "23505") {
-      console.warn("[pushNotifications] subscription already exists for endpoint", endpoint);
-      return;
-    }
     console.error("[pushNotifications] saveSubscriptionToSupabase", error);
     throw error;
   }

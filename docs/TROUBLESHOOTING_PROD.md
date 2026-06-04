@@ -54,8 +54,17 @@ En el proyecto de Vercel, **Settings** → **Environment Variables**:
 
 - `REACT_APP_SUPABASE_URL` → URL del proyecto de **producción** (ej: `https://clgxrxlccjjqxzvapfav.supabase.co`)
 - `REACT_APP_SUPABASE_ANON_KEY` → `anon` key del proyecto de **producción**
+- `REACT_APP_VAPID_PUBLIC_KEY` → clave pública del **mismo par** que `VAPID_PRIVATE_KEY` en Supabase prod (ver `docs/PUSH_VAPID_Y_DEPLOY.md`). Usá **Production** con un valor distinto al de Preview si cada ambiente tiene su propio proyecto Supabase.
 
 Si apuntan al proyecto de dev, vas a tener datos mezclados o errores raros.
+
+### 3b. Push notifications no llegan
+
+1. **VAPID alineado:** la pública en Vercel debe corresponder al JWK privado en Supabase (Edge Functions → Secrets → `VAPID_PRIVATE_KEY`). Si rotaste claves: `node scripts/push-set-vapid-secrets.js --file .vapid-keys.local.json` y `npm run push:deploy`.
+2. **Suscripciones:** en prod, SQL Editor: `SELECT user_id, updated_at FROM push_subscriptions;` — si está vacío, en la app **Más → Activar notificaciones** (permiso concedido, iPhone con PWA instalada).
+3. **Push de prueba (sin venta):** copiá `.env.push.local.example` → `.env.push.local` con la `service_role` de prod, luego `npm run push:test:prod`. Solo listar suscripciones: `npm run push:test:prod -- --list`. Un usuario: `npm run push:test:prod -- --user=<uuid>`.
+4. **Logs:** Supabase → Edge Functions → `send-push` / `notify-event` tras registrar una venta online.
+5. **Sentry:** buscá mensajes con tag `area:push` (`sent=0`, invoke failed).
 
 ### 4. URL de producción en Supabase Auth
 

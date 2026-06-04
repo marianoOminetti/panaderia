@@ -11,7 +11,6 @@ import { useStockMutations } from "./hooks/useStockMutations";
 import { useVentas } from "./hooks/useVentas";
 import { usePlanResumen } from "./hooks/usePlanResumen";
 import { useSyncVentasPendientes } from "./hooks/useSyncVentasPendientes";
-import { usePushSubscription } from "./hooks/usePushSubscription";
 import { useScrollToHide } from "./hooks/useScrollToHide";
 import { MORE_MENU_ITEMS, NAV_TABS } from "./config/nav";
 import { canAccessTab, getAllowedTabs, getDefaultTabForRole, normalizeRole } from "./config/permissions";
@@ -130,8 +129,6 @@ export default function App() {
     });
 
   const { deleteVentas } = useVentas();
-
-  usePushSubscription(session?.user?.id);
 
   const resumenPlanSemanal = usePlanResumen({
     recetas,
