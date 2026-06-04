@@ -19,6 +19,8 @@ import { agruparVentas, gruposConDeuda as getGruposConDeuda, totalDebeEnGrupo } 
 import { filtrarVentasPorFechaRango } from "../../lib/ventasFiltroFecha";
 import { notifyEvent } from "../../lib/notifyEvent";
 import { isVentaRole as checkVentaRole } from "../../config/permissions";
+import { registrarEnAfip as invokeRegistrarEnAfip } from "../../lib/registrarEnAfip";
+import { useFacturasElectronicas } from "../../hooks/useFacturasElectronicas";
 import VentasList from "./VentasList";
 import VentasChargeModal from "./VentasChargeModal";
 import VentasManualScreen from "./VentasManualScreen";
@@ -46,6 +48,7 @@ function Ventas({
 }) {
   const { insertVentas, deleteVentas, updateVenta } = useVentas();
   const { insertCliente, insertPedidos } = useClientes({ onRefresh, showToast });
+  const { facturasByTransaccion, refreshFacturas } = useFacturasElectronicas();
 
   const {
     cartItems,
@@ -70,6 +73,7 @@ function Ventas({
   const [senia, setSenia] = useState("");
   const [horaEntrega, setHoraEntrega] = useState("");
   const [notas, setNotas] = useState("");
+  const [registrarEnAfip, setRegistrarEnAfip] = useState(false);
   const [isPedidoFlow, setIsPedidoFlow] = useState(false);
   const {
     chargeModalOpen,
@@ -180,6 +184,22 @@ function Ventas({
     closeChargeModal();
   };
 
+  const registrarAfipDesdeVenta = async (transaccionId) => {
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      showToast("Necesitás conexión para registrar en AFIP");
+      return;
+    }
+    const afip = await invokeRegistrarEnAfip(transaccionId);
+    await refreshFacturas();
+    if (afip.ok) {
+      showToast(
+        afip.mock ? "✅ Registrado en AFIP (prueba)" : "✅ Registrado en AFIP",
+      );
+    } else {
+      showToast(`⚠️ AFIP: ${(afip.error || "error").slice(0, 80)}`);
+    }
+  };
+
   const resetNuevaVenta = () => {
     setManualScreenOpen(false);
     setCartItems([]);
@@ -191,6 +211,7 @@ function Ventas({
     setSenia("");
     setHoraEntrega("");
     setNotas("");
+    setRegistrarEnAfip(false);
     closeChargeModal();
     setIsPedidoFlow(false);
   };
@@ -413,6 +434,11 @@ function Ventas({
           return;
         }
         const promoLabel = promoResult.aplicadas.map((a) => a.nombre).join(", ");
+        if (registrarEnAfip && typeof navigator !== "undefined" && !navigator.onLine) {
+          showToast("Para registrar en AFIP necesitás conexión. Desmarcá la opción o volvé a intentar online.");
+          setSaving(false);
+          return;
+        }
         if (typeof navigator !== "undefined" && !navigator.onLine) {
           await saveVentaPendiente(rows);
           showToast(
@@ -420,9 +446,27 @@ function Ventas({
           );
         } else {
           await registrarVentaEnSupabase(rows, transaccionId);
-          showToast(
-            `✅ Venta registrada: ${fmt(totalCobrado)}${promoLabel ? ` · ${promoLabel}` : ""}`,
-          );
+          let toastMsg = `✅ Venta registrada: ${fmt(totalCobrado)}${promoLabel ? ` · ${promoLabel}` : ""}`;
+          if (registrarEnAfip) {
+            try {
+              const afip = await invokeRegistrarEnAfip(transaccionId);
+              await refreshFacturas();
+              if (afip.ok) {
+                toastMsg += afip.mock
+                  ? " · AFIP (prueba)"
+                  : " · Registrado en AFIP";
+              } else {
+                const detalle = afip.error
+                  ? String(afip.error).slice(0, 120)
+                  : "no se pudo registrar";
+                toastMsg += ` · AFIP: ${detalle}`;
+              }
+            } catch (afipErr) {
+              reportError(afipErr, { action: "registrarEnAfip", transaccionId });
+              toastMsg += " · AFIP: error de conexión (la venta sí quedó guardada)";
+            }
+          }
+          showToast(toastMsg);
         }
       }
       resetNuevaVenta();
@@ -489,6 +533,8 @@ function Ventas({
         abrirEditar={abrirEditar}
         deletingId={deletingId}
         isVentaRole={isVentaRole}
+        facturasByTransaccion={facturasByTransaccion}
+        onRegistrarAfip={registrarAfipDesdeVenta}
       />
 
       {!manualScreenOpen && (
@@ -574,6 +620,8 @@ function Ventas({
         notas={notas}
         setNotas={setNotas}
         allowPedidos={!isVentaRole}
+        registrarEnAfip={registrarEnAfip}
+        setRegistrarEnAfip={setRegistrarEnAfip}
       />
     </div>
   );

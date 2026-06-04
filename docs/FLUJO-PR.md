@@ -42,3 +42,19 @@ En GitHub: **Settings** → **Branches** → **Add branch protection rule** para
 - Do not allow bypassing the above settings
 
 Así solo código estable (vía PR desde `develop`) llega a producción.
+
+## Agentes antes de prod
+
+- Abrís PR `develop` → `master` y en el chat decís **«mergemos»** → corre **pr-gatekeeper** (contador janitor **N/5**; si `janitorDue`, primero **code-janitor**).
+- No mergear a `master` en la misma respuesta que el primer «mergemos» sin veredicto **Listo para merge**.
+- Detalle: `docs/AGENTES-CURSOR.md`.
+
+## AFIP a producción (checklist post-merge)
+
+1. `npm run db:push:prod`
+2. `supabase link --project-ref clgxrxlccjjqxzvapfav && supabase functions deploy registrar-en-afip`
+3. `AFIP_PRODUCTION=true npm run afip:setup:local` (certificados en `.afip-local/`)
+4. Confirmar que **no** quede `AFIP_ALLOW_MOCK=true` en secrets de prod
+5. Smoke: cobro con «Registrar en AFIP» en la app de producción
+
+Staging ya usa el proyecto dev `xdiggsdjmmylkvephyod`; ver `docs/AFIP_SETUP.md`.

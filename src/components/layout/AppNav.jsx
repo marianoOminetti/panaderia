@@ -13,7 +13,7 @@ export default function AppNav({
   navTabs = NAV_TABS,
 }) {
   return (
-    <nav className={`nav ${visible ? "" : "nav--hidden"}`} aria-hidden={!visible}>
+    <nav className={`nav ${visible ? "" : "nav--hidden"}`} aria-hidden={!visible} aria-label="Navegación principal">
       {navTabs.map((t) => {
         const isActive = t.id === "more" ? isMoreSection : tab === t.id;
         return (
@@ -24,7 +24,7 @@ export default function AppNav({
           >
             <span className="nav-icon">{t.icon}</span>
             <span className="nav-label">
-              {t.label}
+              <span className="nav-label-copy">{t.label}</span>
               {t.id === "stock" && sinStockCount > 0 && (
                 <span className="nav-badge-stock">{sinStockCount}</span>
               )}

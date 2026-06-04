@@ -9,6 +9,13 @@ import { useFilterVentasGrupos } from "../../hooks/useFilterVentasGrupos";
 import { VENTA_LIST_MAX_GROUPS } from "../../config/permissions";
 import VentasListFilters from "./VentasListFilters";
 import ShareTicketModal from "../shared/ShareTicketModal";
+import FacturaFiscalModal from "../shared/FacturaFiscalModal";
+import {
+  getTransaccionIdFromGrupo,
+  facturaListaParaPdf,
+  facturaPuedeReintentarAfip,
+  buildFacturaFiscalData,
+} from "../../lib/facturaFiscal";
 
 function formatRelDia(d, hoyDate) {
   if (!d || Number.isNaN(d.getTime())) return "";
@@ -70,6 +77,8 @@ export default function VentasList({
   abrirEditar,
   deletingId,
   isVentaRole = false,
+  facturasByTransaccion = {},
+  onRegistrarAfip,
 }) {
   const hoyDate = new Date(hoy);
   const gruposAll = agruparVentas(ventas || []);
@@ -78,6 +87,8 @@ export default function VentasList({
     : gruposAll;
   const [search, setSearch] = useState("");
   const [shareGrupo, setShareGrupo] = useState(null);
+  const [facturaFiscalData, setFacturaFiscalData] = useState(null);
+  const [afipLoadingTx, setAfipLoadingTx] = useState(null);
   const filteredGrupos = useFilterVentasGrupos(grupos, recetas, clientes, search);
 
   const buildShareData = (grupo) => {
@@ -252,6 +263,11 @@ export default function VentasList({
                 fechaHoraTxt = `${diaTxt} · ${horaTxt}`;
               }
             }
+            const transaccionId = getTransaccionIdFromGrupo(grupo);
+            const factura = transaccionId
+              ? facturasByTransaccion[transaccionId]
+              : null;
+            const puedePdf = factura && facturaListaParaPdf(factura);
             const medio = ejemplo?.medio_pago || "efectivo";
             const estado = ejemplo?.estado_pago || "pagado";
             const medioTxt =
@@ -332,6 +348,29 @@ export default function VentasList({
                 {!isVentaRole && (
                   <div className="venta-grupo-total">
                     Total: {fmt(grupo.total)}
+                    {factura?.estado === "autorizada" && (
+                      <span
+                        style={{
+                          marginLeft: 8,
+                          fontSize: 10,
+                          color: "var(--green)",
+                          fontWeight: 600,
+                        }}
+                      >
+                        AFIP
+                      </span>
+                    )}
+                    {factura?.estado === "mock" && (
+                      <span
+                        style={{
+                          marginLeft: 8,
+                          fontSize: 10,
+                          color: "var(--text-muted)",
+                        }}
+                      >
+                        AFIP prueba
+                      </span>
+                    )}
                   </div>
                 )}
                 <div className="venta-grupo-actions">
@@ -344,10 +383,50 @@ export default function VentasList({
                         e.preventDefault();
                         setShareGrupo(grupo);
                       }}
+                      title="Compartir comprobante"
                     >
                       📤
                     </button>
                   )}
+                  {!isVentaRole && transaccionId && puedePdf && (
+                    <button
+                      type="button"
+                      className="btn-venta-action"
+                      title="Factura AFIP"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        setFacturaFiscalData(
+                          buildFacturaFiscalData(grupo, factura, recetas, clientes),
+                        );
+                      }}
+                    >
+                      📄
+                    </button>
+                  )}
+                  {!isVentaRole &&
+                    transaccionId &&
+                    onRegistrarAfip &&
+                    facturaPuedeReintentarAfip(factura) && (
+                      <button
+                        type="button"
+                        className="btn-venta-action"
+                        title="Registrar en AFIP"
+                        disabled={afipLoadingTx === transaccionId}
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          e.preventDefault();
+                          setAfipLoadingTx(transaccionId);
+                          try {
+                            await onRegistrarAfip(transaccionId);
+                          } finally {
+                            setAfipLoadingTx(null);
+                          }
+                        }}
+                      >
+                        {afipLoadingTx === transaccionId ? "…" : "AFIP"}
+                      </button>
+                    )}
                   <button
                     className="btn-venta-action"
                     onClick={(e) => {
@@ -395,6 +474,13 @@ export default function VentasList({
           type="venta"
           data={buildShareData(shareGrupo)}
           onClose={() => setShareGrupo(null)}
+        />
+      )}
+
+      {facturaFiscalData && (
+        <FacturaFiscalModal
+          data={facturaFiscalData}
+          onClose={() => setFacturaFiscalData(null)}
         />
       )}
     </>

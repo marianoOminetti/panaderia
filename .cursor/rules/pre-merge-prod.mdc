@@ -1,0 +1,25 @@
+---
+description: Merge a producción (master) — pr-gatekeeper obligatorio; ver también regla mergemos-gatekeeper
+alwaysApply: true
+---
+
+# Gatekeeper de producción
+
+Complementa **mergemos-gatekeeper**: cualquier intención de merge a prod exige el mismo flujo.
+
+## Disparadores
+
+1. **Palabra `mergemos`** (y variantes) → ver regla `mergemos-gatekeeper` — **primera acción = pr-gatekeeper**.
+2. También: merge a prod/master, release, deploy prod, PR base `master`, «subir a producción».
+
+## Flujo (orden fijo)
+
+1. Invocar **pr-gatekeeper** de inmediato.
+2. No mergear hasta resultado **Listo para merge**.
+3. Si no hay PR a `master`, el gatekeeper lo crea o indica cómo; igual no mergear sin pasar por él.
+
+## Prohibido
+
+- Saltarse el gatekeeper.
+- Mergear en la misma respuesta que el primer «mergemos».
+- Sustituir el gatekeeper por qa-senior solo o por code-janitor.
