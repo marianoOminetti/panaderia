@@ -3,7 +3,9 @@ import { fmt } from "../../lib/format";
 
 const styles = {
   container: {
-    width: 320,
+    width: "100%",
+    maxWidth: 320,
+    boxSizing: "border-box",
     backgroundColor: "#ffffff",
     fontFamily: "'Outfit', -apple-system, BlinkMacSystemFont, sans-serif",
     padding: 20,
