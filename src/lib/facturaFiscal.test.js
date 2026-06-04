@@ -71,6 +71,8 @@ describe("buildFacturaFiscalData", () => {
       cae: "123",
       emisor_cuit: "20123456786",
       receptor_cuit: "20987654326",
+      receptor_doc_tipo: 80,
+      receptor_doc_nro: "20987654326",
       receptor_razon_social: "Empresa",
       importe_total: 1000,
       punto_venta: 1,
@@ -80,7 +82,8 @@ describe("buildFacturaFiscalData", () => {
       { id: "c1", nombre: "Otro" },
     ]);
     expect(data.receptorRazon).toBe("Empresa");
-    expect(data.receptorCuit).toBe("20-98765432-6");
+    expect(data.receptorDocEtiqueta).toBe("CUIT");
+    expect(data.receptorDocDisplay).toBe("20-98765432-6");
     expect(data.esConsumidorFinal).toBe(false);
     expect(data.comprobanteNumero).toBe("00001-00000042");
     expect(data.emisorCuit).toBe("20-12345678-6");
@@ -114,6 +117,28 @@ describe("buildFacturaFiscalData", () => {
     expect(tot2.descuento).toBe(250);
     expect(tot2.descuentoLabel).toBe("Promo: 5x4");
     expect(tot2.total).toBe(500);
+  });
+
+  test("comprobante con DNI en snapshot", () => {
+    const grupo = {
+      total: 1000,
+      rawItems: [{ fecha: "2026-06-04", receta_id: "r1", cantidad: 1, precio_unitario: 1000 }],
+    };
+    const factura = {
+      estado: "autorizada",
+      cae: "123",
+      receptor_doc_tipo: 96,
+      receptor_doc_nro: "35123456",
+      receptor_razon_social: "Ana López",
+      importe_total: 1000,
+      punto_venta: 1,
+      numero_comprobante: 1,
+      emisor_cuit: "20123456786",
+    };
+    const data = buildFacturaFiscalData(grupo, factura, [], []);
+    expect(data.receptorDocEtiqueta).toBe("DNI");
+    expect(data.receptorDocDisplay).toBe("35123456");
+    expect(data.esConsumidorFinal).toBe(false);
   });
 
   test("genera qrUrl con emisor_cuit de la factura", () => {
