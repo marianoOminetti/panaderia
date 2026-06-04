@@ -10,7 +10,12 @@ import { FormInput } from "../ui";
 function ClienteFormModal({ visible, onClose, clientes, onRefresh, showToast }) {
   const { insertCliente } = useClientes({ onRefresh, showToast });
 
-  const [form, setForm] = useState({ nombre: "", telefono: "" });
+  const [form, setForm] = useState({
+    nombre: "",
+    telefono: "",
+    cuit: "",
+    razon_social: "",
+  });
   const [saving, setSaving] = useState(false);
   const [importingMultiple, setImportingMultiple] = useState(false);
   const [importProgress, setImportProgress] = useState({
@@ -39,12 +44,15 @@ function ClienteFormModal({ visible, onClose, clientes, onRefresh, showToast }) 
     }
     setSaving(true);
     try {
+      const cuitNorm = form.cuit.replace(/\D/g, "").slice(0, 11);
       await insertCliente({
         nombre: form.nombre.trim(),
         telefono: telNorm || null,
+        cuit: cuitNorm || null,
+        razon_social: form.razon_social.trim() || null,
       });
       onClose();
-      setForm({ nombre: "", telefono: "" });
+      setForm({ nombre: "", telefono: "", cuit: "", razon_social: "" });
     } catch (error) {
       reportError(error, { action: "saveCliente", form: { ...form } });
       showToast(
@@ -129,6 +137,21 @@ function ClienteFormModal({ visible, onClose, clientes, onRefresh, showToast }) 
           value={form.telefono}
           onChange={(v) => setForm({ ...form, telefono: v })}
           placeholder="+54 11 1234-5678"
+        />
+        <FormInput
+          label="Razón social (opcional, factura AFIP)"
+          value={form.razon_social}
+          onChange={(v) => setForm({ ...form, razon_social: v })}
+          placeholder="Como figura en AFIP"
+        />
+        <FormInput
+          label="CUIT (opcional)"
+          value={form.cuit}
+          onChange={(v) =>
+            setForm({ ...form, cuit: v.replace(/\D/g, "").slice(0, 11) })
+          }
+          placeholder="11 dígitos"
+          inputMode="numeric"
         />
         <div className="form-group">
           <label className="form-label">

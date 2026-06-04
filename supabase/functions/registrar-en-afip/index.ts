@@ -4,11 +4,13 @@
  * Registra un comprobante electrónico en AFIP para una venta (transaccion_id).
  * No genera PDF; solo solicita CAE y persiste el resultado.
  *
- * Body: { transaccion_id: string }
+ * Body: { transaccion_id: string, receptor?: { cuit?: string|null, razon_social?: string } }
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { emitWsfe } from "./wsfe.ts";
+import { resolveReceptorFiscal } from "./receptor.ts";
+import type { ReceptorFiscal } from "./receptor.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -110,7 +112,7 @@ async function emitMock(importeTotal: number): Promise<EmitResult> {
 async function emitTusFacturas(
   ventas: VentaRow[],
   importeTotal: number,
-  cliente: { nombre?: string } | null,
+  receptor: ReceptorFiscal,
 ): Promise<EmitResult> {
   const detalle = ventas.map((v) => ({
     descripcion: v.recetas?.nombre || "Producto",
@@ -119,13 +121,16 @@ async function emitTusFacturas(
     alicuota: 0,
   }));
 
+  const docTipo = receptor.cuit ? "CUIT" : "OTRO";
+  const docNro = receptor.cuit || "0";
+
   const payload = {
     usertoken: TUSFACTURAS_USER_TOKEN,
     apikey: TUSFACTURAS_API_KEY,
     cliente: {
-      documento_tipo: "OTRO",
-      documento_nro: "0",
-      razon_social: cliente?.nombre || "Consumidor Final",
+      documento_tipo: docTipo,
+      documento_nro: docNro,
+      razon_social: receptor.razon_social,
       condicion_iva: "CF",
       domicilio: "",
       email: "",
@@ -177,15 +182,15 @@ async function emitTusFacturas(
 
 async function emitirComprobante(
   ventas: VentaRow[],
-  cliente: { nombre?: string } | null,
+  receptor: ReceptorFiscal,
   provider: "mock" | "tusfacturas" | "wsfe",
 ): Promise<EmitResult> {
   const importeTotal = ventas.reduce((s, v) => s + lineTotal(v), 0);
   if (provider === "wsfe") {
-    return emitWsfe(ventas, importeTotal, AFIP_PUNTO_VENTA);
+    return emitWsfe(ventas, importeTotal, AFIP_PUNTO_VENTA, receptor);
   }
   if (provider === "tusfacturas") {
-    return emitTusFacturas(ventas, importeTotal, cliente);
+    return emitTusFacturas(ventas, importeTotal, receptor);
   }
   return emitMock(importeTotal);
 }
@@ -228,7 +233,10 @@ Deno.serve(async (req) => {
     );
   }
 
-  let body: { transaccion_id?: string };
+  let body: {
+    transaccion_id?: string;
+    receptor?: { cuit?: string | null; razon_social?: string };
+  };
   try {
     body = await req.json();
   } catch {
@@ -273,7 +281,7 @@ Deno.serve(async (req) => {
   const { data: existente } = await supabaseAdmin
     .from("facturas_electronicas")
     .select(
-      "estado, cae, cae_vencimiento, numero_comprobante, punto_venta, importe_total, error_mensaje, updated_at",
+      "estado, cae, cae_vencimiento, numero_comprobante, punto_venta, importe_total, error_mensaje, updated_at, receptor_cuit, receptor_razon_social",
     )
     .eq("transaccion_id", transaccionId)
     .maybeSingle();
@@ -329,7 +337,7 @@ Deno.serve(async (req) => {
     );
   }
 
-  let cliente: { nombre?: string } | null = null;
+  let clienteNombre: string | null = null;
   const clienteId = ventas[0]?.cliente_id;
   if (clienteId) {
     const { data: c } = await supabaseAdmin
@@ -337,8 +345,24 @@ Deno.serve(async (req) => {
       .select("nombre")
       .eq("id", clienteId)
       .maybeSingle();
-    cliente = c;
+    clienteNombre = c?.nombre ?? null;
   }
+
+  const fromBody = body.receptor != null;
+  const receptorCuit = fromBody
+    ? body.receptor?.cuit != null && String(body.receptor.cuit).trim() !== ""
+      ? String(body.receptor.cuit).replace(/\D/g, "")
+      : null
+    : existente?.receptor_cuit ?? null;
+  const receptorRazon = fromBody
+    ? (body.receptor?.razon_social ?? "").trim() || null
+    : existente?.receptor_razon_social ?? null;
+
+  const receptor = resolveReceptorFiscal({
+    receptor_cuit: receptorCuit,
+    receptor_razon_social: receptorRazon,
+    cliente_nombre: clienteNombre,
+  });
 
   const { error: upsertErr } = await supabaseAdmin.from("facturas_electronicas").upsert(
     {
@@ -346,6 +370,8 @@ Deno.serve(async (req) => {
       importe_total: importeTotal,
       estado: "pendiente",
       error_mensaje: null,
+      receptor_cuit: receptor.cuit,
+      receptor_razon_social: receptor.razon_social,
       updated_at: new Date().toISOString(),
     },
     { onConflict: "transaccion_id" },
@@ -359,7 +385,7 @@ Deno.serve(async (req) => {
     );
   }
 
-  const emit = await emitirComprobante(ventas as VentaRow[], cliente, provider);
+  const emit = await emitirComprobante(ventas as VentaRow[], receptor, provider);
 
   if (!emit.ok) {
     console.error("[registrar-en-afip/emit]", transaccionId, emit.error);

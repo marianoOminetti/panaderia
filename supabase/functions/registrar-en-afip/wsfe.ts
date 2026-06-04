@@ -4,6 +4,7 @@
  */
 
 import { Arca, CbteTipo } from "npm:@ramiidv/arca-facturacion@2.0.0";
+import type { ReceptorFiscal } from "./receptor.ts";
 
 const WSAA_SOAP_ACTION = "urn:LoginCms";
 
@@ -104,6 +105,7 @@ export async function emitWsfe(
   _ventas: VentaRow[],
   importeTotal: number,
   puntoVenta: number,
+  receptor: ReceptorFiscal,
 ): Promise<WsfeEmitResult> {
   const cuit = parseInt(Deno.env.get("AFIP_CUIT") || "", 10);
   const cert = decodePem(
@@ -143,6 +145,9 @@ export async function emitWsfe(
       ptoVta: puntoVenta,
       cbteTipo: CbteTipo.FACTURA_C,
       items: [{ neto: impTotal }],
+      docTipo: receptor.doc_tipo,
+      docNro: receptor.doc_nro,
+      condicionIva: receptor.condicion_iva,
     });
 
     if (!result.aprobada) {

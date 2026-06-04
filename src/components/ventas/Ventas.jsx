@@ -20,6 +20,13 @@ import { filtrarVentasPorFechaRango } from "../../lib/ventasFiltroFecha";
 import { notifyEvent } from "../../lib/notifyEvent";
 import { isVentaRole as checkVentaRole } from "../../config/permissions";
 import { registrarEnAfip as invokeRegistrarEnAfip } from "../../lib/registrarEnAfip";
+import {
+  buildAfipReceptorPayload,
+  afipReceptorFromCliente,
+  buildAfipReceptorForRetry,
+  shouldPersistClienteFiscal,
+} from "../../lib/afipReceptor";
+import { getTransaccionIdFromGrupo, facturaPuedeReintentarAfip } from "../../lib/facturaFiscal";
 import { useFacturasElectronicas } from "../../hooks/useFacturasElectronicas";
 import VentasList from "./VentasList";
 import VentasChargeModal from "./VentasChargeModal";
@@ -47,7 +54,10 @@ function Ventas({
   promociones = [],
 }) {
   const { insertVentas, deleteVentas, updateVenta } = useVentas();
-  const { insertCliente, insertPedidos } = useClientes({ onRefresh, showToast });
+  const { insertCliente, insertPedidos, updateClienteDatosFiscales } = useClientes({
+    onRefresh,
+    showToast,
+  });
   const { facturasByTransaccion, refreshFacturas } = useFacturasElectronicas();
 
   const {
@@ -74,6 +84,17 @@ function Ventas({
   const [horaEntrega, setHoraEntrega] = useState("");
   const [notas, setNotas] = useState("");
   const [registrarEnAfip, setRegistrarEnAfip] = useState(false);
+  const [datosFiscalesAfip, setDatosFiscalesAfip] = useState({
+    cuit: "",
+    razon_social: "",
+  });
+  const [editRegistrarEnAfip, setEditRegistrarEnAfip] = useState(false);
+  const [editDatosFiscalesAfip, setEditDatosFiscalesAfip] = useState({
+    cuit: "",
+    razon_social: "",
+  });
+  const [editFacturaEstado, setEditFacturaEstado] = useState(null);
+  const [editPuedeRegistrarAfip, setEditPuedeRegistrarAfip] = useState(true);
   const [isPedidoFlow, setIsPedidoFlow] = useState(false);
   const {
     chargeModalOpen,
@@ -184,19 +205,62 @@ function Ventas({
     closeChargeModal();
   };
 
+  const persistirDatosFiscalesCliente = async (clienteId, receptor) => {
+    if (!clienteId || !shouldPersistClienteFiscal(receptor)) return;
+    try {
+      await updateClienteDatosFiscales(clienteId, {
+        cuit: receptor.cuit,
+        razon_social: receptor.razon_social,
+      });
+    } catch (err) {
+      reportError(err, { action: "persistirDatosFiscalesCliente", clienteId });
+    }
+  };
+
   const registrarAfipDesdeVenta = async (transaccionId) => {
     if (typeof navigator !== "undefined" && !navigator.onLine) {
       showToast("Necesitás conexión para registrar en AFIP");
       return;
     }
-    const afip = await invokeRegistrarEnAfip(transaccionId);
+    const receptor = buildAfipReceptorForRetry(
+      transaccionId,
+      facturasByTransaccion,
+      ventas,
+      clientes,
+    );
+    const afip = await invokeRegistrarEnAfip(transaccionId, receptor);
     await refreshFacturas();
     if (afip.ok) {
+      const venta = (ventas || []).find(
+        (v) => v.transaccion_id === transaccionId && v.cliente_id,
+      );
+      if (venta?.cliente_id) {
+        await persistirDatosFiscalesCliente(venta.cliente_id, receptor);
+      }
       showToast(
         afip.mock ? "✅ Registrado en AFIP (prueba)" : "✅ Registrado en AFIP",
       );
     } else {
       showToast(`⚠️ AFIP: ${(afip.error || "error").slice(0, 80)}`);
+    }
+  };
+
+  const prefillDatosFiscalesAfip = (clienteId, { force = false } = {}) => {
+    setDatosFiscalesAfip((prev) => {
+      const tieneDatos =
+        prev.cuit.length > 0 || (prev.razon_social || "").trim().length > 0;
+      if (!force && tieneDatos) return prev;
+      const cliente = (clientes || []).find((c) => c.id === clienteId);
+      return afipReceptorFromCliente(cliente);
+    });
+  };
+
+  const handleRegistrarEnAfipChange = (checked) => {
+    setRegistrarEnAfip(checked);
+    if (checked) {
+      prefillDatosFiscalesAfip(clienteSel, { force: true });
+    } else {
+      setDatosFiscalesAfip({ cuit: "", razon_social: "" });
     }
   };
 
@@ -212,6 +276,7 @@ function Ventas({
     setHoraEntrega("");
     setNotas("");
     setRegistrarEnAfip(false);
+    setDatosFiscalesAfip({ cuit: "", razon_social: "" });
     closeChargeModal();
     setIsPedidoFlow(false);
   };
@@ -298,9 +363,118 @@ function Ventas({
     }
   };
 
+  const initAfipEdicion = (grupo) => {
+    const transaccionId = getTransaccionIdFromGrupo(grupo);
+    const factura = transaccionId
+      ? facturasByTransaccion[transaccionId]
+      : null;
+    setEditFacturaEstado(factura?.estado ?? null);
+    setEditPuedeRegistrarAfip(facturaPuedeReintentarAfip(factura));
+    setEditRegistrarEnAfip(false);
+    const cliente = (clientes || []).find((c) => c.id === grupo?.cliente_id);
+    const desdeFactura = {
+      cuit: factura?.receptor_cuit || "",
+      razon_social: factura?.receptor_razon_social || "",
+    };
+    if (desdeFactura.cuit || desdeFactura.razon_social) {
+      setEditDatosFiscalesAfip({
+        cuit: String(desdeFactura.cuit).replace(/\D/g, "").slice(0, 11),
+        razon_social: desdeFactura.razon_social.trim(),
+      });
+    } else {
+      setEditDatosFiscalesAfip(afipReceptorFromCliente(cliente));
+    }
+  };
+
+  const handleEditRegistrarEnAfipChange = (checked) => {
+    setEditRegistrarEnAfip(checked);
+    if (checked && edit.editForm?.cliente_id) {
+      setEditDatosFiscalesAfip((prev) => {
+        const tieneDatos =
+          prev.cuit.length > 0 || (prev.razon_social || "").trim().length > 0;
+        if (tieneDatos) return prev;
+        const cliente = (clientes || []).find(
+          (c) => c.id === edit.editForm.cliente_id,
+        );
+        return afipReceptorFromCliente(cliente);
+      });
+    } else if (!checked) {
+      setEditDatosFiscalesAfip({ cuit: "", razon_social: "" });
+    }
+  };
+
   const abrirEditar = (grupo) => {
     edit.abrirEditar(grupo);
+    initAfipEdicion(grupo);
     setManualScreenOpen(true);
+  };
+
+  const guardarEdicionConAfip = async () => {
+    const transaccionId = getTransaccionIdFromGrupo(edit.editGrupo);
+    const factura = transaccionId
+      ? facturasByTransaccion[transaccionId]
+      : null;
+    const puedeAfip =
+      !isVentaRole &&
+      editRegistrarEnAfip &&
+      facturaPuedeReintentarAfip(factura);
+
+    if (puedeAfip && typeof navigator !== "undefined" && !navigator.onLine) {
+      showToast("Para registrar en AFIP necesitás conexión.");
+      return;
+    }
+
+    let afipReceptor = null;
+    if (puedeAfip) {
+      const built = buildAfipReceptorPayload(
+        editDatosFiscalesAfip,
+        edit.editForm?.cliente_id,
+        clientes,
+      );
+      if (!built.ok) {
+        showToast(built.error);
+        return;
+      }
+      afipReceptor = built.receptor;
+      const cliente = (clientes || []).find(
+        (c) => c.id === edit.editForm?.cliente_id,
+      );
+      const overrideNum =
+        edit.editTotalOverride !== "" &&
+        !Number.isNaN(
+          parseFloat(String(edit.editTotalOverride).replace(",", ".")),
+        )
+          ? parseFloat(String(edit.editTotalOverride).replace(",", "."))
+          : null;
+      const totalConfirm =
+        overrideNum != null && overrideNum >= 0
+          ? overrideNum
+          : edit.editCartPromos?.totalFinal ?? edit.editCartTotal;
+      const receptorTxt = factura?.receptor_razon_social?.trim();
+      const msg = [
+        `¿Registrar en AFIP esta venta por ${fmt(totalConfirm)}?`,
+        `Cliente: ${cliente?.nombre || "Consumidor final"}`,
+        receptorTxt || built.receptor.razon_social !== "Consumidor Final"
+          ? `Factura a: ${receptorTxt || built.receptor.razon_social}`
+          : null,
+      ]
+        .filter(Boolean)
+        .join("\n");
+      const ok = await confirm(msg);
+      if (!ok) return;
+    }
+
+    await edit.guardarEdicion(
+      puedeAfip
+        ? {
+            activo: true,
+            receptor: afipReceptor,
+            invokeAfip: invokeRegistrarEnAfip,
+            persistClienteFiscal: persistirDatosFiscalesCliente,
+            refreshFacturas,
+          }
+        : null,
+    );
   };
 
   useEffect(() => {
@@ -335,6 +509,10 @@ function Ventas({
     if (edit.editGrupo) {
       setManualScreenOpen(false);
       edit.closeEdit();
+      setEditRegistrarEnAfip(false);
+      setEditDatosFiscalesAfip({ cuit: "", razon_social: "" });
+      setEditFacturaEstado(null);
+      setEditPuedeRegistrarAfip(true);
     } else {
       resetNuevaVenta();
     }
@@ -363,6 +541,7 @@ function Ventas({
     const seniaEff = cobroPorDefecto ? "" : senia;
     const horaEntregaEff = cobroPorDefecto ? "" : horaEntrega;
     const notasEff = cobroPorDefecto ? "" : notas;
+    const afipActivo = registrarEnAfip && !cobroPorDefecto;
 
     const fechaFinal = fechaEntregaEff || hoyVenta;
     const esPedido = fechaFinal > hoyVenta;
@@ -434,10 +613,24 @@ function Ventas({
           return;
         }
         const promoLabel = promoResult.aplicadas.map((a) => a.nombre).join(", ");
-        if (registrarEnAfip && typeof navigator !== "undefined" && !navigator.onLine) {
+        if (afipActivo && typeof navigator !== "undefined" && !navigator.onLine) {
           showToast("Para registrar en AFIP necesitás conexión. Desmarcá la opción o volvé a intentar online.");
           setSaving(false);
           return;
+        }
+        let afipReceptor = null;
+        if (afipActivo) {
+          const built = buildAfipReceptorPayload(
+            datosFiscalesAfip,
+            clienteEff,
+            clientes,
+          );
+          if (!built.ok) {
+            showToast(built.error);
+            setSaving(false);
+            return;
+          }
+          afipReceptor = built.receptor;
         }
         if (typeof navigator !== "undefined" && !navigator.onLine) {
           await saveVentaPendiente(rows);
@@ -446,10 +639,13 @@ function Ventas({
           );
         } else {
           await registrarVentaEnSupabase(rows, transaccionId);
+          if (afipActivo && clienteEff && afipReceptor) {
+            await persistirDatosFiscalesCliente(clienteEff, afipReceptor);
+          }
           let toastMsg = `✅ Venta registrada: ${fmt(totalCobrado)}${promoLabel ? ` · ${promoLabel}` : ""}`;
-          if (registrarEnAfip) {
+          if (afipActivo) {
             try {
-              const afip = await invokeRegistrarEnAfip(transaccionId);
+              const afip = await invokeRegistrarEnAfip(transaccionId, afipReceptor);
               await refreshFacturas();
               if (afip.ok) {
                 toastMsg += afip.mock
@@ -535,6 +731,7 @@ function Ventas({
         isVentaRole={isVentaRole}
         facturasByTransaccion={facturasByTransaccion}
         onRegistrarAfip={registrarAfipDesdeVenta}
+        confirm={confirm}
       />
 
       {!manualScreenOpen && (
@@ -581,8 +778,28 @@ function Ventas({
         clientes={clientes}
         insertCliente={insertCliente}
         showToast={showToast}
-        onGuardar={edit.guardarEdicion}
+        onGuardar={guardarEdicionConAfip}
         editSaving={edit.editSaving}
+        showAfip={!isVentaRole}
+        editRegistrarEnAfip={editRegistrarEnAfip}
+        setEditRegistrarEnAfip={handleEditRegistrarEnAfipChange}
+        editDatosFiscalesAfip={editDatosFiscalesAfip}
+        setEditDatosFiscalesAfip={setEditDatosFiscalesAfip}
+        editFacturaEstado={editFacturaEstado}
+        editPuedeRegistrarAfip={editPuedeRegistrarAfip}
+        onEditClienteChange={(id) => {
+          edit.setEditForm((prev) => ({ ...prev, cliente_id: id }));
+          if (editRegistrarEnAfip) {
+            setEditDatosFiscalesAfip((prev) => {
+              const tieneDatos =
+                prev.cuit.length > 0 ||
+                (prev.razon_social || "").trim().length > 0;
+              if (tieneDatos) return prev;
+              const cliente = (clientes || []).find((c) => c.id === id);
+              return afipReceptorFromCliente(cliente);
+            });
+          }
+        }}
         editTotalOverride={edit.editTotalOverride}
         setEditTotalOverride={edit.setEditTotalOverride}
         editCartPromos={edit.editCartPromos}
@@ -622,7 +839,13 @@ function Ventas({
         allowPedidos={!isVentaRole}
         showAfip={!isVentaRole}
         registrarEnAfip={registrarEnAfip}
-        setRegistrarEnAfip={setRegistrarEnAfip}
+        setRegistrarEnAfip={handleRegistrarEnAfipChange}
+        datosFiscalesAfip={datosFiscalesAfip}
+        setDatosFiscalesAfip={setDatosFiscalesAfip}
+        onClienteSelChange={(id) => {
+          setClienteSel(id);
+          if (registrarEnAfip) prefillDatosFiscalesAfip(id);
+        }}
       />
     </div>
   );

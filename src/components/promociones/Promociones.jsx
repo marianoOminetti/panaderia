@@ -5,12 +5,16 @@ import { useState, useMemo } from "react";
 import { reportError } from "../../utils/errorReport";
 import { usePromociones } from "../../hooks/usePromociones";
 import { TIPOS_PROMO, etiquetaPromo, promoUsaProductos } from "../../lib/promociones";
-import { FormInput, FormMoneyInput, FormCheckbox } from "../ui";
+import { FormInput, FormMoneyInput, FormCheckbox, SearchableSelect } from "../ui";
 
 const TIPOS_OPCIONES = [
   { value: TIPOS_PROMO.NXM, label: "Llevá N / Pagá M (ej. 5×4)" },
   { value: TIPOS_PROMO.PORCENTAJE_PRODUCTOS, label: "% descuento en productos" },
   { value: TIPOS_PROMO.PORCENTAJE_MONTO_MINIMO, label: "% por monto mínimo de compra" },
+  {
+    value: TIPOS_PROMO.DESCUENTO_FIJO_UNIDAD,
+    label: "Descuento fijo por unidad ($)",
+  },
 ];
 
 const emptyForm = () => ({
@@ -20,6 +24,7 @@ const emptyForm = () => ({
   pagar: "4",
   porcentaje: "20",
   monto_minimo: "50000",
+  descuento_fijo: "1000",
   activa: true,
   receta_ids: [],
 });
@@ -53,6 +58,7 @@ export default function Promociones({ promociones, recetas, onRefresh, showToast
       pagar: String(p.pagar ?? 4),
       porcentaje: String(p.porcentaje ?? 20),
       monto_minimo: String(p.monto_minimo ?? 50000),
+      descuento_fijo: String(p.descuento_fijo ?? 1000),
       activa: p.activa !== false,
       receta_ids: [...(p.receta_ids || [])],
     });
@@ -106,6 +112,7 @@ export default function Promociones({ promociones, recetas, onRefresh, showToast
     let pagar;
     let porcentaje;
     let monto_minimo;
+    let descuento_fijo;
 
     if (tipo === TIPOS_PROMO.NXM) {
       llevar = parseInt(form.llevar, 10);
@@ -139,6 +146,16 @@ export default function Promociones({ promociones, recetas, onRefresh, showToast
         showToast("Ingresá un monto mínimo mayor a 0");
         return;
       }
+    } else if (tipo === TIPOS_PROMO.DESCUENTO_FIJO_UNIDAD) {
+      descuento_fijo = parseFloat(String(form.descuento_fijo).replace(",", "."));
+      if (!Number.isFinite(descuento_fijo) || descuento_fijo <= 0) {
+        showToast("Ingresá un descuento por unidad mayor a 0");
+        return;
+      }
+      if (!form.receta_ids?.length) {
+        showToast("Elegí al menos un producto");
+        return;
+      }
     }
 
     setSaving(true);
@@ -151,13 +168,22 @@ export default function Promociones({ promociones, recetas, onRefresh, showToast
         pagar,
         porcentaje,
         monto_minimo,
+        descuento_fijo,
         activa: form.activa,
         receta_ids: usaProductos ? form.receta_ids : [],
       });
       setModalOpen(false);
     } catch (err) {
       reportError(err, { action: "savePromocion", id: editId });
-      showToast("⚠️ Error al guardar promo");
+      const msg = String(err?.message || "");
+      const faltaColumna = /descuento_fijo/i.test(msg);
+      showToast(
+        faltaColumna
+          ? "⚠️ Falta migración en Supabase (columna descuento_fijo). Ver scripts/aplicar_migracion_promociones_descuento_fijo.sql"
+          : msg
+            ? `⚠️ ${msg.slice(0, 120)}`
+            : "⚠️ Error al guardar promo",
+      );
     } finally {
       setSaving(false);
     }
@@ -191,7 +217,7 @@ export default function Promociones({ promociones, recetas, onRefresh, showToast
     <div className="content">
       <p className="page-title">Promociones</p>
       <p className="page-subtitle">
-        Reglas automáticas al cobrar: 5×4, % en productos o % por monto mínimo
+        Reglas automáticas al cobrar: 5×4, % en productos, monto mínimo o $ fijo por unidad
       </p>
 
       <button type="button" className="btn-primary" style={{ marginBottom: 16 }} onClick={abrirNueva}>
@@ -302,18 +328,14 @@ export default function Promociones({ promociones, recetas, onRefresh, showToast
               <label className="form-label" style={{ display: "block", marginBottom: 6 }}>
                 Tipo de promo
               </label>
-              <select
-                className="form-input"
+              <SearchableSelect
+                options={TIPOS_OPCIONES}
                 value={form.tipo}
-                onChange={(e) => setForm((f) => ({ ...f, tipo: e.target.value }))}
+                onChange={(v) => setForm((f) => ({ ...f, tipo: v || TIPOS_PROMO.NXM }))}
+                placeholder="Elegí el tipo"
+                emptyMessage="Sin tipos"
                 style={{ marginBottom: 12 }}
-              >
-                {TIPOS_OPCIONES.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
+              />
 
               {form.tipo === TIPOS_PROMO.NXM && (
                 <div style={{ display: "flex", gap: 12 }}>
@@ -350,6 +372,20 @@ export default function Promociones({ promociones, recetas, onRefresh, showToast
                   onChange={(v) => setForm((f) => ({ ...f, monto_minimo: v }))}
                   placeholder="50000"
                 />
+              )}
+
+              {form.tipo === TIPOS_PROMO.DESCUENTO_FIJO_UNIDAD && (
+                <>
+                  <FormMoneyInput
+                    label="Descuento por unidad"
+                    value={form.descuento_fijo}
+                    onChange={(v) => setForm((f) => ({ ...f, descuento_fijo: v }))}
+                    placeholder="1000"
+                  />
+                  <p className="form-hint" style={{ marginTop: -8, marginBottom: 12 }}>
+                    Ej: tarta a $8.500 con $1.000 off → cobrás $7.500 por unidad.
+                  </p>
+                </>
               )}
 
               <FormCheckbox

@@ -1,4 +1,5 @@
-import { forwardRef } from "react";
+import { forwardRef, useEffect, useState } from "react";
+import QRCode from "qrcode";
 import { fmt } from "../../lib/format";
 
 const styles = {
@@ -73,6 +74,26 @@ const FacturaFiscalPreview = forwardRef(function FacturaFiscalPreview(
   const nro =
     data.numero != null ? String(data.numero).padStart(8, "0") : "—";
 
+  const [qrDataUrl, setQrDataUrl] = useState(null);
+
+  useEffect(() => {
+    if (!data.qrUrl) {
+      setQrDataUrl(null);
+      return;
+    }
+    let cancelled = false;
+    QRCode.toDataURL(data.qrUrl, { width: 128, margin: 1, errorCorrectionLevel: "M" })
+      .then((url) => {
+        if (!cancelled) setQrDataUrl(url);
+      })
+      .catch(() => {
+        if (!cancelled) setQrDataUrl(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [data.qrUrl]);
+
   return (
     <div ref={ref} style={styles.container}>
       <div style={styles.header}>
@@ -98,8 +119,14 @@ const FacturaFiscalPreview = forwardRef(function FacturaFiscalPreview(
           <strong>Fecha:</strong> {formatFecha(data.fecha || data.created_at)}
         </div>
         <div>
-          <strong>Cliente:</strong> {data.cliente}
+          <strong>Receptor:</strong>{" "}
+          {data.receptorRazon ?? data.cliente ?? "Consumidor final"}
         </div>
+        {data.receptorCuit ? (
+          <div>
+            <strong>CUIT:</strong> {data.receptorCuit}
+          </div>
+        ) : null}
       </div>
 
       {(data.items || []).map((item, idx) => (
@@ -116,6 +143,21 @@ const FacturaFiscalPreview = forwardRef(function FacturaFiscalPreview(
         <span>TOTAL</span>
         <span>{fmt(data.total)}</span>
       </div>
+
+      {qrDataUrl && (
+        <div style={{ textAlign: "center", marginTop: 12 }}>
+          <img
+            src={qrDataUrl}
+            alt="Código QR AFIP"
+            width={128}
+            height={128}
+            style={{ display: "block", margin: "0 auto" }}
+          />
+          <p style={{ fontSize: 9, color: "#666", marginTop: 4 }}>
+            Verificación AFIP/ARCA
+          </p>
+        </div>
+      )}
 
       {data.esMock && (
         <div style={styles.mockBanner}>COMPROBANTE DE PRUEBA — NO VÁLIDO FISCALMENTE</div>

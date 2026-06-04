@@ -6,6 +6,7 @@ import { SelectorCliente, SelectoresPago } from "./VentasSelectors";
 import { DatePicker, ProductSearchInput, FormMoneyInput } from "../ui";
 import { useFilterBySearch } from "../../hooks/useFilterBySearch";
 import PromosEnVentaPanel from "./PromosEnVentaPanel";
+import AfipReceptorFields from "./AfipReceptorFields";
 
 export default function VentasManualScreen({
   open,
@@ -45,6 +46,14 @@ export default function VentasManualScreen({
   editCartPromos,
   editPromosExcluidas = [],
   setEditPromosExcluidas,
+  showAfip = false,
+  editRegistrarEnAfip = false,
+  setEditRegistrarEnAfip,
+  editDatosFiscalesAfip,
+  setEditDatosFiscalesAfip,
+  editFacturaEstado = null,
+  editPuedeRegistrarAfip = true,
+  onEditClienteChange,
 }) {
   const recetasParaLista = useMemo(
     () => prepararRecetasParaVenta(recetas, ventas),
@@ -108,8 +117,9 @@ export default function VentasManualScreen({
           <div className="card" style={{ marginBottom: 16 }}>
             <SelectorCliente
               value={editForm?.cliente_id ?? null}
-              onChange={(v) =>
-                setEditForm?.((prev) => ({ ...prev, cliente_id: v }))
+              onChange={
+                onEditClienteChange ||
+                ((v) => setEditForm?.((prev) => ({ ...prev, cliente_id: v })))
               }
               clientes={clientes ?? []}
               insertCliente={insertCliente}
@@ -142,6 +152,17 @@ export default function VentasManualScreen({
             <p className="form-hint" style={{ marginTop: -8 }}>
               Dejalo vacío para usar el total con promos. Usalo para descuentos extra o redondeos.
             </p>
+            <AfipReceptorFields
+              showAfip={showAfip}
+              registrarEnAfip={editRegistrarEnAfip}
+              setRegistrarEnAfip={setEditRegistrarEnAfip}
+              datosFiscalesAfip={editDatosFiscalesAfip}
+              setDatosFiscalesAfip={setEditDatosFiscalesAfip}
+              clienteId={editForm?.cliente_id}
+              facturaEstado={editFacturaEstado}
+              puedeRegistrar={editPuedeRegistrarAfip}
+              disabled={editSaving}
+            />
           </div>
         )}
         <div className="card" style={{ marginBottom: 16 }}>

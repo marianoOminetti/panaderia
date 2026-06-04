@@ -240,7 +240,7 @@ export function useVentasEdit({
     }
   };
 
-  const guardarEdicion = async () => {
+  const guardarEdicion = async (afipOpts = null) => {
     if (!editGrupo || editSaving) return;
     setEditSaving(true);
     const fechaEdit = (editForm.fecha && editForm.fecha.slice(0, 10)) || hoy;
@@ -387,9 +387,31 @@ export function useVentasEdit({
         throw ventaErr;
       }
       const promoLabel = built.promoResult.aplicadas.map((a) => a.nombre).join(", ");
-      showToast(
-        `✅ Venta actualizada: ${fmt(built.totalCobrado)}${promoLabel ? ` · ${promoLabel}` : ""}`,
-      );
+      let toastMsg = `✅ Venta actualizada: ${fmt(built.totalCobrado)}${promoLabel ? ` · ${promoLabel}` : ""}`;
+
+      if (afipOpts?.activo && transaccionId) {
+        const clienteId = editForm.cliente_id;
+        if (afipOpts.receptor && clienteId && afipOpts.persistClienteFiscal) {
+          await afipOpts.persistClienteFiscal(clienteId, afipOpts.receptor);
+        }
+        try {
+          const afip = await afipOpts.invokeAfip(transaccionId, afipOpts.receptor);
+          if (afipOpts.refreshFacturas) await afipOpts.refreshFacturas();
+          if (afip?.ok) {
+            toastMsg += afip.mock ? " · AFIP (prueba)" : " · Registrado en AFIP";
+          } else {
+            const detalle = afip?.error
+              ? String(afip.error).slice(0, 120)
+              : "no se pudo registrar";
+            toastMsg += ` · AFIP: ${detalle}`;
+          }
+        } catch (afipErr) {
+          reportError(afipErr, { action: "registrarEnAfipEdicion", transaccionId });
+          toastMsg += " · AFIP: error de conexión (la venta sí quedó guardada)";
+        }
+      }
+
+      showToast(toastMsg);
       closeEdit();
       onRefresh();
     } catch (err) {
