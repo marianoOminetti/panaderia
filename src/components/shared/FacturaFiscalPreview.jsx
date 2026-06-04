@@ -157,6 +157,24 @@ const FacturaFiscalPreview = forwardRef(function FacturaFiscalPreview(
       </div>
 
       <div style={styles.fiscalBox}>
+        {data.emisorCuit ? (
+          <div>
+            <strong>CUIT emisor:</strong> {data.emisorCuit}
+          </div>
+        ) : null}
+        {data.emisorDomicilio ? (
+          <div>
+            <strong>Domicilio:</strong> {data.emisorDomicilio}
+          </div>
+        ) : null}
+        {data.emisorInicioActividades ? (
+          <div>
+            <strong>Inicio actividades:</strong> {data.emisorInicioActividades}
+          </div>
+        ) : null}
+        {(data.emisorCuit || data.emisorDomicilio || data.emisorInicioActividades) && (
+          <div style={{ borderBottom: "1px dashed #ccc", margin: "8px 0" }} />
+        )}
         <div>
           <strong>Pto. Vta.:</strong> {pv} · <strong>Nº:</strong> {nro}
         </div>
@@ -177,7 +195,7 @@ const FacturaFiscalPreview = forwardRef(function FacturaFiscalPreview(
         </div>
         {data.receptorCuit ? (
           <div>
-            <strong>CUIT:</strong> {data.receptorCuit}
+            <strong>CUIT receptor:</strong> {data.receptorCuit}
           </div>
         ) : null}
       </div>

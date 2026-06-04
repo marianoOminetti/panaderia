@@ -93,6 +93,7 @@ export default function FacturaFiscalPreviewDev() {
           <ul className="form-hint" style={{ marginTop: 12, maxWidth: 280 }}>
             <li>Logo Sin T.A.C.C. al final de cada producto</li>
             <li>Factura C · 00001-00000150</li>
+            <li>Emisor: CUIT, domicilio, inicio actividades</li>
             <li>QR con emisor_cuit de ejemplo (como en prod tras backfill)</li>
           </ul>
         </div>

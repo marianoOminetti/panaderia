@@ -69,7 +69,8 @@ describe("buildFacturaFiscalData", () => {
     const factura = {
       estado: "autorizada",
       cae: "123",
-      receptor_cuit: "20123456786",
+      emisor_cuit: "20123456786",
+      receptor_cuit: "20987654326",
       receptor_razon_social: "Empresa",
       importe_total: 1000,
       punto_venta: 1,
@@ -79,9 +80,12 @@ describe("buildFacturaFiscalData", () => {
       { id: "c1", nombre: "Otro" },
     ]);
     expect(data.receptorRazon).toBe("Empresa");
-    expect(data.receptorCuit).toBe("20-12345678-6");
+    expect(data.receptorCuit).toBe("20-98765432-6");
     expect(data.esConsumidorFinal).toBe(false);
     expect(data.comprobanteNumero).toBe("00001-00000042");
+    expect(data.emisorCuit).toBe("20-12345678-6");
+    expect(data.emisorDomicilio).toBe("San Carlos 266, La Banda");
+    expect(data.emisorInicioActividades).toBe("11/25");
   });
 
   test("líneas a precio lista y bloque subtotal/promo/total", () => {
