@@ -73,4 +73,22 @@ describe("buildFacturaFiscalData", () => {
     expect(data.receptorCuit).toBe("20-12345678-6");
     expect(data.esConsumidorFinal).toBe(false);
   });
+
+  test("genera qrUrl con emisor_cuit de la factura", () => {
+    const grupo = {
+      total: 70000,
+      rawItems: [{ fecha: "2026-06-04", receta_id: "r1", cantidad: 1, precio_unitario: 70000 }],
+    };
+    const factura = {
+      estado: "autorizada",
+      cae: "70417054367476",
+      importe_total: 70000,
+      punto_venta: 2,
+      numero_comprobante: 150,
+      emisor_cuit: "20123456786",
+      tipo_comprobante: 11,
+    };
+    const data = buildFacturaFiscalData(grupo, factura, [], []);
+    expect(data.qrUrl).toMatch(/^https:\/\/www\.afip\.gob\.ar\/fe\/qr\/\?p=/);
+  });
 });

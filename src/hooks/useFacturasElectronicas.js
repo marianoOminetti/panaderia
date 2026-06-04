@@ -11,7 +11,7 @@ export function useFacturasElectronicas({ enabled = true } = {}) {
     const { data, error } = await supabase
       .from("facturas_electronicas")
       .select(
-        "transaccion_id, estado, cae, cae_vencimiento, punto_venta, numero_comprobante, importe_total, error_mensaje, receptor_cuit, receptor_razon_social",
+        "transaccion_id, estado, cae, cae_vencimiento, punto_venta, numero_comprobante, importe_total, error_mensaje, receptor_cuit, receptor_razon_social, emisor_cuit, tipo_comprobante",
       );
     if (error) {
       console.error("[useFacturasElectronicas]", error);

@@ -23,6 +23,9 @@ const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY");
 
 const AFIP_PROVIDER = (Deno.env.get("AFIP_PROVIDER") || "").toLowerCase();
 const AFIP_CUIT = Deno.env.get("AFIP_CUIT") || "";
+const AFIP_CUIT_NORMALIZADO = AFIP_CUIT.replace(/\D/g, "").slice(0, 11);
+const AFIP_EMISOR_CUIT =
+  AFIP_CUIT_NORMALIZADO.length === 11 ? AFIP_CUIT_NORMALIZADO : null;
 const AFIP_PUNTO_VENTA = parseInt(Deno.env.get("AFIP_PUNTO_VENTA") || "1", 10);
 const AFIP_CERT = Deno.env.get("AFIP_CERT_B64") || Deno.env.get("AFIP_CERT");
 const AFIP_KEY = Deno.env.get("AFIP_KEY_B64") || Deno.env.get("AFIP_KEY");
@@ -422,6 +425,7 @@ Deno.serve(async (req) => {
       punto_venta: emit.punto_venta ?? null,
       numero_comprobante: emit.numero_comprobante ?? null,
       importe_total: emit.importe_total,
+      emisor_cuit: AFIP_EMISOR_CUIT,
       error_mensaje: null,
       updated_at: new Date().toISOString(),
     })
@@ -439,6 +443,7 @@ Deno.serve(async (req) => {
         punto_venta: emit.punto_venta ?? null,
         numero_comprobante: emit.numero_comprobante ?? null,
         importe_total: emit.importe_total,
+        emisor_cuit: AFIP_EMISOR_CUIT,
         error_mensaje: "CAE obtenido; falló guardado final. No reintentar sin revisar.",
         updated_at: new Date().toISOString(),
       })

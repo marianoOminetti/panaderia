@@ -89,3 +89,10 @@ export function getAfipCuitEmisor() {
   const n = normalizeCuitInput(raw);
   return n.length === 11 ? n : null;
 }
+
+/** CUIT emisor guardado al emitir, o fallback a env del build. */
+export function resolveEmisorCuit(factura) {
+  const fromDb = normalizeCuitInput(factura?.emisor_cuit || "");
+  if (fromDb.length === 11) return fromDb;
+  return getAfipCuitEmisor();
+}
