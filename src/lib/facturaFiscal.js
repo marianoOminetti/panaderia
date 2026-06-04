@@ -4,44 +4,75 @@ import {
   maskCuit,
   normalizeCuitInput,
 } from "./cuit";
+import {
+  detectAfipDocumento,
+  formatReceptorDocDisplay,
+  formatReceptorDocLabel,
+  maskDni,
+} from "./afipDocumento";
 import { resolveEmisorComprobante } from "./afipEmisor";
 import {
   AFIP_DOC_CONSUMIDOR_FINAL,
   AFIP_DOC_CUIT,
+  AFIP_DOC_DNI,
   AFIP_TIPO_FACTURA_C,
   buildAfipQrUrl,
   resolveEmisorCuit,
 } from "./afipQr";
 
-function buildReceptorResult(razon, cuitRaw) {
-  const cuitOk = cuitRaw.length === 11 && isValidCuit(cuitRaw);
+function buildReceptorFromDetected(razon, detected) {
   const razonTrim = (razon || "").trim();
-  const esCf =
-    !cuitOk &&
-    (!razonTrim ||
-      /^consumidor\s+final$/i.test(razonTrim));
-
-  if (esCf) {
+  if (detected.tipo === "cf") {
+    const esCf =
+      !razonTrim || /^consumidor\s+final$/i.test(razonTrim);
     return {
-      razon_social: "Consumidor final",
+      razon_social: esCf ? "Consumidor final" : razonTrim,
       cuit: null,
+      dni: null,
+      doc_tipo: detected.doc_tipo,
+      doc_nro: detected.doc_nro,
       cuit_display: null,
-      es_consumidor_final: true,
+      dni_display: null,
+      doc_etiqueta: null,
+      es_consumidor_final: esCf,
     };
   }
-
   return {
     razon_social: razonTrim || "Consumidor final",
-    cuit: cuitOk ? cuitRaw : null,
-    cuit_display: cuitOk ? formatCuitDisplay(cuitRaw) : null,
+    cuit: detected.cuit,
+    dni: detected.dni,
+    doc_tipo: detected.doc_tipo,
+    doc_nro: detected.doc_nro,
+    cuit_display: detected.cuit ? formatCuitDisplay(detected.cuit) : null,
+    dni_display: detected.dni || null,
+    doc_etiqueta: detected.etiqueta,
     es_consumidor_final: false,
   };
+}
+
+function snapshotDocumentoInput(factura) {
+  const tipo = factura?.receptor_doc_tipo != null
+    ? Number(factura.receptor_doc_tipo)
+    : null;
+  if (tipo === AFIP_DOC_DNI && factura?.receptor_doc_nro) {
+    return String(factura.receptor_doc_nro).replace(/\D/g, "");
+  }
+  if (factura?.receptor_cuit) {
+    return normalizeCuitInput(factura.receptor_cuit);
+  }
+  if (tipo === AFIP_DOC_CUIT && factura?.receptor_doc_nro) {
+    return normalizeCuitInput(factura.receptor_doc_nro);
+  }
+  return "";
 }
 
 /** Factura emitida con snapshot guardado en facturas_electronicas. */
 function facturaTieneSnapshotReceptor(factura) {
   if (!factura?.cae) return false;
   if (factura.receptor_cuit != null && factura.receptor_cuit !== "") {
+    return true;
+  }
+  if (factura.receptor_doc_nro != null && factura.receptor_doc_nro !== "") {
     return true;
   }
   const razon = (factura.receptor_razon_social ?? "").trim();
@@ -53,30 +84,84 @@ function facturaTieneSnapshotReceptor(factura) {
  * Si AFIP ya emitió con snapshot → solo snapshot (no mezclar CUIT nuevo de la ficha).
  * Sin snapshot → ficha cliente o nombre.
  */
-export function resolveReceptorComprobante(factura, cliente) {
-  if (facturaTieneSnapshotReceptor(factura)) {
-    return buildReceptorResult(
-      factura.receptor_razon_social,
-      normalizeCuitInput(factura.receptor_cuit),
-    );
+function buildReceptorFromFacturaSnapshot(factura) {
+  const tipo = factura?.receptor_doc_tipo != null
+    ? Number(factura.receptor_doc_tipo)
+    : null;
+  const nroRaw = String(factura?.receptor_doc_nro ?? "").replace(/\D/g, "");
+  const cuitRaw = normalizeCuitInput(factura?.receptor_cuit);
+  if (tipo === AFIP_DOC_DNI && nroRaw.length >= 7) {
+    return buildReceptorFromDetected(factura.receptor_razon_social, {
+      ok: true,
+      tipo: "dni",
+      doc_tipo: AFIP_DOC_DNI,
+      doc_nro: Number(nroRaw),
+      cuit: null,
+      dni: nroRaw,
+      etiqueta: "DNI",
+    });
   }
-
-  return buildReceptorResult(
-    (cliente?.razon_social || "").trim() ||
-      (cliente?.nombre || "").trim() ||
-      "",
-    normalizeCuitInput(cliente?.cuit),
+  if (
+    (tipo === AFIP_DOC_CUIT || cuitRaw.length === 11) &&
+    cuitRaw.length === 11 &&
+    isValidCuit(cuitRaw)
+  ) {
+    return buildReceptorFromDetected(factura.receptor_razon_social, {
+      ok: true,
+      tipo: "cuit",
+      doc_tipo: AFIP_DOC_CUIT,
+      doc_nro: Number(cuitRaw),
+      cuit: cuitRaw,
+      dni: null,
+      etiqueta: "CUIT",
+    });
+  }
+  const detected = detectAfipDocumento(snapshotDocumentoInput(factura));
+  if (detected.ok) {
+    return buildReceptorFromDetected(factura.receptor_razon_social, detected);
+  }
+  return buildReceptorFromDetected(
+    factura.receptor_razon_social,
+    detectAfipDocumento(""),
   );
 }
 
-/** Etiqueta corta (listas / WhatsApp) con CUIT enmascarado si aplica. */
+export function resolveReceptorComprobante(factura, cliente) {
+  if (facturaTieneSnapshotReceptor(factura)) {
+    return buildReceptorFromFacturaSnapshot(factura);
+  }
+
+  const docCliente = normalizeCuitInput(cliente?.cuit) ||
+    String(cliente?.dni ?? "").replace(/\D/g, "").slice(0, 11);
+  const detected = detectAfipDocumento(docCliente);
+  if (!detected.ok) {
+    return buildReceptorFromDetected(
+      (cliente?.razon_social || "").trim() || (cliente?.nombre || "").trim() || "",
+      detectAfipDocumento(""),
+    );
+  }
+  return buildReceptorFromDetected(
+    (cliente?.razon_social || "").trim() ||
+      (cliente?.nombre || "").trim() ||
+      "",
+    detected,
+  );
+}
+
+/** Etiqueta corta (listas / WhatsApp) con documento enmascarado si aplica. */
 export function formatClienteFiscalLabel(factura, clienteNombre, cliente) {
   const rec = resolveReceptorComprobante(
     factura,
     cliente ?? (clienteNombre ? { nombre: clienteNombre } : null),
   );
+  if (factura?.cae) {
+    return formatReceptorDocLabel(rec.razon_social, factura);
+  }
   if (rec.cuit) {
     return `${rec.razon_social} (CUIT ${maskCuit(rec.cuit)})`;
+  }
+  if (rec.dni) {
+    return `${rec.razon_social} (DNI ${maskDni(rec.dni)})`;
   }
   return rec.razon_social;
 }
@@ -173,14 +258,11 @@ export function buildFacturaFiscalData(
     totalFiscal,
   );
   const receptor = resolveReceptorComprobante(factura, cliente);
+  const docSnap = factura?.cae ? formatReceptorDocDisplay(factura) : null;
   const emisor = resolveEmisorComprobante(factura);
   const esMock = factura?.estado === "mock";
-  const tipoDocRec = receptor.cuit
-    ? AFIP_DOC_CUIT
-    : AFIP_DOC_CONSUMIDOR_FINAL;
-  const nroDocRec = receptor.cuit
-    ? Number(receptor.cuit)
-    : 0;
+  const tipoDocRec = receptor.doc_tipo ?? AFIP_DOC_CONSUMIDOR_FINAL;
+  const nroDocRec = receptor.doc_nro ?? 0;
   const qrUrl =
     !esMock && factura?.cae
       ? buildAfipQrUrl({
@@ -207,6 +289,13 @@ export function buildFacturaFiscalData(
     emisorInicioActividades: emisor.inicioActividades,
     receptorRazon: receptor.razon_social,
     receptorCuit: receptor.cuit_display,
+    receptorDni: receptor.dni_display,
+    receptorDocEtiqueta:
+      docSnap?.etiqueta || receptor.doc_etiqueta,
+    receptorDocDisplay:
+      docSnap?.display ||
+      receptor.cuit_display ||
+      receptor.dni_display,
     esConsumidorFinal: receptor.es_consumidor_final,
     subtotal,
     descuento,

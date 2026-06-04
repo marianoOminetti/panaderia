@@ -10,6 +10,7 @@ export const AFIP_QR_BASE_URL = "https://www.afip.gob.ar/fe/qr/";
 /** DocTipo AFIP (WSFE) */
 export const AFIP_DOC_CONSUMIDOR_FINAL = 99;
 export const AFIP_DOC_CUIT = 80;
+export const AFIP_DOC_DNI = 96;
 
 /** CbteTipo FACTURA_C */
 export const AFIP_TIPO_FACTURA_C = 11;

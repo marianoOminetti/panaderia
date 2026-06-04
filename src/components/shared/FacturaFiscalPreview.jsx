@@ -193,9 +193,10 @@ const FacturaFiscalPreview = forwardRef(function FacturaFiscalPreview(
           <strong>Receptor:</strong>{" "}
           {data.receptorRazon ?? data.cliente ?? "Consumidor final"}
         </div>
-        {data.receptorCuit ? (
+        {data.receptorDocDisplay && data.receptorDocEtiqueta ? (
           <div>
-            <strong>CUIT receptor:</strong> {data.receptorCuit}
+            <strong>{data.receptorDocEtiqueta} receptor:</strong>{" "}
+            {data.receptorDocDisplay}
           </div>
         ) : null}
       </div>

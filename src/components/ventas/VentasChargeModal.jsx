@@ -43,7 +43,7 @@ export default function VentasChargeModal({
   showAfip = true,
   registrarEnAfip,
   setRegistrarEnAfip,
-  datosFiscalesAfip = { cuit: "", razon_social: "" },
+  datosFiscalesAfip = { documento: "", razon_social: "" },
   setDatosFiscalesAfip,
   onClienteSelChange,
 }) {

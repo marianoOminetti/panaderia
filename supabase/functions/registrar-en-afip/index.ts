@@ -220,8 +220,12 @@ async function emitTusFacturas(
     alicuota: 0,
   }));
 
-  const docTipo = receptor.cuit ? "CUIT" : "OTRO";
-  const docNro = receptor.cuit || "0";
+  const docTipo = receptor.doc_tipo === 96
+    ? "DNI"
+    : receptor.cuit
+    ? "CUIT"
+    : "OTRO";
+  const docNro = receptor.dni || receptor.cuit || "0";
 
   const payload = {
     usertoken: TUSFACTURAS_USER_TOKEN,
@@ -334,7 +338,13 @@ Deno.serve(async (req) => {
 
   let body: {
     transaccion_id?: string;
-    receptor?: { cuit?: string | null; razon_social?: string };
+    receptor?: {
+      cuit?: string | null;
+      dni?: string | null;
+      doc_tipo?: number;
+      doc_nro?: number | string | null;
+      razon_social?: string;
+    };
   };
   try {
     body = await req.json();
@@ -380,7 +390,7 @@ Deno.serve(async (req) => {
   const { data: existente } = await supabaseAdmin
     .from("facturas_electronicas")
     .select(
-      "estado, cae, cae_vencimiento, numero_comprobante, punto_venta, importe_total, error_mensaje, updated_at, receptor_cuit, receptor_razon_social, tipo_comprobante",
+      "estado, cae, cae_vencimiento, numero_comprobante, punto_venta, importe_total, error_mensaje, updated_at, receptor_cuit, receptor_razon_social, receptor_doc_tipo, receptor_doc_nro, tipo_comprobante",
     )
     .eq("transaccion_id", transaccionId)
     .maybeSingle();
@@ -448,20 +458,34 @@ Deno.serve(async (req) => {
   }
 
   const fromBody = body.receptor != null;
-  const receptorCuit = fromBody
-    ? body.receptor?.cuit != null && String(body.receptor.cuit).trim() !== ""
-      ? String(body.receptor.cuit).replace(/\D/g, "")
-      : null
-    : existente?.receptor_cuit ?? null;
   const receptorRazon = fromBody
     ? (body.receptor?.razon_social ?? "").trim() || null
     : existente?.receptor_razon_social ?? null;
 
-  const receptor = resolveReceptorFiscal({
-    receptor_cuit: receptorCuit,
-    receptor_razon_social: receptorRazon,
-    cliente_nombre: clienteNombre,
-  });
+  const receptor = resolveReceptorFiscal(
+    fromBody
+      ? {
+        receptor_cuit: body.receptor?.cuit ?? null,
+        receptor_dni: body.receptor?.dni ?? null,
+        receptor_doc_tipo: body.receptor?.doc_tipo ?? null,
+        receptor_doc_nro: body.receptor?.doc_nro != null
+          ? String(body.receptor.doc_nro)
+          : null,
+        receptor_razon_social: receptorRazon,
+        cliente_nombre: clienteNombre,
+      }
+      : {
+        receptor_cuit: existente?.receptor_cuit ?? null,
+        receptor_doc_tipo: existente?.receptor_doc_tipo ?? null,
+        receptor_doc_nro: existente?.receptor_doc_nro ?? null,
+        receptor_razon_social: receptorRazon,
+        cliente_nombre: clienteNombre,
+      },
+  );
+
+  const docNroPersist = receptor.dni || receptor.cuit
+    ? String(receptor.doc_nro)
+    : null;
 
   const { error: upsertErr } = await supabaseAdmin.from("facturas_electronicas").upsert(
     {
@@ -471,6 +495,8 @@ Deno.serve(async (req) => {
       error_mensaje: null,
       receptor_cuit: receptor.cuit,
       receptor_razon_social: receptor.razon_social,
+      receptor_doc_tipo: receptor.doc_tipo,
+      receptor_doc_nro: docNroPersist,
       updated_at: new Date().toISOString(),
     },
     { onConflict: "transaccion_id" },

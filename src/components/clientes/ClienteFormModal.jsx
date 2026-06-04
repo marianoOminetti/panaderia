@@ -5,6 +5,7 @@ import {
   selectContactsFromPhoneMultiple,
 } from "../../lib/contacts";
 import { useClientes } from "../../hooks/useClientes";
+import { detectAfipDocumento } from "../../lib/afipDocumento";
 import { FormInput } from "../ui";
 
 function ClienteFormModal({ visible, onClose, clientes, onRefresh, showToast }) {
@@ -44,11 +45,18 @@ function ClienteFormModal({ visible, onClose, clientes, onRefresh, showToast }) 
     }
     setSaving(true);
     try {
-      const cuitNorm = form.cuit.replace(/\D/g, "").slice(0, 11);
+      const docRaw = form.cuit.replace(/\D/g, "").slice(0, 11);
+      const doc = detectAfipDocumento(docRaw);
+      if (!doc.ok && docRaw.length > 0) {
+        showToast(doc.error);
+        setSaving(false);
+        return;
+      }
       await insertCliente({
         nombre: form.nombre.trim(),
         telefono: telNorm || null,
-        cuit: cuitNorm || null,
+        cuit: doc.ok && doc.cuit ? doc.cuit : null,
+        dni: doc.ok && doc.dni ? doc.dni : null,
         razon_social: form.razon_social.trim() || null,
       });
       onClose();
@@ -145,12 +153,12 @@ function ClienteFormModal({ visible, onClose, clientes, onRefresh, showToast }) 
           placeholder="Como figura en AFIP"
         />
         <FormInput
-          label="CUIT (opcional)"
+          label="CUIT o DNI (opcional)"
           value={form.cuit}
           onChange={(v) =>
             setForm({ ...form, cuit: v.replace(/\D/g, "").slice(0, 11) })
           }
-          placeholder="11 dígitos"
+          placeholder="11 CUIT o 7–8 DNI"
           inputMode="numeric"
         />
         <div className="form-group">

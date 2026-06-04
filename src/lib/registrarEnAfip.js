@@ -12,6 +12,9 @@ export async function registrarEnAfip(transaccionId, receptor = null) {
     if (receptor) {
       body.receptor = {
         cuit: receptor.cuit ?? null,
+        dni: receptor.dni ?? null,
+        doc_tipo: receptor.doc_tipo ?? null,
+        doc_nro: receptor.doc_nro ?? null,
         razon_social: receptor.razon_social ?? null,
       };
     }

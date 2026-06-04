@@ -8,20 +8,19 @@ import { supabase } from "../lib/supabaseClient";
  */
 export function useClientes({ onRefresh, showToast } = {}) {
   const updateClienteDatosFiscales = useCallback(
-    async (id, { cuit, razon_social }) => {
-      const cuitNorm = cuit ? String(cuit).replace(/\D/g, "").slice(0, 11) : null;
-      const razon = (razon_social ?? "").trim() || null;
-      const { error } = await supabase
-        .from("clientes")
-        .update({
-          cuit: cuitNorm || null,
-          razon_social: razon,
-        })
-        .eq("id", id);
+    async (id, { cuit, dni, razon_social }) => {
+      const patch = { razon_social: (razon_social ?? "").trim() || null };
+      if (cuit != null && String(cuit).replace(/\D/g, "").length > 0) {
+        patch.cuit = String(cuit).replace(/\D/g, "").slice(0, 11);
+      }
+      if (dni != null && String(dni).replace(/\D/g, "").length > 0) {
+        patch.dni = String(dni).replace(/\D/g, "").slice(0, 8);
+      }
+      const { error } = await supabase.from("clientes").update(patch).eq("id", id);
       if (error) {
         console.error("[clientes/updateClienteDatosFiscales]", error);
         const msg = error.message || "";
-        if (/cuit|razon_social|schema cache/i.test(msg)) {
+        if (/cuit|dni|razon_social|schema cache/i.test(msg)) {
           const err = new Error(
             "Faltan columnas fiscales en la base. Ejecutá scripts/aplicar_migracion_afip_receptor.sql en Supabase.",
           );
@@ -36,14 +35,14 @@ export function useClientes({ onRefresh, showToast } = {}) {
   );
 
   const insertCliente = useCallback(
-    async ({ nombre, telefono, cuit, razon_social }, options = {}) => {
-      const cuitNorm = cuit ? String(cuit).replace(/\D/g, "").slice(0, 11) : null;
+    async ({ nombre, telefono, cuit, dni, razon_social }, options = {}) => {
       const { data, error } = await supabase
         .from("clientes")
         .insert({
           nombre: nombre.trim(),
           telefono: telefono || null,
-          cuit: cuitNorm || null,
+          cuit: cuit ? String(cuit).replace(/\D/g, "").slice(0, 11) : null,
+          dni: dni ? String(dni).replace(/\D/g, "").slice(0, 8) : null,
           razon_social: (razon_social ?? "").trim() || null,
         })
         .select("id")
