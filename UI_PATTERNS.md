@@ -1,6 +1,6 @@
 # UI Patterns — Panadería SG
-Última actualización: 2025-03-08
-Versión: 1.0
+Última actualización: 2026-06-06
+Versión: 1.1
 
 ## Stack visual
 - Framework: React
@@ -13,6 +13,32 @@ Versión: 1.0
 - `AppHeader` (src/components/layout/AppHeader.jsx) — cabecera con título, log errores, salir
 - `AppNav` (src/components/layout/AppNav.jsx) — barra inferior de pestañas (bottom nav)
 - `AppContent` — contenido por tab (dashboard, ventas, stock, etc.)
+- `SyncStatus` (src/components/ui/SyncStatus.jsx) — indicador inline de sync en background
+- `Toast` (src/components/ui/Toast.jsx) — confirmación efímera de acciones
+
+---
+
+## Patrón: Feedback de carga y sincronización
+
+Tres niveles según severidad y bloqueo:
+
+| Nivel | Cuándo | Componente / clase | Bloquea UI |
+|-------|--------|-------------------|------------|
+| **Full load** | Primera carga sin datos cacheados | `.loading` + `.spinner` + texto "Cargando..." | Sí |
+| **Background sync** | Datos parciales ya visibles; sync secundario (ej. ventas SWR) | `SyncStatus` (pill con `.spinner-sm`) | No |
+| **Acción puntual** | Guardar, eliminar, etc. | `Toast` o deshabilitar botón | No (toast) |
+
+### SyncStatus — reglas
+- Pill centrado arriba del tab activo, padding horizontal 16px (alineado con `.content`).
+- Fondo `--surface`, borde `--border`, sombra `--shadow`, texto `--text-muted` 12px.
+- Spinner reutiliza `.spinner` en variante `.spinner-sm` (14px).
+- Entrada con `syncStatusIn` (fade + slide 6px, 0.25s) — misma familia que toast `slideDown`.
+- Accesibilidad: `role="status"`, `aria-live="polite"`, `aria-busy="true"`.
+- Copy por defecto: **"Sincronizando ventas…"** (ellipsis unicode `…`).
+- Prop `message` opcional para otros syncs futuros.
+
+### Offline banner (referencia)
+- `.offline-banner` — amarillo, full width, aviso de conectividad (distinto de sync de datos).
 
 ---
 

@@ -5,6 +5,7 @@
  */
 import { lazy, Suspense } from "react";
 import { canAccessTab } from "../config/permissions";
+import { SyncStatus } from "./ui";
 
 const Dashboard = lazy(() => import("./dashboard/Dashboard"));
 const MoreMenuScreen = lazy(() => import("./menu/MoreMenuScreen"));
@@ -102,14 +103,7 @@ export default function AppContent({
   if (!canAccessTab(role, tab)) return null;
   return (
     <>
-      {ventasSyncing && (
-        <p
-          className="page-subtitle"
-          style={{ textAlign: "center", margin: "4px 0 8px", fontSize: 12, opacity: 0.75 }}
-        >
-          Sincronizando ventas…
-        </p>
-      )}
+      {ventasSyncing && <SyncStatus />}
       {/* --- Dashboard --- */}
       {tab === "dashboard" && (
         <LazyTab>
