@@ -20,7 +20,9 @@ export function useVentasEdit({
   actualizarStock,
   actualizarStockBatch,
   showToast,
-  onRefresh,
+  removeVentas,
+  replaceVentas,
+  appendVentas,
   hoy,
   onCloseEdit,
 }) {
@@ -320,6 +322,7 @@ export function useVentasEdit({
       built.rows.map((r) => [r.receta_id, r]),
     );
 
+    let insertedNew = [];
     try {
       if (stockDeltas.length > 0 && actualizarStockBatch) {
         await actualizarStockBatch(stockDeltas);
@@ -352,7 +355,6 @@ export function useVentasEdit({
         if (idsToDelete.length > 0) {
           await deleteVentas(idsToDelete);
         }
-        let insertedNew = [];
         if (Object.keys(addByReceta).length > 0) {
           const rows = Object.keys(addByReceta)
             .map((receta_id) => rowByReceta[receta_id])
@@ -411,9 +413,20 @@ export function useVentasEdit({
         }
       }
 
+      if (removeVentas && idsToDelete.length) removeVentas(idsToDelete);
+      const updatedRows = Object.keys(rawByReceta)
+        .map((rid) => {
+          const first = rawByReceta[rid]?.[0];
+          const row = rowByReceta[rid];
+          if (!first?.id || !row) return null;
+          return { ...first, ...row, id: first.id, receta_id: rid };
+        })
+        .filter(Boolean);
+      if (replaceVentas && updatedRows.length) replaceVentas(updatedRows);
+      if (appendVentas && insertedNew.length) appendVentas(insertedNew);
+
       showToast(toastMsg);
       closeEdit();
-      onRefresh();
     } catch (err) {
       reportError(err, { action: "guardarEdicion", grupo: editGrupo?.key });
       const msg = (err?.message || err?.code || "Error").slice(0, 100);

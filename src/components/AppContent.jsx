@@ -3,19 +3,34 @@
  * Pantallas: dashboard, more (MoreMenuScreen), analytics, insumos, recetas, ventas, stock, plan, clientes, gastos.
  * Detalle de props: docs/APP_PROPS_Y_CONTEXT.md y docs/CONTEXTO_APP_PARA_AGENTES.md.
  */
-import Dashboard from "./dashboard/Dashboard";
-import Insumos from "./insumos/Insumos";
-import Ventas from "./ventas/Ventas";
-import Stock from "./stock/Stock";
-import PlanSemanal from "./plan/PlanSemanal";
-import GastosFijos from "./gastos/GastosFijos";
-import Clientes from "./clientes/Clientes";
-import Analytics from "./analytics/Analytics";
-import Recetas from "./recetas/Recetas";
-import MoreMenuScreen from "./menu/MoreMenuScreen";
-import Pedidos from "./pedidos/Pedidos";
-import Promociones from "./promociones/Promociones";
+import { lazy, Suspense } from "react";
 import { canAccessTab } from "../config/permissions";
+
+const Dashboard = lazy(() => import("./dashboard/Dashboard"));
+const MoreMenuScreen = lazy(() => import("./menu/MoreMenuScreen"));
+
+const Insumos = lazy(() => import("./insumos/Insumos"));
+const Ventas = lazy(() => import("./ventas/Ventas"));
+const Stock = lazy(() => import("./stock/Stock"));
+const PlanSemanal = lazy(() => import("./plan/PlanSemanal"));
+const GastosFijos = lazy(() => import("./gastos/GastosFijos"));
+const Clientes = lazy(() => import("./clientes/Clientes"));
+const Analytics = lazy(() => import("./analytics/Analytics"));
+const Recetas = lazy(() => import("./recetas/Recetas"));
+const Pedidos = lazy(() => import("./pedidos/Pedidos"));
+const Promociones = lazy(() => import("./promociones/Promociones"));
+
+function TabFallback() {
+  return (
+    <div className="loading">
+      <div className="spinner" />
+    </div>
+  );
+}
+
+function LazyTab({ children }) {
+  return <Suspense fallback={<TabFallback />}>{children}</Suspense>;
+}
 
 export default function AppContent({
   role,
@@ -38,6 +53,7 @@ export default function AppContent({
   onConsumedInsumosCompraPreload,
   onOpenInsumosCompra,
   loading,
+  ventasSyncing,
   moreMenuItems,
   insumos,
   recetas,
@@ -59,6 +75,11 @@ export default function AppContent({
   consumirInsumosPorStock,
   consumirComponentesDeInsumo,
   loadData,
+  appendVentas,
+  removeVentas,
+  replaceVentas,
+  appendCliente,
+  updateClienteInState,
   showToast,
   confirm,
   recetasFilterIds,
@@ -81,8 +102,17 @@ export default function AppContent({
   if (!canAccessTab(role, tab)) return null;
   return (
     <>
+      {ventasSyncing && (
+        <p
+          className="page-subtitle"
+          style={{ textAlign: "center", margin: "4px 0 8px", fontSize: 12, opacity: 0.75 }}
+        >
+          Sincronizando ventas…
+        </p>
+      )}
       {/* --- Dashboard --- */}
       {tab === "dashboard" && (
+        <LazyTab>
         <Dashboard
           insumos={insumos}
           recetas={recetas}
@@ -97,11 +127,17 @@ export default function AppContent({
           onOpenNuevaVenta={onOpenNuevaVenta}
           onOpenNuevoPedido={onOpenNuevoPedido}
         />
+        </LazyTab>
       )}
       {/* --- More (menú) --- */}
-      {tab === "more" && <MoreMenuScreen items={moreMenuItems} onNavigate={setTab} />}
+      {tab === "more" && (
+        <LazyTab>
+          <MoreMenuScreen items={moreMenuItems} onNavigate={setTab} />
+        </LazyTab>
+      )}
       {/* --- Analytics --- */}
       {tab === "analytics" && (
+        <LazyTab>
         <Analytics
           ventas={ventas}
           recetas={recetas}
@@ -111,9 +147,11 @@ export default function AppContent({
           gastosFijos={gastosFijos}
           onAbrirVentasPeriodo={onAbrirVentasPeriodo}
         />
+        </LazyTab>
       )}
       {/* --- Insumos --- */}
       {tab === "insumos" && (
+        <LazyTab>
         <Insumos
           insumos={insumos}
           insumoStock={insumoStock}
@@ -134,9 +172,11 @@ export default function AppContent({
             setTab("recetas");
           }}
         />
+        </LazyTab>
       )}
       {/* --- Recetas --- */}
       {tab === "recetas" && (
+        <LazyTab>
         <Recetas
           recetas={recetas}
           insumos={insumos}
@@ -147,9 +187,11 @@ export default function AppContent({
           filterRecetasIds={recetasFilterIds}
           onClearFilter={() => setRecetasFilterIds([])}
         />
+        </LazyTab>
       )}
       {/* --- Ventas --- */}
       {tab === "ventas" && (
+        <LazyTab>
         <Ventas
           role={role}
           recetas={recetas}
@@ -159,6 +201,9 @@ export default function AppContent({
           actualizarStock={actualizarStock}
           actualizarStockBatch={actualizarStockBatch}
           onRefresh={loadData}
+          appendVentas={appendVentas}
+          removeVentas={removeVentas}
+          replaceVentas={replaceVentas}
           showToast={showToast}
           confirm={confirm}
           ventasPreloadGrupoKey={ventasPreloadGrupoKey}
@@ -171,9 +216,11 @@ export default function AppContent({
           onClearVentasFiltroFecha={onClearVentasFiltroFecha}
           promociones={promociones}
         />
+        </LazyTab>
       )}
       {/* --- Promociones --- */}
       {tab === "promociones" && (
+        <LazyTab>
         <Promociones
           promociones={promociones}
           recetas={recetas}
@@ -181,9 +228,11 @@ export default function AppContent({
           showToast={showToast}
           confirm={confirm}
         />
+        </LazyTab>
       )}
       {/* --- Pedidos (MAS) --- */}
       {tab === "pedidos" && (
+        <LazyTab>
         <Pedidos
           recetas={recetas}
           pedidos={pedidos}
@@ -195,9 +244,11 @@ export default function AppContent({
           confirm={confirm}
           onOpenNuevoPedido={onOpenNuevoPedido}
         />
+        </LazyTab>
       )}
       {/* --- Stock --- */}
       {tab === "stock" && (
+        <LazyTab>
         <Stock
           onOpenInsumosCompra={onOpenInsumosCompra}
           recetas={recetas}
@@ -219,9 +270,11 @@ export default function AppContent({
           stockOpenManual={stockOpenManual}
           onConsumedStockOpenManual={onConsumedStockOpenManual}
         />
+        </LazyTab>
       )}
       {/* --- Plan semanal --- */}
       {tab === "plan" && (
+        <LazyTab>
         <PlanSemanal
           recetas={recetas}
           recetaIngredientes={recetaIngredientes}
@@ -234,23 +287,30 @@ export default function AppContent({
           onRefresh={loadData}
           onPlanChanged={() => setPlanSemanalVersion((v) => v + 1)}
         />
+        </LazyTab>
       )}
       {/* --- Clientes --- */}
       {tab === "clientes" && (
+        <LazyTab>
         <Clientes
           ventas={ventas}
           clientes={clientes}
           recetas={recetas}
           pedidos={pedidos}
           onRefresh={loadData}
+          appendCliente={appendCliente}
+          updateClienteInState={updateClienteInState}
           showToast={showToast}
           actualizarStock={actualizarStock}
           confirm={confirm}
         />
+        </LazyTab>
       )}
       {/* --- Gastos fijos --- */}
       {tab === "gastos" && (
+        <LazyTab>
         <GastosFijos gastos={gastosFijos} onRefresh={loadData} showToast={showToast} />
+        </LazyTab>
       )}
     </>
   );

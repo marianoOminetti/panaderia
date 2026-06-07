@@ -18,8 +18,9 @@ export function ventaFechaYYYYMMDD(v) {
  * @param {string} hasta YYYY-MM-DD
  */
 export function filtrarVentasPorFechaRango(ventas, desde, hasta) {
-  if (!desde || !hasta) return ventas || [];
-  return (ventas || []).filter((v) => {
+  const list = Array.isArray(ventas) ? ventas : [];
+  if (!desde || !hasta) return list;
+  return list.filter((v) => {
     const d = ventaFechaYYYYMMDD(v);
     if (!d) return false;
     return d >= desde && d <= hasta;

@@ -4,8 +4,6 @@
  * - Siempre: console.error + buffer en localStorage (últimos 50 errores)
  */
 
-import * as Sentry from "@sentry/react";
-
 const STORAGE_KEY = "panaderia_error_log";
 const MAX_BUFFER = 50;
 
@@ -47,14 +45,19 @@ export function reportError(error, context = {}) {
   saveBuffer(buf);
 
   // 3) Enviar a Sentry si el DSN está en el build (init en index.js)
-  if (process.env.REACT_APP_SENTRY_DSN && Sentry?.captureException) {
-    const tags = {};
-    if (context.action) tags.action = String(context.action);
-    if (context.type) tags.error_type = String(context.type);
-    Sentry.captureException(error instanceof Error ? error : new Error(msg), {
-      extra: context,
-      tags: Object.keys(tags).length ? tags : undefined,
-    });
+  if (process.env.REACT_APP_SENTRY_DSN) {
+    import("@sentry/react")
+      .then((Sentry) => {
+        if (!Sentry?.captureException) return;
+        const tags = {};
+        if (context.action) tags.action = String(context.action);
+        if (context.type) tags.error_type = String(context.type);
+        Sentry.captureException(error instanceof Error ? error : new Error(msg), {
+          extra: context,
+          tags: Object.keys(tags).length ? tags : undefined,
+        });
+      })
+      .catch(() => {});
   }
 
   // 4) Enviar a endpoint de Vercel para que quede en logs del servidor

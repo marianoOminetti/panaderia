@@ -3,7 +3,7 @@
  * toasts/confirm, deep links y preloads (ventas, stock). Todo el estado se pasa por props a AppContent.
  * Ver docs/APP_PROPS_Y_CONTEXT.md para el detalle de props y posible evolución a Context.
  */
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { SUPABASE_CONFIG_OK } from "./lib/supabaseClient";
 import { useAuth } from "./hooks/useAuth";
 import { useAppData } from "./hooks/useAppData";
@@ -12,12 +12,19 @@ import { useVentas } from "./hooks/useVentas";
 import { usePlanResumen } from "./hooks/usePlanResumen";
 import { useSyncVentasPendientes } from "./hooks/useSyncVentasPendientes";
 import { useScrollToHide } from "./hooks/useScrollToHide";
+import {
+  getAppCache,
+  persistAppCache,
+  patchAppCache,
+  clearAppCache,
+} from "./lib/sessionCache";
 import { MORE_MENU_ITEMS, NAV_TABS } from "./config/nav";
 import { canAccessTab, getAllowedTabs, getDefaultTabForRole, normalizeRole } from "./config/permissions";
 import Toast from "./components/ui/Toast";
 import ConfirmDialog from "./components/ui/ConfirmDialog";
 import ConfigMissing from "./components/auth/ConfigMissing";
 import AuthScreen from "./components/auth/AuthScreen";
+import { AppDataProvider } from "./context/AppDataContext";
 import AppContent from "./components/AppContent";
 import AppHeader from "./components/layout/AppHeader";
 import ErrorLogOverlay from "./components/layout/ErrorLogOverlay";
@@ -26,7 +33,7 @@ import "./App.css";
 
 export default function App() {
   // --- Auth ---
-  const { session, authLoading, signIn, signOut, role, roleLoading } = useAuth();
+  const { session, authLoading, signIn, signOut: authSignOut, role, roleLoading } = useAuth();
   // --- Navegación y deep links ---
   const [tab, setTab] = useState(() => {
     if (typeof window === "undefined") return "dashboard";
@@ -88,6 +95,32 @@ export default function App() {
 
   const clearVentasFiltroFecha = useCallback(() => setVentasFiltroFecha(null), []);
 
+  const normalizedRole = normalizeRole(role);
+  const roleKey = normalizedRole ?? "__default__";
+
+  const handleCachePatch = useCallback(
+    (partial) => {
+      patchAppCache(roleKey, partial).catch(() => {});
+    },
+    [roleKey],
+  );
+
+  const handlePersistCache = useCallback(
+    (data) => {
+      persistAppCache(roleKey, data).catch(() => {});
+    },
+    [roleKey],
+  );
+
+  const handleSignOut = useCallback(async () => {
+    try {
+      await clearAppCache(roleKey);
+    } catch {
+      // ignore cache clear errors on logout
+    }
+    await authSignOut();
+  }, [authSignOut, roleKey]);
+
   // --- Datos (useAppData) ---
   const {
     insumos,
@@ -104,6 +137,7 @@ export default function App() {
     gastosFijos,
     promociones,
     loading,
+    ventasSyncing,
     setStock,
     setInsumoStock,
     setInsumoMovimientos,
@@ -112,7 +146,49 @@ export default function App() {
     planSemanalVersion,
     setPlanSemanalVersion,
     loadData,
-  } = useAppData({ showToast, role });
+    hydrateFromCache,
+    appendVentas,
+    removeVentas,
+    replaceVentas,
+    patchStock,
+    appendCliente,
+    updateClienteInState,
+    loadVentasHistoricas,
+    trimVentasToRecent,
+    ventasHistoricasLoaded,
+  } = useAppData({
+    showToast,
+    role,
+    onCachePatch: handleCachePatch,
+    onPersistCache: handlePersistCache,
+  });
+
+  const appDataContextValue = useMemo(
+    () => ({
+      ventas,
+      stock,
+      recetas,
+      clientes,
+      appendVentas,
+      removeVentas,
+      replaceVentas,
+      patchStock,
+      appendCliente,
+      updateClienteInState,
+    }),
+    [
+      ventas,
+      stock,
+      recetas,
+      clientes,
+      appendVentas,
+      removeVentas,
+      replaceVentas,
+      patchStock,
+      appendCliente,
+      updateClienteInState,
+    ],
+  );
 
   const { actualizarStock, actualizarStockBatch, registrarMovimientoInsumo, consumirInsumosPorStock, consumirComponentesDeInsumo } =
     useStockMutations({
@@ -137,18 +213,19 @@ export default function App() {
     insumoComposicion,
     insumoStock,
     planSemanalVersion,
+    enabled: tab === "plan",
   });
 
   useSyncVentasPendientes({
     session,
     isOnline,
-    actualizarStock,
+    actualizarStockBatch,
     deleteVentas,
     loadData,
+    appendVentas,
     showToast,
   });
 
-  const normalizedRole = normalizeRole(role);
   const roleReady = !session || !roleLoading;
   const allowedTabs = getAllowedTabs(normalizedRole);
   const navTabs = NAV_TABS.filter((t) => allowedTabs.includes(t.id));
@@ -234,8 +311,86 @@ export default function App() {
   }, [defaultTab, normalizedRole, roleReady, tab]);
 
   useEffect(() => {
-    if (session && roleReady) loadData();
+    if (!session || !roleReady) return;
+    let cancelled = false;
+    const key = normalizeRole(role) ?? "__pending__";
+    (async () => {
+      const cache = await getAppCache(key);
+      const canHydrate =
+        cache?.catalog &&
+        (cache.catalogFresh || cache.ventasRecentFresh);
+      if (!cancelled && canHydrate) {
+        hydrateFromCache({
+          ...cache.catalog,
+          ventas: cache.ventasRecentFresh ? cache.ventasRecent?.ventas : undefined,
+        });
+        await loadData({ background: true });
+      } else if (!cancelled) {
+        await loadData();
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [session, roleReady, loadData, role, hydrateFromCache]);
+
+  useEffect(() => {
+    if (!session || !roleReady || loading) return;
+    const persist = () => {
+      if (document.visibilityState !== "hidden") return;
+      handlePersistCache({
+        recetas,
+        clientes,
+        stock,
+        promociones,
+        ventas,
+      });
+    };
+    document.addEventListener("visibilitychange", persist);
+    return () => document.removeEventListener("visibilitychange", persist);
+  }, [
+    session,
+    roleReady,
+    loading,
+    recetas,
+    clientes,
+    stock,
+    promociones,
+    ventas,
+    handlePersistCache,
+  ]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onPageShow = (e) => {
+      if (!session || !roleReady) return;
+      if (e.persisted) {
+        loadData({ background: true });
+      }
+    };
+    window.addEventListener("pageshow", onPageShow);
+    return () => window.removeEventListener("pageshow", onPageShow);
   }, [session, roleReady, loadData]);
+
+  useEffect(() => {
+    if (tab === "analytics" && !ventasHistoricasLoaded && normalizedRole !== "venta") {
+      loadVentasHistoricas();
+    }
+  }, [tab, ventasHistoricasLoaded, loadVentasHistoricas, normalizedRole]);
+
+  const prevTabRef = useRef(tab);
+  useEffect(() => {
+    if (
+      prevTabRef.current === "analytics" &&
+      tab !== "analytics" &&
+      normalizedRole !== "venta" &&
+      !ventasFiltroFecha &&
+      !["ventas", "clientes"].includes(tab)
+    ) {
+      trimVentasToRecent(30);
+    }
+    prevTabRef.current = tab;
+  }, [tab, trimVentasToRecent, normalizedRole, ventasFiltroFecha]);
 
   const isMoreSection = ["analytics", "plan", "clientes", "insumos", "recetas"].includes(tab);
   const sinStockCount = recetas.filter((r) => (stock[r.id] ?? 0) <= 0).length;
@@ -267,7 +422,7 @@ export default function App() {
           <button
             type="button"
             className="btn-primary"
-            onClick={() => signOut().catch(() => showToast("Error al cerrar sesión"))}
+            onClick={() => handleSignOut().catch(() => showToast("Error al cerrar sesión"))}
           >
             Cerrar sesión
           </button>
@@ -278,8 +433,9 @@ export default function App() {
 
   return (
     <div className="app">
-      <AppHeader visible={headerVisible} setErrorLogOpen={setErrorLogOpen} signOut={signOut} showToast={showToast} onGoHome={() => setTab(defaultTab)} />
+      <AppHeader visible={headerVisible} setErrorLogOpen={setErrorLogOpen} signOut={handleSignOut} showToast={showToast} onGoHome={() => setTab(defaultTab)} />
       {errorLogOpen && <ErrorLogOverlay onClose={() => setErrorLogOpen(false)} />}
+      <AppDataProvider value={appDataContextValue}>
       <AppContent
         role={normalizedRole}
         tab={tab}
@@ -322,6 +478,7 @@ export default function App() {
           setTab("insumos");
         }}
         loading={loading}
+        ventasSyncing={ventasSyncing}
         moreMenuItems={moreMenuItems}
         insumos={insumos}
         recetas={recetas}
@@ -343,6 +500,11 @@ export default function App() {
         consumirInsumosPorStock={consumirInsumosPorStock}
         consumirComponentesDeInsumo={consumirComponentesDeInsumo}
         loadData={loadData}
+        appendVentas={appendVentas}
+        removeVentas={removeVentas}
+        replaceVentas={replaceVentas}
+        appendCliente={appendCliente}
+        updateClienteInState={updateClienteInState}
         showToast={showToast}
         confirm={confirm}
         recetasFilterIds={recetasFilterIds}
@@ -352,6 +514,7 @@ export default function App() {
         onClearVentasFiltroFecha={clearVentasFiltroFecha}
         onAbrirVentasPeriodo={handleAbrirVentasPeriodo}
       />
+      </AppDataProvider>
       <AppNav
         visible={navVisible}
         tab={tab}

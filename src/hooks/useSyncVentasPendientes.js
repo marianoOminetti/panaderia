@@ -7,14 +7,15 @@ import { reportError } from "../utils/errorReport";
 /**
  * Sincroniza ventas guardadas en IndexedDB (offline) cuando hay sesión y conexión.
  * Usado por App.js. Sube filas a Supabase, actualiza stock y borra pendientes; en error reporta y no borra.
- * @param {{ session, isOnline, actualizarStock, deleteVentas, loadData, showToast }}
+ * @param {{ session, isOnline, actualizarStockBatch, deleteVentas, loadData, appendVentas, showToast }}
  */
 export function useSyncVentasPendientes({
   session,
   isOnline,
-  actualizarStock,
+  actualizarStockBatch,
   deleteVentas,
   loadData,
+  appendVentas,
   showToast,
 }) {
   const syncVentasPendientes = useCallback(async () => {
@@ -31,7 +32,7 @@ export function useSyncVentasPendientes({
         }
         try {
           let inserted = null;
-          let { data, error } = await supabase.from("ventas").insert(rows).select("id");
+          let { data, error } = await supabase.from("ventas").insert(rows).select("*");
           inserted = data;
           const sinTransaccion =
             error &&
@@ -40,7 +41,7 @@ export function useSyncVentasPendientes({
             const res = await supabase
               .from("ventas")
               .insert(rows.map(({ transaccion_id, ...r }) => r))
-              .select("id");
+              .select("*");
             inserted = res.data;
             error = res.error;
           }
@@ -48,12 +49,13 @@ export function useSyncVentasPendientes({
             console.error("[syncVentasPendientes/insertVentas]", error);
             throw error;
           }
-          if (actualizarStock) {
+          if (actualizarStockBatch) {
             try {
-              for (const v of rows) {
-                const cant = v.cantidad || 0;
-                if (!v.receta_id || cant <= 0) continue;
-                await actualizarStock(v.receta_id, -cant);
+              const stockDeltas = rows
+                .filter((v) => v.receta_id && (v.cantidad || 0) > 0)
+                .map((v) => ({ receta_id: v.receta_id, delta: -(v.cantidad || 0) }));
+              if (stockDeltas.length > 0) {
+                await actualizarStockBatch(stockDeltas);
               }
             } catch (stockErr) {
               const ids = (inserted || []).map((r) => r.id).filter(Boolean);
@@ -76,7 +78,10 @@ export function useSyncVentasPendientes({
             notifyEvent("venta", {
               transaccion_id: transaccionId,
               venta_ids: ventaIds,
-            });
+            }).catch(() => {});
+          }
+          if (appendVentas && inserted?.length) {
+            appendVentas(inserted);
           }
         } catch (err) {
           reportError(err, { action: "syncVentasPendientes.item", id: item.id });
@@ -84,12 +89,14 @@ export function useSyncVentasPendientes({
       }
       if (totalLineasSincronizadas > 0) {
         showToast?.(`✅ Se sincronizaron ${totalLineasSincronizadas} ventas`);
-        await loadData?.();
+        if (!appendVentas) {
+          await loadData?.();
+        }
       }
     } catch (err) {
       reportError(err, { action: "syncVentasPendientes" });
     }
-  }, [actualizarStock, deleteVentas, isOnline, loadData, showToast]);
+  }, [actualizarStockBatch, appendVentas, deleteVentas, isOnline, loadData, showToast]);
 
   useEffect(() => {
     if (session && isOnline) {

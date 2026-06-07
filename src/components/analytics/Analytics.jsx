@@ -1,7 +1,7 @@
 /**
  * Contenedor de Analytics: vista resumen o detalle (Hoy, Semana, Mes, Año).
  */
-import { useState, useEffect } from "react";
+import { useState, useEffect, memo } from "react";
 import { useAnalyticsData } from "../../hooks/useAnalyticsData";
 import AnalyticsResumen from "./AnalyticsResumen";
 import AnalyticsDetalleHoy from "./AnalyticsDetalleHoy";
@@ -10,7 +10,7 @@ import AnalyticsDetalleMes from "./AnalyticsDetalleMes";
 import AnalyticsDetalleAnio from "./AnalyticsDetalleAnio";
 import AnalyticsDrilldown from "./AnalyticsDrilldown";
 
-export default function Analytics({
+function Analytics({
   ventas,
   recetas,
   clientes,
@@ -249,3 +249,5 @@ export default function Analytics({
 
   return null;
 }
+
+export default memo(Analytics);

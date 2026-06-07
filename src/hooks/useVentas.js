@@ -7,7 +7,7 @@ import { supabase } from "../lib/supabaseClient";
  */
 export function useVentas() {
   const insertVentas = useCallback(async (rows) => {
-    let { data, error } = await supabase.from("ventas").insert(rows).select("id");
+    let { data, error } = await supabase.from("ventas").insert(rows).select("*");
     const sinTransaccion =
       error &&
       (error.message?.includes("transaccion_id") || error.code === "42703");
@@ -15,7 +15,7 @@ export function useVentas() {
       const res = await supabase
         .from("ventas")
         .insert(rows.map(({ transaccion_id, ...r }) => r))
-        .select("id");
+        .select("*");
       data = res.data;
       error = res.error;
     }

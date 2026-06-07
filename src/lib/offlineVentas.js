@@ -3,7 +3,7 @@
  * Usado por useSyncVentasPendientes y flujo de ventas offline.
  */
 const OFFLINE_DB_NAME = "panaderia-offline";
-const OFFLINE_DB_VERSION = 1;
+const OFFLINE_DB_VERSION = 3;
 const OFFLINE_VENTAS_STORE = "ventas_pendientes";
 
 function openOfflineDB() {
@@ -20,6 +20,21 @@ function openOfflineDB() {
           keyPath: "id",
         });
         store.createIndex("created_at", "created_at", { unique: false });
+      }
+      if (!db.objectStoreNames.contains("catalog_snapshot")) {
+        db.createObjectStore("catalog_snapshot", { keyPath: "roleKey" });
+      }
+      if (!db.objectStoreNames.contains("venta_session")) {
+        db.createObjectStore("venta_session", { keyPath: "id" });
+      }
+      if (!db.objectStoreNames.contains("ventas_recent")) {
+        db.createObjectStore("ventas_recent", { keyPath: "roleKey" });
+      }
+      if (!db.objectStoreNames.contains("cache_meta")) {
+        db.createObjectStore("cache_meta", { keyPath: "roleKey" });
+      }
+      if (!db.objectStoreNames.contains("ventas_historicas")) {
+        db.createObjectStore("ventas_historicas", { keyPath: "roleKey" });
       }
     };
     request.onsuccess = () => {

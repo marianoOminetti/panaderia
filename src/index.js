@@ -82,4 +82,15 @@ root.render(
 // If you want to start measuring performance in your app, pass a function
 // to log results (for example: reportWebVitals(console.log))
 // or send to an analytics endpoint. Learn more: https://bit.ly/CRA-vitals
-reportWebVitals();
+reportWebVitals((metric) => {
+  if (!sentryDsn) return;
+  Sentry.addBreadcrumb({
+    category: "web-vital",
+    message: metric.name,
+    data: { value: metric.value, id: metric.id, rating: metric.rating },
+    level: "info",
+  });
+  if (typeof Sentry.metrics?.distribution === "function") {
+    Sentry.metrics.distribution(metric.name, metric.value, { unit: "millisecond" });
+  }
+});
