@@ -6,7 +6,7 @@ import { calcularRequerimientoInsumosParaItems } from "../lib/stockPlan";
 /**
  * Resumen del plan semanal actual (planificado vs realizado, ítems pendientes, requerimientos de insumos).
  * Usado por App.js; resumenPlanSemanal se pasa a AppContent (actualmente no se inyecta al Dashboard).
- * @param {{ recetas, recetaIngredientes, insumos, insumoComposicion, insumoStock, planSemanalVersion }}
+ * @param {{ recetas, recetaIngredientes, insumos, insumoComposicion, insumoStock, planSemanalVersion, enabled }}
  * @returns {{ resumenPlanSemanal }}
  */
 export function usePlanResumen({
@@ -16,10 +16,12 @@ export function usePlanResumen({
   insumoComposicion,
   insumoStock,
   planSemanalVersion,
+  enabled = true,
 }) {
   const [resumenPlanSemanal, setResumenPlanSemanal] = useState(null);
 
   useEffect(() => {
+    if (!enabled) return undefined;
     let cancelled = false;
     const cargarResumen = async () => {
       if (!recetas?.length) {
@@ -92,7 +94,7 @@ export function usePlanResumen({
     return () => {
       cancelled = true;
     };
-  }, [insumoComposicion, insumoStock, insumos, planSemanalVersion, recetaIngredientes, recetas]);
+  }, [enabled, insumoComposicion, insumoStock, insumos, planSemanalVersion, recetaIngredientes, recetas]);
 
   return resumenPlanSemanal;
 }

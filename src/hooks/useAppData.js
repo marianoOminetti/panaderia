@@ -5,23 +5,30 @@ import { normalizarPromociones } from "../lib/promociones";
 import { hoyLocalISO } from "../lib/dates";
 import { fechaHaceDiasISO } from "../lib/recetasParaVenta";
 import { reportError } from "../utils/errorReport";
+import { perfMark, perfMeasure } from "../lib/perf";
 
 /** PostgREST suele limitar filas por request (p. ej. max_rows 1000); paginamos para no truncar analytics. */
 const VENTAS_PAGE = 1000;
 const VENTAS_MAX_PAGES = 500;
+const VENTAS_PAGE_CONCURRENCY = 4;
+
+function asVentasArray(value) {
+  return Array.isArray(value) ? value : [];
+}
 
 function isTransientFetchError(error) {
   const msg = error?.message ?? String(error);
   return /failed to fetch|networkerror|load failed/i.test(msg);
 }
 
-async function supabaseVentasPage(fechaGte, from, to) {
+async function supabaseVentasPage(fechaGte, from, to, fechaLt) {
   const maxAttempts = 3;
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    const r = await supabase
-      .from("ventas")
-      .select("*")
-      .gte("fecha", fechaGte)
+    let q = supabase.from("ventas").select("*").gte("fecha", fechaGte);
+    if (fechaLt) {
+      q = q.lt("fecha", fechaLt);
+    }
+    const r = await q
       .order("fecha", { ascending: false })
       .order("created_at", { ascending: false })
       .range(from, to);
@@ -33,18 +40,47 @@ async function supabaseVentasPage(fechaGte, from, to) {
   return { data: null, error: new Error("Failed to fetch ventas") };
 }
 
-async function loadVentasDesde(fechaGte) {
-  const all = [];
-  for (let page = 0; page < VENTAS_MAX_PAGES; page++) {
-    const from = page * VENTAS_PAGE;
-    const to = from + VENTAS_PAGE - 1;
-    const r = await supabaseVentasPage(fechaGte, from, to);
-    if (r.error) {
-      return { data: all.length > 0 ? all : null, error: r.error };
+function mergeVentasFromFetch(prev, fetched) {
+  const list = asVentasArray(fetched);
+  const fetchedIds = new Set(list.map((v) => v.id).filter(Boolean));
+  const localOnly = asVentasArray(prev).filter((v) => v.id && !fetchedIds.has(v.id));
+  return [...localOnly, ...list];
+}
+
+async function loadVentasDesde(fechaGte, fechaLt) {
+  const first = await supabaseVentasPage(fechaGte, 0, VENTAS_PAGE - 1, fechaLt);
+  if (first.error) {
+    return { data: null, error: first.error };
+  }
+  const all = [...(first.data || [])];
+  if ((first.data || []).length < VENTAS_PAGE) {
+    return { data: all, error: null };
+  }
+
+  let page = 1;
+  while (page < VENTAS_MAX_PAGES) {
+    const pagePromises = [];
+    for (
+      let i = 0;
+      i < VENTAS_PAGE_CONCURRENCY && page < VENTAS_MAX_PAGES;
+      i += 1, page += 1
+    ) {
+      const from = page * VENTAS_PAGE;
+      pagePromises.push(
+        supabaseVentasPage(fechaGte, from, from + VENTAS_PAGE - 1, fechaLt),
+      );
     }
-    const batch = r.data || [];
-    all.push(...batch);
-    if (batch.length < VENTAS_PAGE) break;
+    const results = await Promise.all(pagePromises);
+    let truncated = false;
+    for (const r of results) {
+      if (r.error) {
+        return { data: all.length > 0 ? all : null, error: r.error };
+      }
+      const batch = r.data || [];
+      all.push(...batch);
+      if (batch.length < VENTAS_PAGE) truncated = true;
+    }
+    if (truncated) break;
   }
   return { data: all, error: null };
 }
@@ -54,7 +90,7 @@ async function loadVentasDesde(fechaGte) {
  * Usado solo por App.js. loadData() re-fetcha todo; ventas desde hace 36 meses (paginado ante max_rows PostgREST), pedidos 1000, insumo_movimientos 100.
  * @param {{ showToast?: (msg: string) => void, role?: string }} options
  */
-export function useAppData({ showToast, role } = {}) {
+export function useAppData({ showToast, role, onCachePatch, onPersistCache } = {}) {
   const [insumos, setInsumos] = useState([]);
   const [recetas, setRecetas] = useState([]);
   const [ventas, setVentas] = useState([]);
@@ -70,31 +106,33 @@ export function useAppData({ showToast, role } = {}) {
   const [promociones, setPromociones] = useState([]);
 
   const [loading, setLoading] = useState(true);
+  const [ventasSyncing, setVentasSyncing] = useState(false);
+  const [ventasHistoricasLoaded, setVentasHistoricasLoaded] = useState(false);
   const [seeded, setSeeded] = useState(false);
   const seededRef = useRef(false);
   seededRef.current = seeded;
   const loadInFlightRef = useRef(null);
+  const ventasRef = useRef([]);
+  ventasRef.current = ventas;
 
   const [recetasFilterIds, setRecetasFilterIds] = useState([]);
   const [planSemanalVersion, setPlanSemanalVersion] = useState(0);
 
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async ({ background = false } = {}) => {
     const roleKey = role ?? "__pending__";
     if (loadInFlightRef.current?.roleKey === roleKey) {
       return loadInFlightRef.current.promise;
     }
 
     const run = async () => {
+      if (!background) {
+        perfMark("loadData:start");
+        setLoading(true);
+      }
       const isVenta = role === "venta";
-      const ventasDesde = new Date();
-      ventasDesde.setMonth(ventasDesde.getMonth() - 36);
-      ventasDesde.setDate(1);
-      ventasDesde.setHours(0, 0, 0, 0);
-      const ventasDesdeStr = `${ventasDesde.getFullYear()}-${String(ventasDesde.getMonth() + 1).padStart(2, "0")}-01`;
-
-      const ventasPromise = isVenta
-        ? loadVentasDesde(fechaHaceDiasISO(hoyLocalISO(), 6))
-        : loadVentasDesde(ventasDesdeStr);
+      const ventasRecientesDesde = isVenta
+        ? fechaHaceDiasISO(hoyLocalISO(), 6)
+        : fechaHaceDiasISO(hoyLocalISO(), 29);
 
       const stPromise = supabase
         .from("stock")
@@ -164,7 +202,6 @@ export function useAppData({ showToast, role } = {}) {
         gastosRes,
         promosRes,
         precioHistRes,
-        venRes,
       ] = await Promise.all([
         isVenta
           ? Promise.resolve({ data: [], error: null })
@@ -182,13 +219,10 @@ export function useAppData({ showToast, role } = {}) {
         gastosPromise,
         promosPromise,
         precioHistPromise,
-        ventasPromise,
       ]);
 
       const authErr = (e) => e && (e.status === 401 || e.status === 403);
-      if (
-        [recRes.error, venRes.error, cliRes.error, promosRes?.error].some(authErr)
-      ) {
+      if ([recRes.error, cliRes.error, promosRes?.error].some(authErr)) {
         if (showToast) {
           showToast("🔒 Sesión expirada o sin permisos. Volvé a iniciar sesión.");
         }
@@ -212,14 +246,6 @@ export function useAppData({ showToast, role } = {}) {
           code: recRes.error?.code,
         });
         showToast?.("⚠️ Error al cargar recetas");
-      }
-      if (venRes.error) {
-        reportError(venRes.error, {
-          action: "loadData",
-          source: "ventas",
-          code: venRes.error?.code,
-        });
-        showToast?.("⚠️ Error al cargar ventas");
       }
       if (pedRes && pedRes.error && !isVenta) {
         reportError(pedRes.error, {
@@ -256,7 +282,6 @@ export function useAppData({ showToast, role } = {}) {
 
       setInsumos(insRes.data || []);
       setRecetas(recRes.data || []);
-      setVentas(venRes.data || []);
       setRecetaIngredientes(riRes.data || []);
       setClientes((cliRes.data || []).filter((c) => c.eliminado !== true));
       if (pedRes && pedRes.data) setPedidos(pedRes.data || []);
@@ -286,6 +311,47 @@ export function useAppData({ showToast, role } = {}) {
         setPromociones(normalizarPromociones(promosRes?.data));
       }
       setLoading(false);
+
+      setVentasSyncing(true);
+      let recentVentas = [];
+      try {
+        const venRecent = await loadVentasDesde(ventasRecientesDesde);
+        if (venRecent.error) {
+          reportError(venRecent.error, {
+            action: "loadData",
+            source: "ventas",
+            code: venRecent.error?.code,
+          });
+          showToast?.("⚠️ Error al cargar ventas");
+        } else {
+          recentVentas = asVentasArray(venRecent.data);
+          setVentas((prev) => mergeVentasFromFetch(prev, venRecent.data));
+        }
+      } finally {
+        setVentasSyncing(false);
+      }
+
+      const stockMap = stRes.ok
+        ? Object.fromEntries(
+            (stRes.data || []).map((s) => [s.receta_id, Number(s.cantidad) || 0]),
+          )
+        : null;
+
+      onPersistCache?.({
+        recetas: recRes.data || [],
+        clientes: (cliRes.data || []).filter((c) => c.eliminado !== true),
+        stock: stockMap,
+        promociones:
+          promosRes?.error?.code === "42P01"
+            ? []
+            : normalizarPromociones(promosRes?.data),
+        ventas: recentVentas.length ? recentVentas : ventasRef.current,
+      });
+
+      if (!background) {
+        perfMark("loadData:end");
+        perfMeasure("loadData", "loadData:start", "loadData:end");
+      }
 
       if (!isVenta && !seededRef.current && insRes.data && insRes.data.length === 0) {
         try {
@@ -321,7 +387,135 @@ export function useAppData({ showToast, role } = {}) {
         loadInFlightRef.current = null;
       }
     }
-  }, [role, showToast]);
+  }, [role, showToast, onPersistCache]);
+
+  const loadVentasHistoricas = useCallback(async () => {
+    if (role === "venta" || ventasHistoricasLoaded) return;
+    const ventasDesde = new Date();
+    ventasDesde.setMonth(ventasDesde.getMonth() - 36);
+    ventasDesde.setDate(1);
+    ventasDesde.setHours(0, 0, 0, 0);
+    const ventasDesdeStr = `${ventasDesde.getFullYear()}-${String(ventasDesde.getMonth() + 1).padStart(2, "0")}-01`;
+    const ventasRecientesDesde = fechaHaceDiasISO(hoyLocalISO(), 29);
+
+    setVentasSyncing(true);
+    try {
+      const venHist = await loadVentasDesde(ventasDesdeStr, ventasRecientesDesde);
+      if (venHist.error) {
+        reportError(venHist.error, {
+          action: "loadVentasHistoricas",
+          source: "ventas_historico",
+          code: venHist.error?.code,
+        });
+        showToast?.("⚠️ Error al cargar histórico de ventas");
+        return;
+      }
+      if (venHist.data?.length) {
+        setVentas((prev) => mergeVentasFromFetch(prev, venHist.data));
+      }
+      setVentasHistoricasLoaded(true);
+      onPersistCache?.({ ventasHistoricas: venHist.data || [] });
+    } finally {
+      setVentasSyncing(false);
+    }
+  }, [role, showToast, ventasHistoricasLoaded, onPersistCache]);
+
+  const trimVentasToRecent = useCallback((dias = 30) => {
+    const desde = fechaHaceDiasISO(hoyLocalISO(), dias - 1);
+    setVentas((prev) =>
+      asVentasArray(prev).filter((v) => {
+        const f = v?.fecha ? String(v.fecha).slice(0, 10) : null;
+        return f && f >= desde;
+      }),
+    );
+    setVentasHistoricasLoaded(false);
+  }, []);
+
+  const appendVentas = useCallback(
+    (newRows) => {
+      if (!Array.isArray(newRows) || newRows.length === 0) return;
+      setVentas((prev) => [...newRows, ...asVentasArray(prev)]);
+      onCachePatch?.({ appendVentas: newRows });
+    },
+    [onCachePatch],
+  );
+
+  const removeVentas = useCallback(
+    (ids) => {
+      if (!ids?.length) return;
+      const idSet = new Set(ids);
+      setVentas((prev) => asVentasArray(prev).filter((v) => !idSet.has(v.id)));
+      onCachePatch?.({ removeVentasIds: ids });
+    },
+    [onCachePatch],
+  );
+
+  const replaceVentas = useCallback(
+    (rows) => {
+      if (!Array.isArray(rows) || rows.length === 0) return;
+      const byId = new Map(rows.filter((r) => r.id).map((r) => [r.id, r]));
+      setVentas((prev) => {
+        const next = asVentasArray(prev).map((v) => (byId.has(v.id) ? byId.get(v.id) : v));
+        for (const row of rows) {
+          if (row.id && !next.some((v) => v.id === row.id)) next.unshift(row);
+        }
+        return next;
+      });
+      onCachePatch?.({ replaceVentas: rows });
+    },
+    [onCachePatch],
+  );
+
+  const appendCliente = useCallback(
+    (cliente) => {
+      if (!cliente?.id) return;
+      setClientes((prev) => {
+        const next = [...prev.filter((c) => c.id !== cliente.id), cliente];
+        onCachePatch?.({ clientes: next });
+        return next;
+      });
+    },
+    [onCachePatch],
+  );
+
+  const updateClienteInState = useCallback(
+    (cliente) => {
+      if (!cliente?.id) return;
+      setClientes((prev) => {
+        const next = prev.map((c) => (c.id === cliente.id ? { ...c, ...cliente } : c));
+        onCachePatch?.({ clientes: next });
+        return next;
+      });
+    },
+    [onCachePatch],
+  );
+
+  const patchStock = useCallback(
+    (deltas) => {
+      if (!deltas?.length) return;
+      setStock((prev) => {
+        const next = { ...(prev || {}) };
+        for (const { receta_id, delta } of deltas) {
+          const actual = Number(next[receta_id]) || 0;
+          const deltaNum = Number(delta) || 0;
+          next[receta_id] = Math.max(0, actual + deltaNum);
+        }
+        return next;
+      });
+      onCachePatch?.({ stockPatch: deltas });
+    },
+    [onCachePatch],
+  );
+
+  const hydrateFromCache = useCallback((snapshot) => {
+    if (!snapshot) return;
+    if (snapshot.recetas) setRecetas(snapshot.recetas);
+    if (snapshot.clientes) setClientes(snapshot.clientes);
+    if (snapshot.stock) setStock(snapshot.stock);
+    if (snapshot.promociones) setPromociones(snapshot.promociones);
+    if (Array.isArray(snapshot.ventas)) setVentas(snapshot.ventas);
+    setLoading(false);
+  }, []);
 
   return {
     insumos,
@@ -338,6 +532,7 @@ export function useAppData({ showToast, role } = {}) {
     gastosFijos,
     promociones,
     loading,
+    ventasSyncing,
     setStock,
     setInsumoStock,
     setInsumoMovimientos,
@@ -346,5 +541,15 @@ export function useAppData({ showToast, role } = {}) {
     planSemanalVersion,
     setPlanSemanalVersion,
     loadData,
+    hydrateFromCache,
+    appendVentas,
+    removeVentas,
+    replaceVentas,
+    patchStock,
+    appendCliente,
+    updateClienteInState,
+    loadVentasHistoricas,
+    trimVentasToRecent,
+    ventasHistoricasLoaded,
   };
 }

@@ -2,7 +2,7 @@
  * Lista de ventas agrupadas por transacción/deuda: filtros, apertura de grupo, edición y cobro.
  * Recibe ventas, callbacks de edición/cobro y estado desde Ventas.jsx (no persiste por sí mismo).
  */
-import { useState } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { fmt } from "../../lib/format";
 import { agruparVentas, totalDebeEnGrupo } from "../../lib/agrupadores";
 import { useFilterVentasGrupos } from "../../hooks/useFilterVentasGrupos";
@@ -19,6 +19,8 @@ import {
   buildGrupoLineasLista,
   buildGrupoTotalesConPromo,
 } from "../../lib/facturaFiscal";
+
+const ADMIN_GROUPS_PAGE_SIZE = 20;
 
 function formatRelDia(d, hoyDate) {
   if (!d || Number.isNaN(d.getTime())) return "";
@@ -85,7 +87,7 @@ export default function VentasList({
   confirm,
 }) {
   const hoyDate = new Date(hoy);
-  const gruposAll = agruparVentas(ventas || []);
+  const gruposAll = useMemo(() => agruparVentas(ventas || []), [ventas]);
   const grupos = isVentaRole
     ? gruposAll.slice(0, VENTA_LIST_MAX_GROUPS)
     : gruposAll;
@@ -94,6 +96,21 @@ export default function VentasList({
   const [facturaFiscalData, setFacturaFiscalData] = useState(null);
   const [afipLoadingTx, setAfipLoadingTx] = useState(null);
   const filteredGrupos = useFilterVentasGrupos(grupos, recetas, clientes, search);
+  const [listPage, setListPage] = useState(0);
+
+  useEffect(() => {
+    setListPage(0);
+  }, [search, ventas]);
+
+  const paginatedGrupos = useMemo(() => {
+    if (isVentaRole) return filteredGrupos;
+    const start = listPage * ADMIN_GROUPS_PAGE_SIZE;
+    return filteredGrupos.slice(start, start + ADMIN_GROUPS_PAGE_SIZE);
+  }, [filteredGrupos, isVentaRole, listPage]);
+
+  const totalPages = isVentaRole
+    ? 1
+    : Math.max(1, Math.ceil(filteredGrupos.length / ADMIN_GROUPS_PAGE_SIZE));
 
   const buildShareData = (grupo) => {
     const ejemplo = grupo.rawItems?.[0] || grupo.items[0];
@@ -225,7 +242,7 @@ export default function VentasList({
               <p>Sin resultados</p>
             </div>
           ) : (
-          filteredGrupos.map((grupo) => {
+          paginatedGrupos.map((grupo) => {
             const cliente = (clientes || []).find(
               (c) => c.id === grupo.cliente_id,
             );
@@ -481,6 +498,37 @@ export default function VentasList({
               </div>
             );
           })
+          )}
+          {!isVentaRole && filteredGrupos.length > ADMIN_GROUPS_PAGE_SIZE && (
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginTop: 12,
+                gap: 8,
+              }}
+            >
+              <button
+                type="button"
+                className="btn-secondary"
+                disabled={listPage <= 0}
+                onClick={() => setListPage((p) => Math.max(0, p - 1))}
+              >
+                ← Anterior
+              </button>
+              <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                Página {listPage + 1} / {totalPages}
+              </span>
+              <button
+                type="button"
+                className="btn-secondary"
+                disabled={listPage >= totalPages - 1}
+                onClick={() => setListPage((p) => Math.min(totalPages - 1, p + 1))}
+              >
+                Siguiente →
+              </button>
+            </div>
           )}
         </>
       )}

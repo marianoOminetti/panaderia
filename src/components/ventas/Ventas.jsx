@@ -2,7 +2,7 @@
  * Pantalla Ventas: orquesta nueva venta (carrito useVentasCart), cobro (useVentasChargeModal), lista (VentasList),
  * edición de ventas (useVentasEdit) y venta manual (VentasManualScreen).
  */
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, memo } from "react";
 import { fmt, toCantidadNumber } from "../../lib/format";
 import { generateTransaccionId } from "../../lib/ventas";
 import { useVentas } from "../../hooks/useVentas";
@@ -14,6 +14,12 @@ import { buildVentaRowsConPromos } from "../../lib/buildVentaRowsConPromos";
 import { useVentasEdit } from "../../hooks/useVentasEdit";
 import { hoyLocalISO } from "../../lib/dates";
 import { saveVentaPendiente } from "../../lib/offlineVentas";
+import {
+  getVentaSession,
+  persistVentaSession,
+  clearVentaSession,
+} from "../../lib/sessionCache";
+import { perfMark } from "../../lib/perf";
 import { reportError } from "../../utils/errorReport";
 import { agruparVentas, gruposConDeuda as getGruposConDeuda, totalDebeEnGrupo } from "../../lib/agrupadores";
 import { filtrarVentasPorFechaRango } from "../../lib/ventasFiltroFecha";
@@ -42,6 +48,9 @@ function Ventas({
   actualizarStock,
   actualizarStockBatch,
   onRefresh,
+  appendVentas,
+  removeVentas,
+  replaceVentas,
   showToast,
   confirm,
   ventasPreloadGrupoKey,
@@ -108,6 +117,51 @@ function Ventas({
   const hoy = hoyLocalISO();
   const isVentaRole = checkVentaRole(role);
 
+  useEffect(() => {
+    let cancelled = false;
+    getVentaSession().then((saved) => {
+      if (cancelled || !saved?.cartItems?.length) return;
+      const age = Date.now() - (saved.savedAt || 0);
+      if (age > 24 * 60 * 60 * 1000) return;
+      setCartItems(saved.cartItems);
+      if (saved.manualScreenOpen) setManualScreenOpen(true);
+      if (saved.chargeModalOpen) openChargeModal();
+      if (saved.clienteSel != null) setClienteSel(saved.clienteSel);
+      if (saved.medioPago) setMedioPago(saved.medioPago);
+      if (saved.estadoPago) setEstadoPago(saved.estadoPago);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [openChargeModal, setCartItems]);
+
+  useEffect(() => {
+    const persist = () => {
+      if (document.visibilityState !== "hidden") return;
+      if (cartItems.length === 0 && !manualScreenOpen) {
+        clearVentaSession().catch(() => {});
+        return;
+      }
+      persistVentaSession({
+        cartItems,
+        manualScreenOpen,
+        chargeModalOpen,
+        clienteSel,
+        medioPago,
+        estadoPago,
+      }).catch(() => {});
+    };
+    document.addEventListener("visibilitychange", persist);
+    return () => document.removeEventListener("visibilitychange", persist);
+  }, [
+    cartItems,
+    manualScreenOpen,
+    chargeModalOpen,
+    clienteSel,
+    medioPago,
+    estadoPago,
+  ]);
+
   const edit = useVentasEdit({
     recetas,
     promociones,
@@ -117,24 +171,31 @@ function Ventas({
     actualizarStock,
     actualizarStockBatch,
     showToast,
-    onRefresh,
+    removeVentas,
+    replaceVentas,
+    appendVentas,
     hoy,
     onCloseEdit: () => setManualScreenOpen(false),
   });
+
+  const ventasArray = useMemo(
+    () => (Array.isArray(ventas) ? ventas : []),
+    [ventas],
+  );
 
   const ventasListado = useMemo(() => {
     if (
       !ventasFiltroFecha?.desde ||
       !ventasFiltroFecha?.hasta
     ) {
-      return ventas || [];
+      return ventasArray;
     }
     return filtrarVentasPorFechaRango(
-      ventas,
+      ventasArray,
       ventasFiltroFecha.desde,
       ventasFiltroFecha.hasta
     );
-  }, [ventas, ventasFiltroFecha]);
+  }, [ventasArray, ventasFiltroFecha]);
 
   const ingresoPeriodoFiltrado = useMemo(
     () =>
@@ -149,30 +210,44 @@ function Ventas({
     [ventasListado]
   );
 
-  const ventasHoy = (ventas || []).filter((v) => v.fecha === hoy);
-  const ingresoHoy = ventasHoy.reduce(
-    (s, v) =>
-      s +
-      (v.total_final != null
-        ? v.total_final
-        : (v.precio_unitario || 0) * (v.cantidad || 0)),
-    0,
+  const ventasHoy = useMemo(
+    () => ventasArray.filter((v) => v.fecha === hoy),
+    [ventasArray, hoy],
+  );
+  const ingresoHoy = useMemo(
+    () =>
+      ventasHoy.reduce(
+        (s, v) =>
+          s +
+          (v.total_final != null
+            ? v.total_final
+            : (v.precio_unitario || 0) * (v.cantidad || 0)),
+        0,
+      ),
+    [ventasHoy],
   );
 
-  const gruposConDeuda = isVentaRole ? [] : getGruposConDeuda(ventas);
-  const totalDeuda = isVentaRole
-    ? 0
-    : gruposConDeuda.reduce((s, g) => s + totalDebeEnGrupo(g), 0);
+  const gruposConDeuda = useMemo(
+    () => (isVentaRole ? [] : getGruposConDeuda(ventasArray)),
+    [ventasArray, isVentaRole],
+  );
+  const totalDeuda = useMemo(
+    () =>
+      isVentaRole
+        ? 0
+        : gruposConDeuda.reduce((s, g) => s + totalDebeEnGrupo(g), 0),
+    [gruposConDeuda, isVentaRole],
+  );
 
   const registrarVentaEnSupabase = async (rows, transaccionId) => {
     const inserted = await insertVentas(rows);
-    if (actualizarStock) {
+    if (actualizarStockBatch) {
       try {
-        for (const v of rows) {
-          const cant = v.cantidad || 0;
-          if (v.receta_id && cant > 0) {
-            await actualizarStock(v.receta_id, -cant);
-          }
+        const stockDeltas = rows
+          .filter((v) => v.receta_id && (v.cantidad || 0) > 0)
+          .map((v) => ({ receta_id: v.receta_id, delta: -(v.cantidad || 0) }));
+        if (stockDeltas.length > 0) {
+          await actualizarStockBatch(stockDeltas);
         }
       } catch (err) {
         const ids = (inserted || []).map((r) => r.id).filter(Boolean);
@@ -190,12 +265,12 @@ function Ventas({
     // Notificación push (venta): fire-and-forget, solo si estamos online
     if (typeof navigator !== "undefined" && navigator.onLine) {
       const ventaIds = (inserted || []).map((r) => r.id).filter(Boolean);
-      await notifyEvent("venta", {
+      notifyEvent("venta", {
         venta_ids: ventaIds,
         ...(ventaIds.length === 0 && transaccionId
           ? { transaccion_id: transaccionId }
           : {}),
-      });
+      }).catch(() => {});
     }
 
     return { inserted };
@@ -224,14 +299,18 @@ function Ventas({
       showToast("Necesitás conexión para registrar en AFIP");
       return;
     }
+    const factura = await refreshFacturas(transaccionId);
+    const facturasMap = factura
+      ? { ...facturasByTransaccion, [transaccionId]: factura }
+      : facturasByTransaccion;
     const receptor = buildAfipReceptorForRetry(
       transaccionId,
-      facturasByTransaccion,
+      facturasMap,
       ventas,
       clientes,
     );
     const afip = await invokeRegistrarEnAfip(transaccionId, receptor);
-    await refreshFacturas();
+    await refreshFacturas(transaccionId);
     if (afip.ok) {
       const venta = (ventas || []).find(
         (v) => v.transaccion_id === transaccionId && v.cliente_id,
@@ -282,6 +361,7 @@ function Ventas({
     setDatosFiscalesAfip({ documento: "", razon_social: "" });
     closeChargeModal();
     setIsPedidoFlow(false);
+    clearVentaSession().catch(() => {});
   };
 
   const eliminarVenta = async (grupo) => {
@@ -336,7 +416,7 @@ function Ventas({
         });
       }
       showToast("✅ Venta eliminada");
-      onRefresh();
+      if (removeVentas) removeVentas(ids);
     } catch (err) {
       if (stockAplicado && stockDeltas.length > 0) {
         const undo = stockDeltas.map(({ receta_id, delta }) => ({
@@ -366,11 +446,11 @@ function Ventas({
     }
   };
 
-  const initAfipEdicion = (grupo) => {
+  const initAfipEdicion = (grupo, facturaOverride) => {
     const transaccionId = getTransaccionIdFromGrupo(grupo);
-    const factura = transaccionId
-      ? facturasByTransaccion[transaccionId]
-      : null;
+    const factura =
+      facturaOverride ??
+      (transaccionId ? facturasByTransaccion[transaccionId] : null);
     setEditFacturaEstado(factura?.estado ?? null);
     setEditPuedeRegistrarAfip(facturaPuedeReintentarAfip(factura));
     setEditRegistrarEnAfip(false);
@@ -405,9 +485,14 @@ function Ventas({
     }
   };
 
-  const abrirEditar = (grupo) => {
+  const abrirEditar = async (grupo) => {
     edit.abrirEditar(grupo);
-    initAfipEdicion(grupo);
+    const transaccionId = getTransaccionIdFromGrupo(grupo);
+    let factura = null;
+    if (transaccionId) {
+      factura = await refreshFacturas(transaccionId);
+    }
+    initAfipEdicion(grupo, factura);
     setManualScreenOpen(true);
   };
 
@@ -558,6 +643,7 @@ function Ventas({
     }
 
     setSaving(true);
+    perfMark("venta:register:start");
 
     try {
       const subtotalLista = cobroPorDefecto
@@ -640,35 +726,43 @@ function Ventas({
             `✅ Venta guardada offline: ${fmt(totalCobrado)}${promoLabel ? ` (${promoLabel})` : ""}. Se sincronizará cuando vuelva la conexión.`,
           );
         } else {
-          await registrarVentaEnSupabase(rows, transaccionId);
+          const { inserted } = await registrarVentaEnSupabase(rows, transaccionId);
+          if (appendVentas && inserted?.length) {
+            appendVentas(inserted);
+          }
           if (afipActivo && clienteEff && afipReceptor) {
-            await persistirDatosFiscalesCliente(clienteEff, afipReceptor);
+            persistirDatosFiscalesCliente(clienteEff, afipReceptor).catch(() => {});
           }
-          let toastMsg = `✅ Venta registrada: ${fmt(totalCobrado)}${promoLabel ? ` · ${promoLabel}` : ""}`;
+          showToast(`✅ Venta registrada: ${fmt(totalCobrado)}${promoLabel ? ` · ${promoLabel}` : ""}`);
           if (afipActivo) {
-            try {
-              const afip = await invokeRegistrarEnAfip(transaccionId, afipReceptor);
-              await refreshFacturas();
-              if (afip.ok) {
-                toastMsg += afip.mock
-                  ? " · AFIP (prueba)"
-                  : " · Registrado en AFIP";
-              } else {
-                const detalle = afip.error
-                  ? String(afip.error).slice(0, 120)
-                  : "no se pudo registrar";
-                toastMsg += ` · AFIP: ${detalle}`;
-              }
-            } catch (afipErr) {
-              reportError(afipErr, { action: "registrarEnAfip", transaccionId });
-              toastMsg += " · AFIP: error de conexión (la venta sí quedó guardada)";
-            }
+            invokeRegistrarEnAfip(transaccionId, afipReceptor)
+              .then(async (afip) => {
+                await refreshFacturas(transaccionId);
+                if (afip.ok) {
+                  showToast(
+                    afip.mock
+                      ? `✅ AFIP (prueba) · ${fmt(totalCobrado)}`
+                      : `✅ Registrado en AFIP · ${fmt(totalCobrado)}`,
+                  );
+                } else {
+                  const detalle = afip.error
+                    ? String(afip.error).slice(0, 120)
+                    : "no se pudo registrar";
+                  showToast(`⚠️ AFIP: ${detalle} (la venta sí quedó guardada)`);
+                }
+              })
+              .catch((afipErr) => {
+                reportError(afipErr, { action: "registrarEnAfip", transaccionId });
+                showToast("⚠️ AFIP: error de conexión (la venta sí quedó guardada)");
+              });
           }
-          showToast(toastMsg);
         }
       }
       resetNuevaVenta();
-      onRefresh();
+      if (esPedido) {
+        onRefresh();
+      }
+      perfMark("venta:register:end");
     } catch (err) {
       reportError(err, { action: esPedido ? "registrarPedido" : "registrarVentaCarrito" });
       showToast(esPedido ? "⚠️ Error al guardar pedido" : "⚠️ Error al registrar venta");
@@ -747,6 +841,7 @@ function Ventas({
         </button>
       )}
 
+      {(manualScreenOpen || edit.editGrupo) && (
       <VentasManualScreen
         open={manualScreenOpen}
         onClose={closeManualScreen}
@@ -764,6 +859,7 @@ function Ventas({
         addToCart={edit.editGrupo ? edit.addToCartForEdit : addToCart}
         onCobrar={() => {
           if (cartItems.length === 0) return;
+          perfMark("cobro:open");
           setPromosExcluidasCobro([]);
           openChargeModal();
         }}
@@ -808,7 +904,9 @@ function Ventas({
         editPromosExcluidas={edit.editPromosExcluidas}
         setEditPromosExcluidas={edit.setEditPromosExcluidas}
       />
+      )}
 
+      {chargeModalOpen && (
       <VentasChargeModal
         open={chargeModalOpen}
         onClose={cerrarCobro}
@@ -849,8 +947,9 @@ function Ventas({
           if (registrarEnAfip) prefillDatosFiscalesAfip(id);
         }}
       />
+      )}
     </div>
   );
 }
 
-export default Ventas;
+export default memo(Ventas);

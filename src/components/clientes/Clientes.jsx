@@ -15,6 +15,8 @@ export default function Clientes({
   recetas,
   pedidos,
   onRefresh,
+  appendCliente,
+  updateClienteInState,
   showToast,
   actualizarStock,
   confirm,
@@ -22,6 +24,8 @@ export default function Clientes({
   useClientes({
     onRefresh,
     showToast,
+    appendCliente,
+    updateClienteInState,
   });
 
   const [modal, setModal] = useState(false);
@@ -120,6 +124,7 @@ export default function Clientes({
         onClose={() => setModal(false)}
         clientes={clientes}
         onRefresh={onRefresh}
+        appendCliente={appendCliente}
         showToast={showToast}
       />
     </div>

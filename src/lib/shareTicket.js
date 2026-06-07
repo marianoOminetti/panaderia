@@ -1,7 +1,6 @@
-import html2canvas from "html2canvas";
-
 export async function generateTicketImage(element) {
-  const canvas = await html2canvas(element, {
+  const { default: html2canvasLib } = await import("html2canvas");
+  const canvas = await html2canvasLib(element, {
     backgroundColor: "#ffffff",
     scale: 2,
     logging: false,

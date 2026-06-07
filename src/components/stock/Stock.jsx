@@ -111,7 +111,6 @@ function Stock({
           `No se pudo descontar insumos para: ${names}. Stock no se modificó.`
         );
       }
-      if (onRefresh) onRefresh();
       showToast(`✅ Stock cargado: +${total} unidades`);
     },
     [
@@ -417,7 +416,6 @@ function Stock({
             setAjusteSaving(true);
             try {
               await actualizarStock(receta.id, -amount);
-              if (onRefresh) onRefresh();
               showToast(
                 `Stock de producto actualizado. Este ajuste no se registró como venta.`
               );

@@ -3,10 +3,15 @@ import { supabase } from "../lib/supabaseClient";
 
 /**
  * CRUD de clientes y operaciones relacionadas (ventas, pedidos). Usado por Clientes.jsx y ClienteFormModal.
- * @param {{ onRefresh?: () => void, showToast?: (msg: string) => void }}
+ * @param {{ onRefresh?: () => void, showToast?: (msg: string) => void, appendCliente?: (c: object) => void, updateClienteInState?: (c: object) => void }}
  * @returns {{ insertCliente, updateVentasClienteId, deleteCliente, ... }}
  */
-export function useClientes({ onRefresh, showToast } = {}) {
+export function useClientes({
+  onRefresh,
+  showToast,
+  appendCliente,
+  updateClienteInState,
+} = {}) {
   const updateClienteDatosFiscales = useCallback(
     async (id, { cuit, dni, razon_social }) => {
       const patch = { razon_social: (razon_social ?? "").trim() || null };
@@ -29,9 +34,13 @@ export function useClientes({ onRefresh, showToast } = {}) {
         }
         throw error;
       }
-      await onRefresh?.();
+      if (updateClienteInState) {
+        updateClienteInState({ id, ...patch });
+      } else {
+        await onRefresh?.();
+      }
     },
-    [onRefresh],
+    [onRefresh, updateClienteInState],
   );
 
   const insertCliente = useCallback(
@@ -45,17 +54,21 @@ export function useClientes({ onRefresh, showToast } = {}) {
           dni: dni ? String(dni).replace(/\D/g, "").slice(0, 8) : null,
           razon_social: (razon_social ?? "").trim() || null,
         })
-        .select("id")
+        .select("*")
         .single();
       if (error) {
         console.error("[clientes/insertCliente]", error);
         throw error;
       }
       if (!options.skipToast) showToast?.("✅ Cliente agregado");
-      if (!options.skipRefresh) await onRefresh?.();
+      if (appendCliente && data) {
+        appendCliente(data);
+      } else if (!options.skipRefresh) {
+        await onRefresh?.();
+      }
       return data;
     },
-    [onRefresh, showToast],
+    [onRefresh, showToast, appendCliente],
   );
 
   const updateVentasClienteId = useCallback(async (fromClienteId, toClienteId) => {
@@ -101,9 +114,13 @@ export function useClientes({ onRefresh, showToast } = {}) {
         throw error;
       }
       showToast?.("Cliente dado de baja");
-      await onRefresh?.();
+      if (updateClienteInState) {
+        updateClienteInState({ id, eliminado: true });
+      } else {
+        await onRefresh?.();
+      }
     },
-    [onRefresh, showToast],
+    [onRefresh, showToast, updateClienteInState],
   );
 
   /** Borra ventas por ids (para rollback cuando falla updatePedidoEntregado tras insertVentas). */

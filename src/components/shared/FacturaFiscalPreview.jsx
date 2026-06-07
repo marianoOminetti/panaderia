@@ -1,5 +1,4 @@
 import { forwardRef, useEffect, useState } from "react";
-import QRCode from "qrcode";
 import { fmt } from "../../lib/format";
 
 const LOGO_SIN_TACC = `${process.env.PUBLIC_URL || ""}/logo-sin-tacc.png`;
@@ -133,7 +132,10 @@ const FacturaFiscalPreview = forwardRef(function FacturaFiscalPreview(
       return;
     }
     let cancelled = false;
-    QRCode.toDataURL(data.qrUrl, { width: 128, margin: 1, errorCorrectionLevel: "M" })
+    import("qrcode")
+      .then(({ default: QRCode }) =>
+        QRCode.toDataURL(data.qrUrl, { width: 128, margin: 1, errorCorrectionLevel: "M" }),
+      )
       .then((url) => {
         if (!cancelled) setQrDataUrl(url);
       })

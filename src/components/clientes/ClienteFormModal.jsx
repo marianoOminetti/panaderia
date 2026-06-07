@@ -8,8 +8,8 @@ import { useClientes } from "../../hooks/useClientes";
 import { detectAfipDocumento } from "../../lib/afipDocumento";
 import { FormInput } from "../ui";
 
-function ClienteFormModal({ visible, onClose, clientes, onRefresh, showToast }) {
-  const { insertCliente } = useClientes({ onRefresh, showToast });
+function ClienteFormModal({ visible, onClose, clientes, onRefresh, appendCliente, showToast }) {
+  const { insertCliente } = useClientes({ onRefresh, appendCliente, showToast });
 
   const [form, setForm] = useState({
     nombre: "",
@@ -119,7 +119,7 @@ function ClienteFormModal({ visible, onClose, clientes, onRefresh, showToast }) 
     setImportingMultiple(false);
     setImportProgress({ done: 0, total: 0 });
     showToast(`✅ ${ok} de ${list.length} cliente(s) importado(s)`);
-    await onRefresh();
+    if (!appendCliente && onRefresh) await onRefresh();
   };
 
   return (

@@ -2,6 +2,7 @@
  * Pantalla Inicio/Dashboard: métricas del día, alertas (useDashboardAlerts + DashboardAlerts) y grilla de accesos rápidos (DashboardQuickGrid).
  * Recibe datos y callbacks de navegación desde AppContent.
  */
+import { useMemo, memo } from "react";
 import { fmt } from "../../lib/format";
 import { hoyLocalISO } from "../../lib/dates";
 import { costoUnitarioPorRecetaMap } from "../../lib/costos";
@@ -26,37 +27,56 @@ function Dashboard({
   onOpenNuevoPedido,
 }) {
   const hoyStr = hoyLocalISO();
-  const ventasHoy = ventas.filter((v) => v.fecha === hoyStr);
-  const ingresoHoy = ventasHoy.reduce(
-    (s, v) =>
-      s +
-      (v.total_final != null
-        ? v.total_final
-        : (v.precio_unitario || 0) * (v.cantidad || 0)),
-    0
+  const ventasHoy = useMemo(
+    () => ventas.filter((v) => v.fecha === hoyStr),
+    [ventas, hoyStr],
   );
-  const costoUnitarioPorReceta = costoUnitarioPorRecetaMap(
-    recetas || [],
-    recetaIngredientes || [],
-    insumos || []
+  const ingresoHoy = useMemo(
+    () =>
+      ventasHoy.reduce(
+        (s, v) =>
+          s +
+          (v.total_final != null
+            ? v.total_final
+            : (v.precio_unitario || 0) * (v.cantidad || 0)),
+        0,
+      ),
+    [ventasHoy],
   );
-  const costHoy = ventasHoy.reduce((s, v) => {
-    const cu = costoUnitarioPorReceta[v.receta_id];
-    if (cu == null) return s;
-    const cant = Number(v.cantidad) || 0;
-    return s + cu * cant;
-  }, 0);
+  const costoUnitarioPorReceta = useMemo(
+    () =>
+      costoUnitarioPorRecetaMap(
+        recetas || [],
+        recetaIngredientes || [],
+        insumos || [],
+      ),
+    [recetas, recetaIngredientes, insumos],
+  );
+  const costHoy = useMemo(
+    () =>
+      ventasHoy.reduce((s, v) => {
+        const cu = costoUnitarioPorReceta[v.receta_id];
+        if (cu == null) return s;
+        const cant = Number(v.cantidad) || 0;
+        return s + cu * cant;
+      }, 0),
+    [ventasHoy, costoUnitarioPorReceta],
+  );
   const margenHoy = ingresoHoy - costHoy;
-  const debeTotal = ventas
-    .filter((v) => v.estado_pago === "debe")
-    .reduce(
-      (s, v) =>
-        s +
-        (v.total_final != null
-          ? v.total_final
-          : (v.precio_unitario || 0) * (v.cantidad || 0)),
-      0
-    );
+  const debeTotal = useMemo(
+    () =>
+      ventas
+        .filter((v) => v.estado_pago === "debe")
+        .reduce(
+          (s, v) =>
+            s +
+            (v.total_final != null
+              ? v.total_final
+              : (v.precio_unitario || 0) * (v.cantidad || 0)),
+          0,
+        ),
+    [ventas],
+  );
 
   const alerts = useDashboardAlerts({ recetas, ventas, stock, pedidos });
 
@@ -178,5 +198,5 @@ function Dashboard({
   );
 }
 
-export default Dashboard;
+export default memo(Dashboard);
 
