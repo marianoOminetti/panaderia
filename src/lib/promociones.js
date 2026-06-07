@@ -10,10 +10,18 @@ export const TIPOS_PROMO = {
 /**
  * Normaliza filas de Supabase con join promocion_recetas.
  */
+export function isPendingPromoId(id) {
+  return id != null && String(id).startsWith("pending-promo-");
+}
+
+export function uniqueRecetaIds(ids) {
+  return [...new Set((ids || []).filter(Boolean))];
+}
+
 export function normalizarPromociones(rows) {
   return (rows || []).map((p) => {
     const links = p.promocion_recetas || [];
-    const receta_ids = links.map((l) => l.receta_id).filter(Boolean);
+    const receta_ids = uniqueRecetaIds(links.map((l) => l.receta_id));
     const { promocion_recetas: _pr, ...rest } = p;
     return { ...rest, receta_ids };
   });
@@ -123,7 +131,9 @@ function calcularDescuentoPromo(promo, cartItems, subtotalLista) {
 export function listarPromosParaCobro(cartItems, promociones, excludePromoIds = []) {
   const subtotalLista = subtotalCarrito(cartItems);
   const excludeSet = new Set(excludePromoIds || []);
-  const activas = (promociones || []).filter((p) => p.activa !== false);
+  const activas = (promociones || []).filter(
+    (p) => p.activa !== false && !isPendingPromoId(p.id),
+  );
 
   return activas
     .map((promo) => {
@@ -148,7 +158,8 @@ export function calcularPromosEnCarrito(cartItems, promociones, opciones = {}) {
   const subtotalLista = subtotalCarrito(cartItems);
   const excludeSet = new Set(opciones.excludePromoIds || []);
   const activas = (promociones || []).filter(
-    (p) => p.activa !== false && !excludeSet.has(p.id),
+    (p) =>
+      p.activa !== false && !excludeSet.has(p.id) && !isPendingPromoId(p.id),
   );
   const aplicadas = [];
   let descuentoTotal = 0;

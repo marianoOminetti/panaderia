@@ -138,6 +138,7 @@ export default function App() {
     promociones,
     loading,
     ventasSyncing,
+    dataSyncing,
     setStock,
     setInsumoStock,
     setInsumoMovimientos,
@@ -146,6 +147,7 @@ export default function App() {
     planSemanalVersion,
     setPlanSemanalVersion,
     loadData,
+    refreshData,
     hydrateFromCache,
     appendVentas,
     removeVentas,
@@ -381,15 +383,28 @@ export default function App() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const onPageShow = (e) => {
+    const onPageShow = () => {
       if (!session || !roleReady) return;
-      if (e.persisted) {
-        loadData({ background: true });
-      }
+      refreshData();
     };
     window.addEventListener("pageshow", onPageShow);
     return () => window.removeEventListener("pageshow", onPageShow);
-  }, [session, roleReady, loadData]);
+  }, [session, roleReady, refreshData]);
+
+  const lastVisibilityRefreshRef = useRef(0);
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const onVisibility = () => {
+      if (document.visibilityState !== "visible") return;
+      if (!session || !roleReady) return;
+      const now = Date.now();
+      if (now - lastVisibilityRefreshRef.current < 30_000) return;
+      lastVisibilityRefreshRef.current = now;
+      refreshData();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, [session, roleReady, refreshData]);
 
   useEffect(() => {
     if (tab === "analytics" && !ventasHistoricasLoaded && normalizedRole !== "venta") {
@@ -414,6 +429,16 @@ export default function App() {
   const isMoreSection = ["analytics", "plan", "clientes", "insumos", "recetas"].includes(tab);
   const sinStockCount = recetas.filter((r) => (stock[r.id] ?? 0) <= 0).length;
   const { headerVisible, navVisible } = useScrollToHide();
+
+  const handleManualRefresh = useCallback(async () => {
+    showToast("Actualizando datos…");
+    try {
+      await refreshData();
+      showToast("✅ Datos actualizados");
+    } catch {
+      showToast("⚠️ No se pudieron actualizar los datos");
+    }
+  }, [refreshData, showToast]);
 
   if (!SUPABASE_CONFIG_OK) return <ConfigMissing />;
   if (authLoading || (session && !roleReady)) {
@@ -452,7 +477,15 @@ export default function App() {
 
   return (
     <div className="app">
-      <AppHeader visible={headerVisible} setErrorLogOpen={setErrorLogOpen} signOut={handleSignOut} showToast={showToast} onGoHome={() => setTab(defaultTab)} />
+      <AppHeader
+        visible={headerVisible}
+        setErrorLogOpen={setErrorLogOpen}
+        signOut={handleSignOut}
+        showToast={showToast}
+        onGoHome={() => setTab(defaultTab)}
+        onRefresh={handleManualRefresh}
+        refreshing={dataSyncing || ventasSyncing}
+      />
       {errorLogOpen && <ErrorLogOverlay onClose={() => setErrorLogOpen(false)} />}
       <AppDataProvider value={appDataContextValue}>
       <AppContent
@@ -498,6 +531,7 @@ export default function App() {
         }}
         loading={loading}
         ventasSyncing={ventasSyncing}
+        dataSyncing={dataSyncing}
         moreMenuItems={moreMenuItems}
         insumos={insumos}
         recetas={recetas}
@@ -518,7 +552,7 @@ export default function App() {
         registrarMovimientoInsumo={registrarMovimientoInsumo}
         consumirInsumosPorStock={consumirInsumosPorStock}
         consumirComponentesDeInsumo={consumirComponentesDeInsumo}
-        loadData={loadData}
+        loadData={refreshData}
         appendVentas={appendVentas}
         removeVentas={removeVentas}
         replaceVentas={replaceVentas}

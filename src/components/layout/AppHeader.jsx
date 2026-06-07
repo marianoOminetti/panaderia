@@ -4,7 +4,15 @@
  */
 import { getErrorLog } from "../../utils/errorReport";
 
-export default function AppHeader({ visible = true, setErrorLogOpen, signOut, showToast, onGoHome }) {
+export default function AppHeader({
+  visible = true,
+  setErrorLogOpen,
+  signOut,
+  showToast,
+  onGoHome,
+  onRefresh,
+  refreshing = false,
+}) {
   return (
     <div className={`header ${visible ? "" : "header--hidden"}`} aria-hidden={!visible}>
       <div className="header-top">
@@ -25,6 +33,26 @@ export default function AppHeader({ visible = true, setErrorLogOpen, signOut, sh
           <h1>🌾 Gluten Free</h1>
         </button>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {onRefresh && (
+            <button
+              type="button"
+              onClick={() => onRefresh()}
+              disabled={refreshing}
+              title="Actualizar datos"
+              style={{
+                background: "rgba(255,255,255,0.2)",
+                border: "none",
+                borderRadius: 6,
+                padding: "4px 8px",
+                fontSize: 11,
+                color: "white",
+                cursor: refreshing ? "wait" : "pointer",
+                opacity: refreshing ? 0.7 : 1,
+              }}
+            >
+              {refreshing ? "↻…" : "↻"}
+            </button>
+          )}
           {getErrorLog().length > 0 && (
             <button
               type="button"

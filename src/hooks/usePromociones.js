@@ -1,6 +1,6 @@
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 import { supabase } from "../lib/supabaseClient";
-import { normalizarPromociones } from "../lib/promociones";
+import { isPendingPromoId, normalizarPromociones, uniqueRecetaIds } from "../lib/promociones";
 
 function buildPromoPayload({
   nombre,
@@ -40,6 +40,8 @@ export function usePromociones({
   upsertPromocionInState,
   removePromocion,
 } = {}) {
+  const saveInFlightRef = useRef(false);
+
   const loadPromociones = useCallback(async () => {
     const { data, error } = await supabase
       .from("promociones")
@@ -54,16 +56,24 @@ export function usePromociones({
 
   const savePromocion = useCallback(
     async (params) => {
+      if (saveInFlightRef.current) return;
       const { id, receta_ids } = params;
+      if (id && isPendingPromoId(id)) {
+        showToast?.("Esperá a que termine de guardarse la promo");
+        return;
+      }
+
+      saveInFlightRef.current = true;
       const payload = buildPromoPayload(params);
+      const recetaIdsUnique = uniqueRecetaIds(receta_ids);
       const pendingId = id || `pending-promo-${Date.now()}`;
-      const optimisticPromo = { ...payload, id: pendingId, receta_ids: receta_ids || [] };
+      const optimisticPromo = { ...payload, id: pendingId, receta_ids: recetaIdsUnique };
 
       showToast?.(id ? "Guardando cambios…" : "Creando promo…");
       upsertPromocionInState?.(optimisticPromo);
 
+      let promoId = id;
       try {
-        let promoId = id;
         if (id) {
           const { error } = await supabase.from("promociones").update(payload).eq("id", id);
           if (error) throw error;
@@ -75,14 +85,19 @@ export function usePromociones({
             .single();
           if (error) throw error;
           promoId = data.id;
-          if (pendingId !== promoId) removePromocion?.(pendingId);
+          removePromocion?.(pendingId);
+          upsertPromocionInState?.({
+            ...payload,
+            id: promoId,
+            receta_ids: recetaIdsUnique,
+          });
         }
         const { error: delErr } = await supabase
           .from("promocion_recetas")
           .delete()
           .eq("promocion_id", promoId);
         if (delErr) throw delErr;
-        const links = (receta_ids || []).map((receta_id) => ({
+        const links = recetaIdsUnique.map((receta_id) => ({
           promocion_id: promoId,
           receta_id,
         }));
@@ -90,15 +105,30 @@ export function usePromociones({
           const { error: linkErr } = await supabase.from("promocion_recetas").insert(links);
           if (linkErr) throw linkErr;
         }
-        upsertPromocionInState?.({ ...payload, id: promoId, receta_ids: receta_ids || [] });
+        upsertPromocionInState?.({
+          ...payload,
+          id: promoId,
+          receta_ids: recetaIdsUnique,
+        });
         showToast?.(id ? "✅ Promo actualizada" : "✅ Promo creada");
       } catch (err) {
-        if (!id) {
+        if (!id && promoId && !isPendingPromoId(promoId)) {
+          upsertPromocionInState?.({
+            ...payload,
+            id: promoId,
+            receta_ids: recetaIdsUnique,
+          });
+          err.partialPromoId = promoId;
+        } else if (!id) {
           removePromocion?.(pendingId);
+          await onRefresh?.();
+        } else {
+          await onRefresh?.();
         }
-        await onRefresh?.();
         showToast?.("⚠️ Error al guardar promo");
         throw err;
+      } finally {
+        saveInFlightRef.current = false;
       }
     },
     [onRefresh, showToast, upsertPromocionInState, removePromocion],
@@ -106,6 +136,10 @@ export function usePromociones({
 
   const toggleActiva = useCallback(
     async (promo) => {
+      if (isPendingPromoId(promo.id)) {
+        showToast?.("Esperá a que termine de guardarse la promo");
+        return;
+      }
       const nextActiva = !promo.activa;
       upsertPromocionInState?.({ ...promo, activa: nextActiva });
       const { error } = await supabase
@@ -118,11 +152,16 @@ export function usePromociones({
         throw error;
       }
     },
-    [onRefresh, upsertPromocionInState],
+    [onRefresh, showToast, upsertPromocionInState],
   );
 
   const deletePromocionFn = useCallback(
     async (promo) => {
+      if (isPendingPromoId(promo.id)) {
+        removePromocion?.(promo.id);
+        showToast?.("Promo pendiente descartada");
+        return;
+      }
       removePromocion?.(promo.id);
       showToast?.("Eliminando…");
       const { error } = await supabase.from("promociones").delete().eq("id", promo.id);

@@ -1,10 +1,10 @@
 /**
  * Administración de promociones: N×M, % en productos, % por monto mínimo.
  */
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { reportError } from "../../utils/errorReport";
 import { usePromociones } from "../../hooks/usePromociones";
-import { TIPOS_PROMO, etiquetaPromo, promoUsaProductos } from "../../lib/promociones";
+import { TIPOS_PROMO, etiquetaPromo, isPendingPromoId, promoUsaProductos } from "../../lib/promociones";
 import { FormInput, FormMoneyInput, FormCheckbox, SearchableSelect } from "../ui";
 
 const TIPOS_OPCIONES = [
@@ -41,8 +41,10 @@ export default function Promociones({ promociones, recetas, onRefresh, upsertPro
   const [form, setForm] = useState(emptyForm);
   const [searchRecetas, setSearchRecetas] = useState("");
   const [saving, setSaving] = useState(false);
+  const saveInFlightRef = useRef(false);
 
   const usaProductos = promoUsaProductos(form.tipo);
+  const promoBloqueada = (p) => isPendingPromoId(p?.id) || saving;
 
   const abrirNueva = () => {
     setEditId(null);
@@ -52,6 +54,10 @@ export default function Promociones({ promociones, recetas, onRefresh, upsertPro
   };
 
   const abrirEditar = (p) => {
+    if (isPendingPromoId(p.id)) {
+      showToast("Esperá a que termine de guardarse la promo");
+      return;
+    }
     setEditId(p.id);
     setForm({
       nombre: p.nombre || "",
@@ -103,6 +109,7 @@ export default function Promociones({ promociones, recetas, onRefresh, upsertPro
   };
 
   const guardar = async () => {
+    if (saveInFlightRef.current || saving) return;
     const nombre = form.nombre.trim();
     if (!nombre) {
       showToast("Ingresá un nombre para la promo");
@@ -160,7 +167,9 @@ export default function Promociones({ promociones, recetas, onRefresh, upsertPro
       }
     }
 
+    saveInFlightRef.current = true;
     setSaving(true);
+    setModalOpen(false);
     try {
       await savePromocion({
         id: editId,
@@ -174,9 +183,9 @@ export default function Promociones({ promociones, recetas, onRefresh, upsertPro
         activa: form.activa,
         receta_ids: usaProductos ? form.receta_ids : [],
       });
-      setModalOpen(false);
     } catch (err) {
-      reportError(err, { action: "savePromocion", id: editId });
+      if (err?.partialPromoId) setEditId(err.partialPromoId);
+      reportError(err, { action: "savePromocion", id: editId || err?.partialPromoId });
       const msg = String(err?.message || "");
       const faltaColumna = /descuento_fijo/i.test(msg);
       showToast(
@@ -186,12 +195,15 @@ export default function Promociones({ promociones, recetas, onRefresh, upsertPro
             ? `⚠️ ${msg.slice(0, 120)}`
             : "⚠️ Error al guardar promo",
       );
+      setModalOpen(true);
     } finally {
+      saveInFlightRef.current = false;
       setSaving(false);
     }
   };
 
   const toggleConValidacion = async (p) => {
+    if (promoBloqueada(p)) return;
     try {
       await toggleActiva(p);
     } catch (err) {
@@ -201,6 +213,7 @@ export default function Promociones({ promociones, recetas, onRefresh, upsertPro
   };
 
   const eliminar = async (p) => {
+    if (promoBloqueada(p) && !isPendingPromoId(p.id)) return;
     const ok = await confirm?.(`¿Eliminar la promo "${p.nombre}"?`, { destructive: true });
     if (!ok) return;
     try {
@@ -284,8 +297,19 @@ export default function Promociones({ promociones, recetas, onRefresh, upsertPro
                 Sin productos asignados
               </p>
             )}
+            {isPendingPromoId(p.id) && (
+              <p style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 8 }}>
+                Guardando en la nube…
+              </p>
+            )}
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              <button type="button" className="btn-secondary" style={{ marginTop: 0 }} onClick={() => abrirEditar(p)}>
+              <button
+                type="button"
+                className="btn-secondary"
+                style={{ marginTop: 0 }}
+                disabled={promoBloqueada(p)}
+                onClick={() => abrirEditar(p)}
+              >
                 Editar
               </button>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
@@ -293,6 +317,7 @@ export default function Promociones({ promociones, recetas, onRefresh, upsertPro
                   type="button"
                   className={p.activa !== false ? "btn-danger" : "btn-secondary"}
                   style={{ marginTop: 0 }}
+                  disabled={promoBloqueada(p)}
                   onClick={() => toggleConValidacion(p)}
                 >
                   {p.activa !== false ? "Desactivar" : "Activar"}
@@ -301,6 +326,7 @@ export default function Promociones({ promociones, recetas, onRefresh, upsertPro
                   type="button"
                   className="btn-danger"
                   style={{ marginTop: 0 }}
+                  disabled={saving && !isPendingPromoId(p.id)}
                   onClick={() => eliminar(p)}
                 >
                   Eliminar

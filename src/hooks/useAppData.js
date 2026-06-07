@@ -107,27 +107,34 @@ export function useAppData({ showToast, role, onCachePatch, onPersistCache } = {
 
   const [loading, setLoading] = useState(true);
   const [ventasSyncing, setVentasSyncing] = useState(false);
+  const [dataSyncing, setDataSyncing] = useState(false);
   const [ventasHistoricasLoaded, setVentasHistoricasLoaded] = useState(false);
   const [seeded, setSeeded] = useState(false);
   const seededRef = useRef(false);
   seededRef.current = seeded;
   const loadInFlightRef = useRef(null);
+  const loadGenerationRef = useRef(0);
   const ventasRef = useRef([]);
   ventasRef.current = ventas;
 
   const [recetasFilterIds, setRecetasFilterIds] = useState([]);
   const [planSemanalVersion, setPlanSemanalVersion] = useState(0);
 
-  const loadData = useCallback(async ({ background = false } = {}) => {
+  const loadData = useCallback(async ({ background = false, force = false } = {}) => {
     const roleKey = role ?? "__pending__";
-    if (loadInFlightRef.current?.roleKey === roleKey) {
+    if (!force && loadInFlightRef.current?.roleKey === roleKey) {
       return loadInFlightRef.current.promise;
     }
 
     const run = async () => {
+      const generation = ++loadGenerationRef.current;
+      const isStale = () => generation !== loadGenerationRef.current;
+
       if (!background) {
         perfMark("loadData:start");
         setLoading(true);
+      } else {
+        setDataSyncing(true);
       }
       const isVenta = role === "venta";
       const ventasRecientesDesde = isVenta
@@ -221,6 +228,8 @@ export function useAppData({ showToast, role, onCachePatch, onPersistCache } = {
         precioHistPromise,
       ]);
 
+      if (isStale()) return;
+
       const authErr = (e) => e && (e.status === 401 || e.status === 403);
       if ([recRes.error, cliRes.error, promosRes?.error].some(authErr)) {
         if (showToast) {
@@ -228,6 +237,7 @@ export function useAppData({ showToast, role, onCachePatch, onPersistCache } = {
         }
         await supabase.auth.signOut();
         setLoading(false);
+        setDataSyncing(false);
         return;
       }
 
@@ -325,10 +335,18 @@ export function useAppData({ showToast, role, onCachePatch, onPersistCache } = {
           showToast?.("⚠️ Error al cargar ventas");
         } else {
           recentVentas = asVentasArray(venRecent.data);
-          setVentas((prev) => mergeVentasFromFetch(prev, venRecent.data));
+          if (!isStale()) {
+            setVentas((prev) => mergeVentasFromFetch(prev, venRecent.data));
+          }
         }
       } finally {
+        if (!isStale()) setVentasSyncing(false);
+      }
+
+      if (isStale()) {
         setVentasSyncing(false);
+        if (background) setDataSyncing(false);
+        return;
       }
 
       const stockMap = stRes.ok
@@ -376,9 +394,15 @@ export function useAppData({ showToast, role, onCachePatch, onPersistCache } = {
         seededRef.current = true;
         setSeeded(true);
       }
+      if (background) setDataSyncing(false);
     };
 
-    const promise = run();
+    const promise = run().catch((err) => {
+      setLoading(false);
+      setDataSyncing(false);
+      setVentasSyncing(false);
+      throw err;
+    });
     loadInFlightRef.current = { roleKey, promise };
     try {
       await promise;
@@ -688,6 +712,11 @@ export function useAppData({ showToast, role, onCachePatch, onPersistCache } = {
     setLoading(false);
   }, []);
 
+  const refreshData = useCallback(
+    () => loadData({ force: true, background: true }),
+    [loadData],
+  );
+
   return {
     insumos,
     recetas,
@@ -704,6 +733,7 @@ export function useAppData({ showToast, role, onCachePatch, onPersistCache } = {
     promociones,
     loading,
     ventasSyncing,
+    dataSyncing,
     setStock,
     setInsumoStock,
     setInsumoMovimientos,
@@ -712,6 +742,7 @@ export function useAppData({ showToast, role, onCachePatch, onPersistCache } = {
     planSemanalVersion,
     setPlanSemanalVersion,
     loadData,
+    refreshData,
     hydrateFromCache,
     appendVentas,
     removeVentas,
