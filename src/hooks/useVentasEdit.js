@@ -42,7 +42,7 @@ export function useVentasEdit({
   const [editPrecios, setEditPrecios] = useState({});
   const [editTotalOverride, setEditTotalOverride] = useState("");
   const [editPromosExcluidas, setEditPromosExcluidas] = useState([]);
-  const [editSaving, setEditSaving] = useState(false);
+  const [editSaving] = useState(false);
 
   const abrirEditar = (grupo) => {
     setEditGrupo(grupo);

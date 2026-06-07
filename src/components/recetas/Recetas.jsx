@@ -42,7 +42,6 @@ export default function Recetas({
     editando,
     setEditando,
     saving,
-    setSaving,
     form,
     setForm,
     ingredientes,

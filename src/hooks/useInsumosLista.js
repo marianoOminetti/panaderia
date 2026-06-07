@@ -39,14 +39,14 @@ export function useInsumosLista({
   const [catActiva, setCatActiva] = useState("Todos");
   const [modal, setModal] = useState(false);
   const [editando, setEditando] = useState(null);
-  const [saving, setSaving] = useState(false);
+  const [saving] = useState(false);
   const [form, setForm] = useState(FORM_INITIAL);
   const [movModal, setMovModal] = useState(false);
   const [movInsumo, setMovInsumo] = useState(null);
   const [movTipo, setMovTipo] = useState("ingreso");
   const [movCantidad, setMovCantidad] = useState("");
   const [movValor, setMovValor] = useState("");
-  const [movSaving, setMovSaving] = useState(false);
+  const [movSaving] = useState(false);
   const [detalleInsumo, setDetalleInsumo] = useState(null);
 
   const filtrados = useMemo(() => {

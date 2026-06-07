@@ -132,7 +132,7 @@ function Ventas({
     openChargeModal,
     closeChargeModal,
   } = useVentasChargeModal();
-  const [deletingId, setDeletingId] = useState(null);
+  const [deletingId] = useState(null);
   const deleteInFlightRef = useRef(new Set());
   const hoy = hoyLocalISO();
   const isVentaRole = checkVentaRole(role);
