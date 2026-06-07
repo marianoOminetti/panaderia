@@ -55,6 +55,7 @@ export default function AppContent({
   onOpenInsumosCompra,
   loading,
   ventasSyncing,
+  dataSyncing,
   moreMenuItems,
   insumos,
   recetas,
@@ -123,7 +124,9 @@ export default function AppContent({
   if (!canAccessTab(role, tab)) return null;
   return (
     <>
-      {ventasSyncing && <SyncStatus />}
+      {(ventasSyncing || dataSyncing) && (
+        <SyncStatus message={ventasSyncing ? "Sincronizando ventas…" : "Actualizando datos…"} />
+      )}
       {/* --- Dashboard --- */}
       {tab === "dashboard" && (
         <LazyTab>
