@@ -174,13 +174,9 @@ export default function VentasChargeModal({
         <button
           className="btn-primary"
           onClick={handleRegistrar}
-          disabled={saving || cartItems.length === 0}
+          disabled={cartItems.length === 0}
         >
-          {saving
-            ? "Registrando..."
-            : esPedido
-              ? "Guardar pedido"
-              : "Registrar venta"}
+          {esPedido ? "Guardar pedido" : "Registrar venta"}
         </button>
         <button className="btn-secondary" onClick={onClose}>
           Cancelar

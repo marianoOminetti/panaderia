@@ -10,4 +10,5 @@ export { default as DatePicker } from "./DatePicker";
 export { default as ProductSearchInput } from "./ProductSearchInput";
 export { default as Pagination } from "./Pagination";
 export { default as Toast } from "./Toast";
+export { default as SyncStatus } from "./SyncStatus";
 export { default as ConfirmDialog } from "./ConfirmDialog";

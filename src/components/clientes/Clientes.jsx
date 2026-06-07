@@ -17,8 +17,16 @@ export default function Clientes({
   onRefresh,
   appendCliente,
   updateClienteInState,
+  removeClienteFromState,
+  appendPedidos,
+  updatePedidosEstado,
+  removePedidosByPedidoIdInState,
+  appendVentas,
+  removeVentas,
+  patchStock,
   showToast,
   actualizarStock,
+  actualizarStockBatch,
   confirm,
 }) {
   useClientes({
@@ -26,6 +34,10 @@ export default function Clientes({
     showToast,
     appendCliente,
     updateClienteInState,
+    removeClienteFromState,
+    appendPedidos,
+    updatePedidosEstado,
+    removePedidosByPedidoIdInState,
   });
 
   const [modal, setModal] = useState(false);
@@ -113,9 +125,15 @@ export default function Clientes({
           pedidos={pedidos}
           onClose={() => setDetalleCliente(null)}
           actualizarStock={actualizarStock}
+          actualizarStockBatch={actualizarStockBatch}
           showToast={showToast}
           confirm={confirm}
           onRefresh={onRefresh}
+          updateClienteInState={updateClienteInState}
+          appendVentas={appendVentas}
+          patchStock={patchStock}
+          removeVentas={removeVentas}
+          updatePedidosEstado={updatePedidosEstado}
         />
       )}
 

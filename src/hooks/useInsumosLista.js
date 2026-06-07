@@ -30,19 +30,23 @@ export function useInsumosLista({
   onRefresh,
   showToast,
   confirm,
+  appendInsumo,
+  updateInsumoInState,
+  removeInsumo,
+  patchRecetasCosts,
 }) {
   const [search, setSearch] = useState("");
   const [catActiva, setCatActiva] = useState("Todos");
   const [modal, setModal] = useState(false);
   const [editando, setEditando] = useState(null);
-  const [saving, setSaving] = useState(false);
+  const [saving] = useState(false);
   const [form, setForm] = useState(FORM_INITIAL);
   const [movModal, setMovModal] = useState(false);
   const [movInsumo, setMovInsumo] = useState(null);
   const [movTipo, setMovTipo] = useState("ingreso");
   const [movCantidad, setMovCantidad] = useState("");
   const [movValor, setMovValor] = useState("");
-  const [movSaving, setMovSaving] = useState(false);
+  const [movSaving] = useState(false);
   const [detalleInsumo, setDetalleInsumo] = useState(null);
 
   const filtrados = useMemo(() => {
@@ -99,7 +103,6 @@ export function useInsumosLista({
       showToast("⚠️ Precio inválido");
       return;
     }
-    setSaving(true);
     const data = {
       nombre: form.nombre,
       categoria: form.categoria,
@@ -109,24 +112,39 @@ export function useInsumosLista({
       unidad: form.unidad,
     };
     const isUpdate = Boolean(editando);
+    const pendingId = isUpdate ? editando.id : `pending-insumo-${Date.now()}`;
     const precioAnterior =
       isUpdate && editando
         ? typeof editando.precio === "number"
           ? editando.precio
           : parseDecimal(editando.precio) ?? 0
         : null;
+
+    if (isUpdate) {
+      updateInsumoInState?.({ ...editando, ...data });
+    } else {
+      appendInsumo?.({ ...data, id: pendingId });
+    }
+    setModal(false);
+    showToast(isUpdate ? "Guardando cambios…" : "Guardando insumo…");
+
+    let insumoId = isUpdate ? editando?.id : null;
     try {
       if (isUpdate) {
         await updateInsumo(editando.id, data);
+        insumoId = editando.id;
       } else {
-        await insertInsumo(data);
+        const row = await insertInsumo(data);
+        insumoId = row?.id;
+        if (!insumoId) throw new Error("No se pudo crear el insumo");
+        removeInsumo?.(pendingId);
+        appendInsumo?.({ ...data, id: insumoId });
       }
     } catch {
+      await onRefresh?.();
       showToast("⚠️ Error al guardar");
-      setSaving(false);
       return;
     }
-    const insumoId = isUpdate ? editando.id : null;
     const precioChanged =
       isUpdate &&
       precioAnterior != null &&
@@ -215,6 +233,7 @@ export function useInsumosLista({
 
           let recetasOk = 0;
           const erroresRecetas = [];
+          const costUpdates = [];
 
           for (const recIdKey of recetasAfectadasIds) {
             const receta = recetasPorId[recIdKey];
@@ -234,11 +253,20 @@ export function useInsumosLista({
                 costo_lote: costoDespues,
                 costo_unitario: costoUnitDespues,
               });
+              costUpdates.push({
+                id: recId,
+                costo_lote: costoDespues,
+                costo_unitario: costoUnitDespues,
+              });
               recetasOk += 1;
             } catch (err) {
               console.error("[insumosLista/updateRecetaCostos]", err);
               erroresRecetas.push(receta?.nombre || recIdKey);
             }
+          }
+
+          if (costUpdates.length > 0) {
+            patchRecetasCosts?.(costUpdates);
           }
 
           if (recetasOk > 0) {
@@ -262,9 +290,6 @@ export function useInsumosLista({
       }
     }
     showToast(successMessage);
-    setSaving(false);
-    setModal(false);
-    onRefresh();
   }, [
     form,
     editando,
@@ -277,12 +302,17 @@ export function useInsumosLista({
     updateRecetaCostos,
     showToast,
     onRefresh,
+    appendInsumo,
+    updateInsumoInState,
+    patchRecetasCosts,
+    removeInsumo,
   ]);
 
   const guardarMovimiento = useCallback(async () => {
     const cant = parseDecimal(movCantidad);
     if (!movInsumo || !cant || cant <= 0) return;
-    setMovSaving(true);
+    setMovModal(false);
+    showToast("Registrando movimiento…");
     try {
       await registrarMovimientoInsumo(
         movInsumo.id,
@@ -301,12 +331,8 @@ export function useInsumosLista({
           ? `✅ Egreso: -${cant} ${movInsumo.nombre}`
           : `✅ Ajuste aplicado: -${cant} ${movInsumo.nombre}`
       );
-      setMovModal(false);
-      onRefresh();
     } catch {
       showToast("⚠️ Error al registrar movimiento");
-    } finally {
-      setMovSaving(false);
     }
   }, [
     movInsumo,
@@ -315,7 +341,6 @@ export function useInsumosLista({
     movValor,
     registrarMovimientoInsumo,
     showToast,
-    onRefresh,
   ]);
 
   return {

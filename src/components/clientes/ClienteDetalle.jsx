@@ -2,7 +2,6 @@
  * Detalle de un cliente: pedidos (ClienteDetallePedidos) y ventas (ClienteDetalleVentas), alta de pedido y acciones.
  * Usa useClientes para operaciones de estado.
  */
-import { useState } from "react";
 import { fmt } from "../../lib/format";
 import { hoyLocalISO } from "../../lib/dates";
 import { agruparPedidos, agruparVentas } from "../../lib/agrupadores";
@@ -18,9 +17,15 @@ function ClienteDetalle({
   pedidos,
   onClose,
   actualizarStock,
+  actualizarStockBatch,
   showToast,
   confirm,
   onRefresh,
+  updateClienteInState,
+  appendVentas,
+  patchStock,
+  removeVentas,
+  updatePedidosEstado,
 }) {
   const {
     updatePedidoEstado,
@@ -28,9 +33,7 @@ function ClienteDetalle({
     updatePedidoEntregado,
     deleteVentasByIds,
     softDeleteCliente,
-  } = useClientes({ onRefresh, showToast });
-
-  const [savingEntrega, setSavingEntrega] = useState(false);
+  } = useClientes({ onRefresh, showToast, updateClienteInState, updatePedidosEstado });
 
   if (!cliente) return null;
 
@@ -57,30 +60,45 @@ function ClienteDetalle({
       { destructive: false },
     );
     if (!ok) return;
-    setSavingEntrega(true);
+
+    const hoy = hoyLocalISO();
+    const transaccionId = crypto.randomUUID?.() || `p-${grupo.key}`;
+    const rows = grupo.rawItems.map((p) => {
+      const precio = p.precio_unitario || 0;
+      const cantidad = p.cantidad || 0;
+      const subtotal = precio * cantidad;
+      return {
+        receta_id: p.receta_id,
+        cantidad,
+        precio_unitario: precio,
+        subtotal,
+        descuento: 0,
+        total_final: subtotal,
+        fecha: hoy,
+        transaccion_id: transaccionId,
+        cliente_id: p.cliente_id || null,
+        medio_pago: "efectivo",
+        estado_pago: "pagado",
+      };
+    });
+    const now = new Date().toISOString();
+    const pendingRows = rows.map((r, i) => ({
+      ...r,
+      id: `pending-${transaccionId}-${i}`,
+      created_at: now,
+    }));
+    const pendingIds = pendingRows.map((r) => r.id);
+    const stockDeltas = grupo.rawItems
+      .filter((p) => p.receta_id && (p.cantidad || 0) > 0)
+      .map((p) => ({ receta_id: p.receta_id, delta: -(p.cantidad || 0) }));
+    const estadoAnterior = grupo.estado || "pendiente";
+
+    appendVentas?.(pendingRows);
+    patchStock?.(stockDeltas);
+    updatePedidosEstado?.(grupo.key, "entregado");
+    showToast("Registrando entrega…");
+
     try {
-      const hoy = hoyLocalISO();
-      const transaccionId = crypto.randomUUID?.() || `p-${grupo.key}`;
-      const rows = grupo.rawItems.map((p) => {
-        const precio = p.precio_unitario || 0;
-        const cantidad = p.cantidad || 0;
-        const subtotal = precio * cantidad;
-        const descuento = 0;
-        const total_final = subtotal - descuento;
-        return {
-          receta_id: p.receta_id,
-          cantidad,
-          precio_unitario: precio,
-          subtotal,
-          descuento,
-          total_final,
-          fecha: hoy,
-          transaccion_id: transaccionId,
-          cliente_id: p.cliente_id || null,
-          medio_pago: "efectivo",
-          estado_pago: "pagado",
-        };
-      });
       let insertedIds = [];
       try {
         const inserted = await insertVentas(rows);
@@ -96,21 +114,21 @@ function ClienteDetalle({
         }
         throw ventaErr;
       }
-      if (actualizarStock) {
-        for (const p of grupo.rawItems) {
-          const cant = p.cantidad || 0;
-          if (!p.receta_id || cant <= 0) continue;
-          await actualizarStock(p.receta_id, -cant);
-        }
+      if (actualizarStockBatch && stockDeltas.length) {
+        await actualizarStockBatch(stockDeltas, { useLocalBase: true });
       }
+      removeVentas?.(pendingIds);
+      appendVentas?.(rows.map((r, i) => ({ ...r, id: insertedIds[i] || r.id })));
     } catch (err) {
+      removeVentas?.(pendingIds);
+      patchStock?.(stockDeltas.map((d) => ({ ...d, delta: -d.delta })));
+      updatePedidosEstado?.(grupo.key, estadoAnterior);
+      await onRefresh?.();
       reportError(err, {
         action: "marcarPedidoEntregado",
         pedido_id: grupo?.key,
       });
       showToast("⚠️ No se pudo marcar el pedido como entregado");
-    } finally {
-      setSavingEntrega(false);
     }
   };
 
@@ -210,7 +228,7 @@ function ClienteDetalle({
         <ClienteDetallePedidos
           pedidosClienteAgrupados={pedidosClienteAgrupados}
           recetas={recetas}
-          savingEntrega={savingEntrega}
+          savingEntrega={false}
           actualizarEstadoPedido={actualizarEstadoPedido}
           marcarPedidoEntregado={marcarPedidoEntregado}
           clienteNombre={cliente.nombre}
