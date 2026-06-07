@@ -3,82 +3,109 @@ import { supabase } from "../lib/supabaseClient";
 
 /**
  * CRUD de gastos fijos en Supabase (save, toggle activo, delete). Usado por GastosFijos.jsx.
- * @param {{ onRefresh?: () => void, showToast?: (msg: string) => void }}
- * @returns {{ saveGastoFijo, toggleActivo, deleteGastoFijo }}
  */
-export function useGastosFijos({ onRefresh, showToast } = {}) {
+export function useGastosFijos({
+  onRefresh,
+  showToast,
+  appendGasto,
+  updateGastoInState,
+  removeGasto,
+} = {}) {
   const saveGastoFijo = useCallback(
     async (payload, editandoId) => {
       if (editandoId) {
+        const optimistic = { ...payload, id: editandoId };
+        updateGastoInState?.(optimistic);
+        showToast?.("Guardando cambios…");
         const { error } = await supabase
           .from("gastos_fijos")
           .update(payload)
           .eq("id", editandoId);
         if (error) {
           console.error("[gastos_fijos/saveGastoFijo update]", error);
+          await onRefresh?.();
+          showToast?.("⚠️ Error al guardar");
           throw error;
         }
-      showToast?.("✅ Gasto actualizado");
+        showToast?.("✅ Gasto actualizado");
       } else {
-        const { error } = await supabase.from("gastos_fijos").insert(payload);
+        const pendingId = `pending-gasto-${Date.now()}`;
+        appendGasto?.({ ...payload, id: pendingId, activo: payload.activo !== false });
+        showToast?.("Guardando…");
+        const { data, error } = await supabase
+          .from("gastos_fijos")
+          .insert(payload)
+          .select("*")
+          .single();
         if (error) {
           console.error("[gastos_fijos/saveGastoFijo insert]", error);
+          removeGasto?.(pendingId);
+          await onRefresh?.();
+          showToast?.("⚠️ Error al guardar");
           throw error;
         }
-      showToast?.("✅ Gasto agregado");
+        removeGasto?.(pendingId);
+        appendGasto?.(data);
+        showToast?.("✅ Gasto agregado");
       }
-      await onRefresh?.();
     },
-    [onRefresh, showToast],
+    [onRefresh, showToast, appendGasto, updateGastoInState, removeGasto],
   );
 
   const toggleActivo = useCallback(
     async (g) => {
+      const nextActivo = !g.activo;
+      updateGastoInState?.({ ...g, activo: nextActivo });
       const { error } = await supabase
         .from("gastos_fijos")
-        .update({ activo: !g.activo })
+        .update({ activo: nextActivo })
         .eq("id", g.id);
       if (error) {
         console.error("[gastos_fijos/toggleActivo]", error);
+        updateGastoInState?.({ ...g, activo: g.activo });
+        await onRefresh?.();
         throw error;
       }
-      await onRefresh?.();
     },
-    [onRefresh],
+    [onRefresh, updateGastoInState],
   );
 
   const deleteGastoFijo = useCallback(
     async (g, options) => {
       const mode = options?.mode || "solo-futuro";
+      showToast?.("Eliminando…");
       if (mode === "historico") {
-        const { error } = await supabase
-          .from("gastos_fijos")
-          .delete()
-          .eq("id", g.id);
+        removeGasto?.(g.id);
+        const { error } = await supabase.from("gastos_fijos").delete().eq("id", g.id);
         if (error) {
           console.error("[gastos_fijos/deleteGastoFijo hard]", error);
+          appendGasto?.(g);
+          await onRefresh?.();
+          showToast?.("⚠️ Error al eliminar");
           throw error;
         }
         showToast?.("🗑️ Gasto eliminado de la base");
       } else {
+        const patch = {
+          activo: false,
+          fecha_fin_vigencia: new Date().toISOString().slice(0, 10),
+        };
+        updateGastoInState?.({ ...g, ...patch });
         const { error } = await supabase
           .from("gastos_fijos")
-          .update({
-            activo: false,
-            // Al eliminar solo hacia adelante, cerramos siempre la vigencia hoy
-            // para que pase a gastos pasados.
-            fecha_fin_vigencia: new Date().toISOString().slice(0, 10),
-          })
+          .update(patch)
           .eq("id", g.id);
         if (error) {
           console.error("[gastos_fijos/deleteGastoFijo soft]", error);
+          updateGastoInState?.(g);
+          await onRefresh?.();
+          showToast?.("⚠️ Error al eliminar");
           throw error;
         }
         showToast?.("🗑️ Gasto movido a gastos pasados");
       }
-      await onRefresh?.();
     },
-    [onRefresh, showToast],
+    [onRefresh, showToast, removeGasto, appendGasto, updateGastoInState],
   );
 
   return { saveGastoFijo, toggleActivo, deleteGastoFijo };

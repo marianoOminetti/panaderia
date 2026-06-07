@@ -4,11 +4,25 @@
  */
 import { fmt, pctFmt, parseDecimal } from "../../lib/format";
 import { costoReceta, costoDesdeIngredientes } from "../../lib/costos";
+import { runOptimisticAction } from "../../lib/runOptimisticAction";
 import { useRecetas } from "../../hooks/useRecetas";
 import { useRecetasForm } from "../../hooks/useRecetasForm";
 import RecetaModal from "./RecetaModal";
 
-export default function Recetas({ recetas, insumos, recetaIngredientes, showToast, onRefresh, confirm, filterRecetasIds, onClearFilter }) {
+export default function Recetas({
+  recetas,
+  insumos,
+  recetaIngredientes,
+  showToast,
+  onRefresh,
+  appendReceta,
+  updateRecetaInState,
+  removeReceta,
+  replaceRecetaIngredientes,
+  confirm,
+  filterRecetasIds,
+  onClearFilter,
+}) {
   const recetaIngredientesSafe = Array.isArray(recetaIngredientes) ? recetaIngredientes : [];
   const insumosSafe = Array.isArray(insumos) ? insumos : [];
   const recetasSafe = Array.isArray(recetas) ? recetas : [];
@@ -67,76 +81,125 @@ export default function Recetas({ recetas, insumos, recetaIngredientes, showToas
     return margenVal < 0.5;
   });
 
-  const copyReceta = async (r) => {
-    setSaving(true);
-    try {
-      const payload = {
-        nombre: `Copia de ${(r.nombre || "").trim()}`.toUpperCase(),
-        emoji: r.emoji || "🍞",
-        rinde: parseDecimal(r.rinde) ?? 1,
-        unidad_rinde: r.unidad_rinde || "u",
-        precio_venta: parseDecimal(r.precio_venta) ?? 0,
-        costo_lote: 0,
-        costo_unitario: 0,
-        es_precursora: !!r.es_precursora,
-        gramos_por_unidad:
-          r.gramos_por_unidad != null && r.gramos_por_unidad > 0
-            ? parseDecimal(r.gramos_por_unidad)
-            : null,
-        oculto_en_venta: !!r.oculto_en_venta,
-      };
-      const newReceta = await insertReceta(payload);
-      if (!newReceta?.id) {
-        showToast("⚠️ No se pudo crear la copia");
-        setSaving(false);
-        return;
-      }
-        const ingsOrig = recetaIngredientesSafe.filter((i) => String(i.receta_id) === String(r.id));
-      if (ingsOrig.length > 0) {
-        const rows = ingsOrig.map((i) => ({
-          receta_id: newReceta.id,
-          insumo_id: i.insumo_id || null,
-          receta_id_precursora: i.receta_id_precursora || null,
-            cantidad: parseDecimal(i.cantidad) ?? 0,
-          unidad: i.unidad || "g",
-            costo_fijo: (() => {
-              const c = parseDecimal(i.costo_fijo);
-              return c != null && c > 0 ? c : null;
-            })()
-        }));
-        await insertRecetaIngredientes(rows);
-      }
-      onRefresh();
-      setForm({
-        nombre: newReceta.nombre,
-        emoji: newReceta.emoji || "🍞",
-        rinde: newReceta.rinde != null ? String(newReceta.rinde) : "",
-        unidad_rinde: newReceta.unidad_rinde || "u",
-        precio_venta: newReceta.precio_venta != null ? String(newReceta.precio_venta) : "",
-        es_precursora: !!newReceta.es_precursora,
-        gramos_por_unidad: newReceta.gramos_por_unidad != null ? String(newReceta.gramos_por_unidad) : "",
-        oculto_en_venta: !!newReceta.oculto_en_venta,
-      });
-      const ingsForm = ingsOrig.length > 0 ? ingsOrig.map((i) => ({
-        insumo_id: i.insumo_id || "",
-        receta_id_precursora: i.receta_id_precursora || "",
-        cantidad: i.cantidad != null ? String(i.cantidad) : "",
+  const buildIngredientRows = (recId, ingsSource) =>
+    ingsSource
+      .filter((i) => {
+        if (i.insumo_id || i.receta_id_precursora) return true;
+        const c = parseDecimal(i.costo_fijo);
+        return c != null && c > 0;
+      })
+      .map((i) => ({
+        receta_id: recId,
+        insumo_id: i.receta_id_precursora ? null : i.insumo_id || null,
+        receta_id_precursora: i.receta_id_precursora || null,
+        cantidad: parseDecimal(i.cantidad) ?? 0,
         unidad: i.unidad || "g",
-        costo_fijo: i.costo_fijo != null ? String(i.costo_fijo) : ""
-      })) : [{ insumo_id: "", receta_id_precursora: "", cantidad: "", unidad: "g", costo_fijo: "" }];
-      setIngredientes(ingsForm);
-      setEditando(newReceta);
-      setModal(true);
-      showToast("✅ Copia creada. Cambiá el nombre y lo que necesites, luego Guardar.");
-    } catch (err) {
-      showToast("⚠️ Error al copiar la receta");
-    } finally {
-      setSaving(false);
+        costo_fijo: (() => {
+          const c = parseDecimal(i.costo_fijo);
+          return c != null && c > 0 ? c : null;
+        })(),
+      }));
+
+  const copyReceta = async (r) => {
+    const payload = {
+      nombre: `Copia de ${(r.nombre || "").trim()}`.toUpperCase(),
+      emoji: r.emoji || "🍞",
+      rinde: parseDecimal(r.rinde) ?? 1,
+      unidad_rinde: r.unidad_rinde || "u",
+      precio_venta: parseDecimal(r.precio_venta) ?? 0,
+      costo_lote: 0,
+      costo_unitario: 0,
+      es_precursora: !!r.es_precursora,
+      gramos_por_unidad:
+        r.gramos_por_unidad != null && r.gramos_por_unidad > 0
+          ? parseDecimal(r.gramos_por_unidad)
+          : null,
+      oculto_en_venta: !!r.oculto_en_venta,
+    };
+    const ingsOrig = recetaIngredientesSafe.filter((i) => String(i.receta_id) === String(r.id));
+    const pendingId = `pending-receta-${Date.now()}`;
+    const pendingReceta = { ...payload, id: pendingId };
+    const pendingIngs = ingsOrig.map((i) => ({
+      receta_id: pendingId,
+      insumo_id: i.insumo_id || null,
+      receta_id_precursora: i.receta_id_precursora || null,
+      cantidad: parseDecimal(i.cantidad) ?? 0,
+      unidad: i.unidad || "g",
+      costo_fijo: (() => {
+        const c = parseDecimal(i.costo_fijo);
+        return c != null && c > 0 ? c : null;
+      })(),
+    }));
+
+    showToast("Copiando receta…");
+    try {
+      await runOptimisticAction({
+        optimistic: () => {
+          appendReceta?.(pendingReceta);
+          if (pendingIngs.length) replaceRecetaIngredientes?.(pendingId, pendingIngs);
+        },
+        persist: async () => {
+          const newReceta = await insertReceta(payload);
+          if (!newReceta?.id) throw new Error("No se pudo crear la copia");
+          if (ingsOrig.length > 0) {
+            const rows = ingsOrig.map((i) => ({
+              receta_id: newReceta.id,
+              insumo_id: i.insumo_id || null,
+              receta_id_precursora: i.receta_id_precursora || null,
+              cantidad: parseDecimal(i.cantidad) ?? 0,
+              unidad: i.unidad || "g",
+              costo_fijo: (() => {
+                const c = parseDecimal(i.costo_fijo);
+                return c != null && c > 0 ? c : null;
+              })(),
+            }));
+            await insertRecetaIngredientes(rows);
+            replaceRecetaIngredientes?.(newReceta.id, rows);
+          }
+          removeReceta?.(pendingId);
+          appendReceta?.(newReceta);
+          return newReceta;
+        },
+        rollback: () => {
+          removeReceta?.(pendingId);
+          onRefresh?.();
+        },
+        showToast,
+        errorMessage: "⚠️ Error al copiar la receta",
+      }).then((newReceta) => {
+        if (!newReceta) return;
+        setForm({
+          nombre: newReceta.nombre,
+          emoji: newReceta.emoji || "🍞",
+          rinde: newReceta.rinde != null ? String(newReceta.rinde) : "",
+          unidad_rinde: newReceta.unidad_rinde || "u",
+          precio_venta: newReceta.precio_venta != null ? String(newReceta.precio_venta) : "",
+          es_precursora: !!newReceta.es_precursora,
+          gramos_por_unidad:
+            newReceta.gramos_por_unidad != null ? String(newReceta.gramos_por_unidad) : "",
+          oculto_en_venta: !!newReceta.oculto_en_venta,
+        });
+        const ingsForm =
+          ingsOrig.length > 0
+            ? ingsOrig.map((i) => ({
+                insumo_id: i.insumo_id || "",
+                receta_id_precursora: i.receta_id_precursora || "",
+                cantidad: i.cantidad != null ? String(i.cantidad) : "",
+                unidad: i.unidad || "g",
+                costo_fijo: i.costo_fijo != null ? String(i.costo_fijo) : "",
+              }))
+            : [{ insumo_id: "", receta_id_precursora: "", cantidad: "", unidad: "g", costo_fijo: "" }];
+        setIngredientes(ingsForm);
+        setEditando(newReceta);
+        setModal(true);
+        showToast("✅ Copia creada. Cambiá el nombre y lo que necesites, luego Guardar.");
+      });
+    } catch {
+      // toast ya mostrado
     }
   };
 
   const save = async () => {
-    setSaving(true);
     const rindeNum = (() => {
       const v = parseDecimal(form.rinde);
       return (v == null || v <= 0) ? 1 : v;
@@ -159,65 +222,83 @@ export default function Recetas({ recetas, insumos, recetaIngredientes, showToas
       oculto_en_venta: !!form.oculto_en_venta,
     };
     let recId = editando?.id;
+    const isUpdate = Boolean(editando?.id);
+    const pendingId = isUpdate ? recId : `pending-receta-${Date.now()}`;
+    const ingsRows = buildIngredientRows(pendingId, ingredientes);
+    const optimisticReceta = { ...payload, id: pendingId };
 
-    try {
-      if (editando) {
-        await updateReceta(editando.id, payload);
-        await deleteRecetaIngredientes(editando.id);
-      } else {
-        const rec = await insertReceta(payload);
-        recId = rec?.id ?? recId;
-      }
-
-      if (recId) {
-        const ings = ingredientes
-          .filter(i => {
-            if (i.insumo_id || i.receta_id_precursora) return true;
-            const c = parseDecimal(i.costo_fijo);
-            return c != null && c > 0;
-          })
-          .map(i => ({
-            receta_id: recId,
-            insumo_id: i.receta_id_precursora ? null : (i.insumo_id || null),
-            receta_id_precursora: i.receta_id_precursora || null,
-            cantidad: parseDecimal(i.cantidad) ?? 0,
-            unidad: i.unidad || "g",
-            costo_fijo: (() => {
-              const c = parseDecimal(i.costo_fijo);
-              return c != null && c > 0 ? c : null;
-            })()
-          }));
-        if (ings.length > 0) {
-          await insertRecetaIngredientes(ings);
-        }
-      }
-    } catch (err) {
-      const msg = err?.message || String(err);
-      const esColumna = /column|does not exist|no existe/i.test(msg);
-      showToast(esColumna ? "⚠️ Falta migración en la base de datos. Ejecutá las migraciones (es_precursora, receta_ingredientes)." : `⚠️ Error al guardar: ${msg.slice(0, 60)}${msg.length > 60 ? "…" : ""}`);
-      setSaving(false);
-      return;
-    }
-    showToast(editando ? "✅ Receta actualizada" : "✅ Receta guardada");
-    setSaving(false);
     closeModal();
-    onRefresh();
+    try {
+      await runOptimisticAction({
+        optimistic: () => {
+          if (isUpdate) {
+            updateRecetaInState?.(optimisticReceta);
+          } else {
+            appendReceta?.(optimisticReceta);
+          }
+          replaceRecetaIngredientes?.(pendingId, ingsRows);
+        },
+        persist: async () => {
+          let finalId = recId;
+          if (isUpdate) {
+            await updateReceta(editando.id, payload);
+            await deleteRecetaIngredientes(editando.id);
+            finalId = editando.id;
+          } else {
+            const rec = await insertReceta(payload);
+            finalId = rec?.id;
+            if (!finalId) throw new Error("No se pudo crear la receta");
+            removeReceta?.(pendingId);
+            appendReceta?.({ ...payload, id: finalId });
+          }
+          if (finalId) {
+            const ings = buildIngredientRows(finalId, ingredientes);
+            if (ings.length > 0) {
+              await insertRecetaIngredientes(ings);
+            }
+            replaceRecetaIngredientes?.(finalId, ings);
+          }
+        },
+        rollback: () => onRefresh?.(),
+        showToast,
+        pendingMessage: isUpdate ? "Guardando cambios…" : "Guardando receta…",
+        successMessage: isUpdate ? "✅ Receta actualizada" : "✅ Receta guardada",
+        errorMessage: "⚠️ Error al guardar",
+        onError: (err) => {
+          const msg = err?.message || String(err);
+          const esColumna = /column|does not exist|no existe/i.test(msg);
+          if (esColumna) {
+            showToast(
+              "⚠️ Falta migración en la base de datos. Ejecutá las migraciones (es_precursora, receta_ingredientes).",
+            );
+          }
+        },
+      });
+    } catch {
+      // toast ya mostrado
+    }
   };
 
   const eliminar = async () => {
     if (!editando) return;
     if (!(await confirm(`¿Eliminar la receta "${editando.nombre}"?`, { destructive: true }))) return;
-    setSaving(true);
+    const recId = editando.id;
+    closeModal();
     try {
-      await deleteRecetaIngredientes(editando.id);
-      await deleteReceta(editando.id);
-      showToast("🗑️ Receta eliminada");
-      closeModal();
-      onRefresh();
+      await runOptimisticAction({
+        optimistic: () => removeReceta?.(recId),
+        persist: async () => {
+          await deleteRecetaIngredientes(recId);
+          await deleteReceta(recId);
+        },
+        rollback: () => onRefresh?.(),
+        showToast,
+        pendingMessage: "Eliminando…",
+        successMessage: "🗑️ Receta eliminada",
+        errorMessage: "⚠️ No se pudo eliminar (hay ventas vinculadas)",
+      });
     } catch {
-      showToast("⚠️ No se pudo eliminar (hay ventas vinculadas)");
-    } finally {
-      setSaving(false);
+      // toast ya mostrado
     }
   };
 

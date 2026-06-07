@@ -32,6 +32,12 @@ function Insumos({
   onVerRecetasAfectadas,
   compraPreloadInsumos,
   onConsumedCompraPreload,
+  appendInsumo,
+  updateInsumoInState,
+  removeInsumo,
+  patchRecetasCosts,
+  upsertInsumoComposicionInState,
+  removeInsumoComposicionInState,
 }) {
   const {
     updateInsumo,
@@ -41,7 +47,13 @@ function Insumos({
     deleteInsumoComposicion,
     upsertInsumoComposicion,
     deleteInsumo,
-  } = useInsumos({ onRefresh, showToast });
+  } = useInsumos({
+    onRefresh,
+    showToast,
+    removeInsumo,
+    upsertInsumoComposicionInState,
+    removeInsumoComposicionInState,
+  });
 
   const lista = useInsumosLista({
     insumos,
@@ -57,6 +69,10 @@ function Insumos({
     showToast,
     confirm,
     updateRecetaCostos,
+    appendInsumo,
+    updateInsumoInState,
+    removeInsumo,
+    patchRecetasCosts,
   });
 
   const composicion = useInsumosComposicion();
@@ -88,6 +104,8 @@ function Insumos({
     updateInsumo,
     insertPrecioHistorial,
     updateRecetaCostos,
+    updateInsumoInState,
+    patchRecetasCosts,
   });
 
   const precioPorU = (i) => {

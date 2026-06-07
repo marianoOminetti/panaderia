@@ -2,7 +2,7 @@
  * Hook para edición de ventas: estado, carrito derivado y guardarEdicion.
  * Usado por Ventas.jsx.
  */
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { toCantidadNumber, fmt } from "../lib/format";
 import { generateTransaccionId } from "../lib/ventas";
 import { buildVentaRowsConPromos } from "../lib/buildVentaRowsConPromos";
@@ -19,13 +19,16 @@ export function useVentasEdit({
   insertVentas,
   actualizarStock,
   actualizarStockBatch,
+  patchStock,
   showToast,
   removeVentas,
   replaceVentas,
   appendVentas,
+  onRefresh,
   hoy,
   onCloseEdit,
 }) {
+  const editInFlightRef = useRef(false);
   const [editGrupo, setEditGrupo] = useState(null);
   const [editForm, setEditForm] = useState({
     cliente_id: null,
@@ -243,8 +246,7 @@ export function useVentasEdit({
   };
 
   const guardarEdicion = async (afipOpts = null) => {
-    if (!editGrupo || editSaving) return;
-    setEditSaving(true);
+    if (!editGrupo || editInFlightRef.current) return;
     const fechaEdit = (editForm.fecha && editForm.fecha.slice(0, 10)) || hoy;
     let transaccionId = editGrupo.rawItems[0]?.transaccion_id;
     if (editItemsToAdd.length > 0 && !transaccionId)
@@ -291,7 +293,6 @@ export function useVentasEdit({
 
     if (editCartItems.length === 0) {
       showToast("Agregá al menos un producto");
-      setEditSaving(false);
       return;
     }
 
@@ -314,7 +315,6 @@ export function useVentasEdit({
       parseFloat(String(editTotalOverride).replace(",", ".")) > 0
     ) {
       showToast("Para aplicar un total final, asigná precios mayores a 0 en el carrito.");
-      setEditSaving(false);
       return;
     }
 
@@ -322,16 +322,69 @@ export function useVentasEdit({
       built.rows.map((r) => [r.receta_id, r]),
     );
 
-    let insertedNew = [];
-    try {
-      if (stockDeltas.length > 0 && actualizarStockBatch) {
-        await actualizarStockBatch(stockDeltas);
-      } else if (stockDeltas.length > 0 && actualizarStock) {
-        for (const { receta_id, delta } of stockDeltas) {
-          await actualizarStock(receta_id, delta);
-        }
+    const updatedRows = Object.keys(rawByReceta)
+      .map((rid) => {
+        const first = rawByReceta[rid]?.[0];
+        const row = rowByReceta[rid];
+        if (!first?.id || !row) return null;
+        return { ...first, ...row, id: first.id, receta_id: rid };
+      })
+      .filter(Boolean);
+
+    const pendingNewRows = Object.keys(addByReceta)
+      .map((rid) => {
+        const row = rowByReceta[rid];
+        if (!row) return null;
+        return {
+          ...row,
+          id: `pending-edit-${transaccionId}-${rid}`,
+          created_at: new Date().toISOString(),
+        };
+      })
+      .filter(Boolean);
+
+    const removedSnapshot = editGrupo.rawItems.filter((v) => idsToDelete.includes(v.id));
+    const originalUpdatedRows = Object.keys(rawByReceta)
+      .map((rid) => rawByReceta[rid]?.[0])
+      .filter(Boolean);
+    const promoLabel = built.promoResult.aplicadas.map((a) => a.nombre).join(", ");
+    const totalCobrado = built.totalCobrado;
+    const clienteIdSnapshot = editForm.cliente_id;
+    const grupoKey = editGrupo?.key;
+
+    const rollbackOptimistic = () => {
+      if (removeVentas && pendingNewRows.length) {
+        removeVentas(pendingNewRows.map((r) => r.id));
       }
+      if (appendVentas && removedSnapshot.length) appendVentas(removedSnapshot);
+      if (replaceVentas && originalUpdatedRows.length) replaceVentas(originalUpdatedRows);
+      if (patchStock && stockDeltas.length) {
+        patchStock(
+          stockDeltas.map(({ receta_id, delta }) => ({ receta_id, delta: -delta })),
+        );
+      }
+    };
+
+    if (patchStock && stockDeltas.length) patchStock(stockDeltas);
+    if (removeVentas && idsToDelete.length) removeVentas(idsToDelete);
+    if (replaceVentas && updatedRows.length) replaceVentas(updatedRows);
+    if (appendVentas && pendingNewRows.length) appendVentas(pendingNewRows);
+
+    closeEdit();
+    showToast("Guardando cambios…");
+    editInFlightRef.current = true;
+
+    (async () => {
       try {
+        if (stockDeltas.length > 0 && actualizarStockBatch) {
+          await actualizarStockBatch(stockDeltas, { useLocalBase: true });
+        } else if (stockDeltas.length > 0 && actualizarStock) {
+          for (const { receta_id, delta } of stockDeltas) {
+            await actualizarStock(receta_id, delta);
+          }
+        }
+
+        let insertedNew = [];
         for (const rid of Object.keys(rawByReceta)) {
           const raws = rawByReceta[rid];
           const first = raws[0];
@@ -369,71 +422,69 @@ export function useVentasEdit({
               .filter(Boolean),
             ...(insertedNew || []).map((r) => r.id).filter(Boolean),
           ];
-          await notifyEvent("venta_modificada", {
+          notifyEvent("venta_modificada", {
             venta_ids: ventaIds,
             ...(ventaIds.length === 0 && transaccionId
               ? { transaccion_id: transaccionId }
               : {}),
-          });
+          }).catch(() => {});
         }
-      } catch (ventaErr) {
-        if (stockDeltas.length > 0) {
-          const undo = stockDeltas.map(({ receta_id, delta }) => ({ receta_id, delta: -delta }));
+
+        if (removeVentas && pendingNewRows.length) {
+          removeVentas(pendingNewRows.map((r) => r.id));
+        }
+        if (appendVentas && insertedNew.length) appendVentas(insertedNew);
+
+        showToast(
+          `✅ Venta actualizada: ${fmt(totalCobrado)}${promoLabel ? ` · ${promoLabel}` : ""}`,
+        );
+
+        if (afipOpts?.activo && transaccionId) {
+          if (afipOpts.receptor && clienteIdSnapshot && afipOpts.persistClienteFiscal) {
+            afipOpts.persistClienteFiscal(clienteIdSnapshot, afipOpts.receptor).catch(() => {});
+          }
+          afipOpts
+            .invokeAfip(transaccionId, afipOpts.receptor)
+            .then(async (afip) => {
+              if (afipOpts.refreshFacturas) await afipOpts.refreshFacturas();
+              if (afip?.ok) {
+                showToast(
+                  afip.mock
+                    ? `✅ AFIP (prueba) · ${fmt(totalCobrado)}`
+                    : `✅ Registrado en AFIP · ${fmt(totalCobrado)}`,
+                );
+              } else {
+                const detalle = afip?.error
+                  ? String(afip.error).slice(0, 120)
+                  : "no se pudo registrar";
+                showToast(`⚠️ AFIP: ${detalle} (la venta sí quedó guardada)`);
+              }
+            })
+            .catch((afipErr) => {
+              reportError(afipErr, { action: "registrarEnAfipEdicion", transaccionId });
+              showToast("⚠️ AFIP: error de conexión (la venta sí quedó guardada)");
+            });
+        }
+      } catch (err) {
+        rollbackOptimistic();
+        if (stockDeltas.length && actualizarStockBatch) {
           try {
-            if (actualizarStockBatch) await actualizarStockBatch(undo);
-            else for (const { receta_id, delta } of undo) await actualizarStock(receta_id, delta);
+            await actualizarStockBatch(
+              stockDeltas.map(({ receta_id, delta }) => ({ receta_id, delta: -delta })),
+              { useLocalBase: false },
+            );
           } catch (rollbackErr) {
             reportError(rollbackErr, { action: "rollbackStockAfterGuardarEdicionFail" });
           }
         }
-        throw ventaErr;
+        onRefresh?.();
+        reportError(err, { action: "guardarEdicion", grupo: grupoKey });
+        const msg = (err?.message || err?.code || "Error").slice(0, 100);
+        showToast(`⚠️ Error al actualizar venta: ${msg}`);
+      } finally {
+        editInFlightRef.current = false;
       }
-      const promoLabel = built.promoResult.aplicadas.map((a) => a.nombre).join(", ");
-      let toastMsg = `✅ Venta actualizada: ${fmt(built.totalCobrado)}${promoLabel ? ` · ${promoLabel}` : ""}`;
-
-      if (afipOpts?.activo && transaccionId) {
-        const clienteId = editForm.cliente_id;
-        if (afipOpts.receptor && clienteId && afipOpts.persistClienteFiscal) {
-          await afipOpts.persistClienteFiscal(clienteId, afipOpts.receptor);
-        }
-        try {
-          const afip = await afipOpts.invokeAfip(transaccionId, afipOpts.receptor);
-          if (afipOpts.refreshFacturas) await afipOpts.refreshFacturas();
-          if (afip?.ok) {
-            toastMsg += afip.mock ? " · AFIP (prueba)" : " · Registrado en AFIP";
-          } else {
-            const detalle = afip?.error
-              ? String(afip.error).slice(0, 120)
-              : "no se pudo registrar";
-            toastMsg += ` · AFIP: ${detalle}`;
-          }
-        } catch (afipErr) {
-          reportError(afipErr, { action: "registrarEnAfipEdicion", transaccionId });
-          toastMsg += " · AFIP: error de conexión (la venta sí quedó guardada)";
-        }
-      }
-
-      if (removeVentas && idsToDelete.length) removeVentas(idsToDelete);
-      const updatedRows = Object.keys(rawByReceta)
-        .map((rid) => {
-          const first = rawByReceta[rid]?.[0];
-          const row = rowByReceta[rid];
-          if (!first?.id || !row) return null;
-          return { ...first, ...row, id: first.id, receta_id: rid };
-        })
-        .filter(Boolean);
-      if (replaceVentas && updatedRows.length) replaceVentas(updatedRows);
-      if (appendVentas && insertedNew.length) appendVentas(insertedNew);
-
-      showToast(toastMsg);
-      closeEdit();
-    } catch (err) {
-      reportError(err, { action: "guardarEdicion", grupo: editGrupo?.key });
-      const msg = (err?.message || err?.code || "Error").slice(0, 100);
-      showToast(`⚠️ Error al actualizar venta: ${msg}`);
-    } finally {
-      setEditSaving(false);
-    }
+    })();
   };
 
   return {

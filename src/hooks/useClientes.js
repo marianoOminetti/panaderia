@@ -11,6 +11,10 @@ export function useClientes({
   showToast,
   appendCliente,
   updateClienteInState,
+  removeClienteFromState,
+  appendPedidos,
+  updatePedidosEstado,
+  removePedidosByPedidoIdInState,
 } = {}) {
   const updateClienteDatosFiscales = useCallback(
     async (id, { cuit, dni, razon_social }) => {
@@ -135,30 +139,38 @@ export function useClientes({
 
   const insertPedidos = useCallback(
     async (rows, options = {}) => {
+      if (appendPedidos && rows?.length) {
+        appendPedidos(rows);
+      }
       const { error } = await supabase.from("pedidos").insert(rows);
       if (error) {
         console.error("[clientes/insertPedidos]", error);
+        if (rows?.[0]?.pedido_id) {
+          removePedidosByPedidoIdInState?.(rows[0].pedido_id);
+        }
         throw error;
       }
       if (!options.skipToast) showToast?.("✅ Pedido guardado");
-      if (!options.skipRefresh) await onRefresh?.();
+      if (!appendPedidos && !options.skipRefresh) await onRefresh?.();
     },
-    [onRefresh, showToast],
+    [onRefresh, showToast, appendPedidos, removePedidosByPedidoIdInState],
   );
 
   const updatePedidoEstado = useCallback(
     async (pedido_id, estado) => {
+      updatePedidosEstado?.(pedido_id, estado);
       const { error } = await supabase
         .from("pedidos")
         .update({ estado })
         .eq("pedido_id", pedido_id);
       if (error) {
         console.error("[clientes/updatePedidoEstado]", error);
+        await onRefresh?.();
         throw error;
       }
-      await onRefresh?.();
+      if (!updatePedidosEstado) await onRefresh?.();
     },
-    [onRefresh],
+    [onRefresh, updatePedidosEstado],
   );
 
   /** Inserta ventas y devuelve los ids insertados (para rollback si falla un paso posterior). */
@@ -176,34 +188,40 @@ export function useClientes({
 
   const updatePedidoEntregado = useCallback(
     async (pedido_id) => {
+      updatePedidosEstado?.(pedido_id, "entregado");
       const { error } = await supabase
         .from("pedidos")
         .update({ estado: "entregado" })
         .eq("pedido_id", pedido_id);
       if (error) {
         console.error("[clientes/updatePedidoEntregado]", error);
+        await onRefresh?.();
         throw error;
       }
       showToast?.("✅ Pedido entregado registrado como venta");
-      await onRefresh?.();
+      if (!updatePedidosEstado) await onRefresh?.();
     },
-    [onRefresh, showToast],
+    [onRefresh, showToast, updatePedidosEstado],
   );
 
   const deletePedidosByPedidoId = useCallback(
     async (pedido_id) => {
+      removePedidosByPedidoIdInState?.(pedido_id);
+      showToast?.("Eliminando…");
       const { error } = await supabase
         .from("pedidos")
         .delete()
         .eq("pedido_id", pedido_id);
       if (error) {
         console.error("[clientes/deletePedidosByPedidoId]", error);
+        await onRefresh?.();
+        showToast?.("⚠️ Error al cancelar pedido");
         throw error;
       }
       showToast?.("🗑️ Pedido cancelado");
-      await onRefresh?.();
+      if (!removePedidosByPedidoIdInState) await onRefresh?.();
     },
-    [onRefresh, showToast],
+    [onRefresh, showToast, removePedidosByPedidoIdInState],
   );
 
   return {

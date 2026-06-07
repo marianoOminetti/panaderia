@@ -507,6 +507,177 @@ export function useAppData({ showToast, role, onCachePatch, onPersistCache } = {
     [onCachePatch],
   );
 
+  const appendReceta = useCallback(
+    (receta) => {
+      if (!receta?.id) return;
+      setRecetas((prev) => {
+        const next = [...prev.filter((r) => r.id !== receta.id), receta];
+        onCachePatch?.({ recetas: next });
+        return next;
+      });
+    },
+    [onCachePatch],
+  );
+
+  const updateRecetaInState = useCallback(
+    (receta) => {
+      if (!receta?.id) return;
+      setRecetas((prev) => {
+        const next = prev.map((r) => (r.id === receta.id ? { ...r, ...receta } : r));
+        onCachePatch?.({ recetas: next });
+        return next;
+      });
+    },
+    [onCachePatch],
+  );
+
+  const removeReceta = useCallback(
+    (id) => {
+      if (!id) return;
+      setRecetas((prev) => {
+        const next = prev.filter((r) => r.id !== id);
+        onCachePatch?.({ recetas: next });
+        return next;
+      });
+      setRecetaIngredientes((prev) => prev.filter((ri) => String(ri.receta_id) !== String(id)));
+    },
+    [onCachePatch],
+  );
+
+  const replaceRecetaIngredientes = useCallback((recetaId, rows) => {
+    if (!recetaId) return;
+    setRecetaIngredientes((prev) => {
+      const others = prev.filter((ri) => String(ri.receta_id) !== String(recetaId));
+      return [...others, ...(rows || [])];
+    });
+  }, []);
+
+  const patchRecetasCosts = useCallback(
+    (updates) => {
+      if (!updates?.length) return;
+      setRecetas((prev) => {
+        const byId = new Map(updates.map((u) => [u.id, u]));
+        const next = prev.map((r) => {
+          const u = byId.get(r.id);
+          return u
+            ? { ...r, costo_lote: u.costo_lote, costo_unitario: u.costo_unitario }
+            : r;
+        });
+        onCachePatch?.({ recetas: next });
+        return next;
+      });
+    },
+    [onCachePatch],
+  );
+
+  const appendInsumo = useCallback((insumo) => {
+    if (!insumo?.id) return;
+    setInsumos((prev) => [...prev.filter((i) => i.id !== insumo.id), insumo]);
+  }, []);
+
+  const updateInsumoInState = useCallback((insumo) => {
+    if (!insumo?.id) return;
+    setInsumos((prev) => prev.map((i) => (i.id === insumo.id ? { ...i, ...insumo } : i)));
+  }, []);
+
+  const removeInsumo = useCallback((id) => {
+    if (!id) return;
+    setInsumos((prev) => prev.filter((i) => i.id !== id));
+  }, []);
+
+  const upsertPromocionInState = useCallback(
+    (promo) => {
+      if (!promo?.id) return;
+      setPromociones((prev) => {
+        const next = [...prev.filter((p) => p.id !== promo.id), promo];
+        onCachePatch?.({ promociones: next });
+        return next;
+      });
+    },
+    [onCachePatch],
+  );
+
+  const removePromocion = useCallback(
+    (id) => {
+      if (!id) return;
+      setPromociones((prev) => {
+        const next = prev.filter((p) => p.id !== id);
+        onCachePatch?.({ promociones: next });
+        return next;
+      });
+    },
+    [onCachePatch],
+  );
+
+  const appendGasto = useCallback((gasto) => {
+    if (!gasto?.id) return;
+    setGastosFijos((prev) => [...prev.filter((g) => g.id !== gasto.id), gasto]);
+  }, []);
+
+  const updateGastoInState = useCallback((gasto) => {
+    if (!gasto?.id) return;
+    setGastosFijos((prev) => prev.map((g) => (g.id === gasto.id ? { ...g, ...gasto } : g)));
+  }, []);
+
+  const removeGasto = useCallback((id) => {
+    if (!id) return;
+    setGastosFijos((prev) => prev.filter((g) => g.id !== id));
+  }, []);
+
+  const appendPedidos = useCallback((rows) => {
+    if (!rows?.length) return;
+    setPedidos((prev) => [...rows, ...prev]);
+  }, []);
+
+  const updatePedidosEstado = useCallback((pedido_id, estado) => {
+    if (!pedido_id) return;
+    setPedidos((prev) =>
+      prev.map((p) => (p.pedido_id === pedido_id ? { ...p, estado } : p)),
+    );
+  }, []);
+
+  const removePedidosByPedidoIdInState = useCallback((pedido_id) => {
+    if (!pedido_id) return;
+    setPedidos((prev) => prev.filter((p) => p.pedido_id !== pedido_id));
+  }, []);
+
+  const removeClienteFromState = useCallback(
+    (id) => {
+      if (!id) return;
+      setClientes((prev) => {
+        const next = prev.filter((c) => c.id !== id);
+        onCachePatch?.({ clientes: next });
+        return next;
+      });
+    },
+    [onCachePatch],
+  );
+
+  const upsertInsumoComposicionInState = useCallback((row) => {
+    if (!row?.insumo_id || !row?.insumo_id_componente) return;
+    setInsumoComposicion((prev) => {
+      const filtered = prev.filter(
+        (c) =>
+          !(
+            c.insumo_id === row.insumo_id &&
+            c.insumo_id_componente === row.insumo_id_componente
+          ),
+      );
+      return [...filtered, row];
+    });
+  }, []);
+
+  const removeInsumoComposicionInState = useCallback((insumo_id, insumo_id_componente) => {
+    setInsumoComposicion((prev) =>
+      prev.filter(
+        (c) =>
+          !(
+            c.insumo_id === insumo_id && c.insumo_id_componente === insumo_id_componente
+          ),
+      ),
+    );
+  }, []);
+
   const hydrateFromCache = useCallback((snapshot) => {
     if (!snapshot) return;
     if (snapshot.recetas) setRecetas(snapshot.recetas);
@@ -548,6 +719,25 @@ export function useAppData({ showToast, role, onCachePatch, onPersistCache } = {
     patchStock,
     appendCliente,
     updateClienteInState,
+    removeClienteFromState,
+    appendReceta,
+    updateRecetaInState,
+    removeReceta,
+    replaceRecetaIngredientes,
+    patchRecetasCosts,
+    appendInsumo,
+    updateInsumoInState,
+    removeInsumo,
+    upsertPromocionInState,
+    removePromocion,
+    appendGasto,
+    updateGastoInState,
+    removeGasto,
+    appendPedidos,
+    updatePedidosEstado,
+    removePedidosByPedidoIdInState,
+    upsertInsumoComposicionInState,
+    removeInsumoComposicionInState,
     loadVentasHistoricas,
     trimVentasToRecent,
     ventasHistoricasLoaded,

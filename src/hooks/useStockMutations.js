@@ -79,7 +79,7 @@ export function useStockMutations({
 
   /** Actualiza stock de varias recetas en una sola escritura a la DB. Evita fallos parciales y es más rápido. */
   const actualizarStockBatch = useCallback(
-    async (updates) => {
+    async (updates, { useLocalBase = false } = {}) => {
       if (!updates || updates.length === 0) return;
       const deltas = updates.map((u) => ({
         receta_id: u.receta_id,
@@ -93,7 +93,7 @@ export function useStockMutations({
       const recetaIds = deltas.map((d) => d.receta_id).filter(Boolean);
       // Base en DB para las recetas tocadas (evita pisar stock real si el estado local está vacío o viejo).
       let prev = { ...stockSnapshot };
-      if (recetaIds.length > 0) {
+      if (!useLocalBase && recetaIds.length > 0) {
         const { data: stockRows, error: fetchErr } = await supabase
           .from("stock")
           .select("receta_id, cantidad")
@@ -102,20 +102,36 @@ export function useStockMutations({
         for (const row of stockRows || []) {
           prev[row.receta_id] = Number(row.cantidad) || 0;
         }
-        for (const rid of recetaIds) {
-          if (prev[rid] === undefined) prev[rid] = 0;
-        }
       }
-      const next = { ...prev };
-      for (const { receta_id, delta } of deltas) {
-        const actualRaw = next[receta_id] ?? 0;
-        const actual =
-          typeof actualRaw === "number"
-            ? actualRaw
-            : parseFloat(actualRaw) || 0;
-        const deltaNum =
-          typeof delta === "number" ? delta : parseFloat(delta) || 0;
-        next[receta_id] = Math.max(0, actual + deltaNum);
+      let next;
+      if (useLocalBase) {
+        // Leer el estado ya parcheado (optimista) sin pisarlo con el closure stale.
+        let localBase = null;
+        setStock((current) => {
+          localBase = { ...(current ?? {}) };
+          for (const rid of recetaIds) {
+            if (localBase[rid] === undefined) localBase[rid] = 0;
+          }
+          return current;
+        });
+        next = localBase ?? prev;
+      } else {
+        if (recetaIds.length > 0) {
+          for (const rid of recetaIds) {
+            if (prev[rid] === undefined) prev[rid] = 0;
+          }
+        }
+        next = { ...prev };
+        for (const { receta_id, delta } of deltas) {
+          const actualRaw = next[receta_id] ?? 0;
+          const actual =
+            typeof actualRaw === "number"
+              ? actualRaw
+              : parseFloat(actualRaw) || 0;
+          const deltaNum =
+            typeof delta === "number" ? delta : parseFloat(delta) || 0;
+          next[receta_id] = Math.max(0, actual + deltaNum);
+        }
       }
       const rows = deltas.map(({ receta_id }) => ({
         receta_id,
@@ -125,7 +141,9 @@ export function useStockMutations({
             : parseFloat(next[receta_id]) || 0,
         updated_at: updatedAt,
       }));
-      setStock(next);
+      if (!useLocalBase) {
+        setStock(next);
+      }
       const { error } = await supabase
         .from("stock")
         .upsert(rows, { onConflict: "receta_id" });

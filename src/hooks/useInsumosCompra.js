@@ -17,6 +17,8 @@ export function useInsumosCompra({
   updateInsumo,
   insertPrecioHistorial,
   updateRecetaCostos,
+  updateInsumoInState,
+  patchRecetasCosts,
 }) {
   const [compraScreenOpen, setCompraScreenOpen] = useState(false);
   const [compraCart, setCompraCart] = useState([]);
@@ -176,7 +178,6 @@ export function useInsumosCompra({
       showToast("✅ Compra de stock registrada");
       setCompraCart([]);
       setCompraScreenOpen(false);
-      onRefresh();
     } catch (err) {
       reportError(err, { action: "registrarCompraStock" });
       if (okCount > 0) {
@@ -191,7 +192,6 @@ export function useInsumosCompra({
     compraCart,
     registrarMovimientoInsumo,
     showToast,
-    onRefresh,
     consumirComponentesDeInsumo,
   ]);
 
@@ -354,6 +354,8 @@ export function useInsumosCompra({
           emoji: receta.emoji || "🍞",
           margenAntes,
           margenDespues,
+          costo_lote: costoDespues,
+          costo_unitario: costoUnitDespues,
         });
       }
       if (costosErrores.length > 0) {
@@ -362,6 +364,17 @@ export function useInsumosCompra({
         );
       }
 
+      for (const cambio of cambiosAplicar) {
+        updateInsumoInState?.({ id: cambio.insumoId, precio: cambio.precioNuevo });
+      }
+      patchRecetasCosts?.(
+        recetasAfectadas.map((r) => ({
+          id: r.id,
+          costo_lote: r.costo_lote,
+          costo_unitario: r.costo_unitario,
+        })),
+      );
+
       setCompraResultado({
         preciosActualizados: cambiosAplicar.length,
         recetasAfectadas,
@@ -369,12 +382,12 @@ export function useInsumosCompra({
       showToast("✅ Compra registrada y costos actualizados");
       setPrecioDecisionModal(null);
       setCompraCart([]);
-      onRefresh();
     } catch (err) {
       reportError(err, { action: "actualizarPreciosPorCompra" });
       showToast("⚠️ Error al actualizar precios y costos");
       setPrecioDecisionModal(null);
       setCompraCart([]);
+      await onRefresh?.();
     } finally {
       setCompraSaving(false);
     }
@@ -392,6 +405,8 @@ export function useInsumosCompra({
     onRefresh,
     registrarCompraSoloStock,
     consumirComponentesDeInsumo,
+    updateInsumoInState,
+    patchRecetasCosts,
   ]);
 
   return {

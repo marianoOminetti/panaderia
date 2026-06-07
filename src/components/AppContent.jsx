@@ -79,8 +79,28 @@ export default function AppContent({
   appendVentas,
   removeVentas,
   replaceVentas,
+  patchStock,
   appendCliente,
   updateClienteInState,
+  removeClienteFromState,
+  appendReceta,
+  updateRecetaInState,
+  removeReceta,
+  replaceRecetaIngredientes,
+  patchRecetasCosts,
+  appendInsumo,
+  updateInsumoInState,
+  removeInsumo,
+  upsertPromocionInState,
+  removePromocion,
+  appendGasto,
+  updateGastoInState,
+  removeGasto,
+  appendPedidos,
+  updatePedidosEstado,
+  removePedidosByPedidoIdInState,
+  upsertInsumoComposicionInState,
+  removeInsumoComposicionInState,
   showToast,
   confirm,
   recetasFilterIds,
@@ -157,6 +177,12 @@ export default function AppContent({
           recetaIngredientes={recetaIngredientes}
           precioHistorial={precioHistorial}
           onRefresh={loadData}
+          appendInsumo={appendInsumo}
+          updateInsumoInState={updateInsumoInState}
+          removeInsumo={removeInsumo}
+          patchRecetasCosts={patchRecetasCosts}
+          upsertInsumoComposicionInState={upsertInsumoComposicionInState}
+          removeInsumoComposicionInState={removeInsumoComposicionInState}
           showToast={showToast}
           confirm={confirm}
           compraPreloadInsumos={insumosCompraPreload}
@@ -177,6 +203,10 @@ export default function AppContent({
           recetaIngredientes={recetaIngredientes}
           showToast={showToast}
           onRefresh={loadData}
+          appendReceta={appendReceta}
+          updateRecetaInState={updateRecetaInState}
+          removeReceta={removeReceta}
+          replaceRecetaIngredientes={replaceRecetaIngredientes}
           confirm={confirm}
           filterRecetasIds={recetasFilterIds}
           onClearFilter={() => setRecetasFilterIds([])}
@@ -198,6 +228,8 @@ export default function AppContent({
           appendVentas={appendVentas}
           removeVentas={removeVentas}
           replaceVentas={replaceVentas}
+          patchStock={patchStock}
+          appendPedidos={appendPedidos}
           showToast={showToast}
           confirm={confirm}
           ventasPreloadGrupoKey={ventasPreloadGrupoKey}
@@ -219,6 +251,8 @@ export default function AppContent({
           promociones={promociones}
           recetas={recetas}
           onRefresh={loadData}
+          upsertPromocionInState={upsertPromocionInState}
+          removePromocion={removePromocion}
           showToast={showToast}
           confirm={confirm}
         />
@@ -233,7 +267,13 @@ export default function AppContent({
           clientes={clientes}
           stock={stock}
           actualizarStock={actualizarStock}
+          actualizarStockBatch={actualizarStockBatch}
           onRefresh={loadData}
+          appendVentas={appendVentas}
+          removeVentas={removeVentas}
+          patchStock={patchStock}
+          updatePedidosEstado={updatePedidosEstado}
+          removePedidosByPedidoIdInState={removePedidosByPedidoIdInState}
           showToast={showToast}
           confirm={confirm}
           onOpenNuevoPedido={onOpenNuevoPedido}
@@ -294,8 +334,16 @@ export default function AppContent({
           onRefresh={loadData}
           appendCliente={appendCliente}
           updateClienteInState={updateClienteInState}
+          removeClienteFromState={removeClienteFromState}
+          appendPedidos={appendPedidos}
+          updatePedidosEstado={updatePedidosEstado}
+          removePedidosByPedidoIdInState={removePedidosByPedidoIdInState}
+          appendVentas={appendVentas}
+          removeVentas={removeVentas}
+          patchStock={patchStock}
           showToast={showToast}
           actualizarStock={actualizarStock}
+          actualizarStockBatch={actualizarStockBatch}
           confirm={confirm}
         />
         </LazyTab>
@@ -303,7 +351,14 @@ export default function AppContent({
       {/* --- Gastos fijos --- */}
       {tab === "gastos" && (
         <LazyTab>
-        <GastosFijos gastos={gastosFijos} onRefresh={loadData} showToast={showToast} />
+        <GastosFijos
+          gastos={gastosFijos}
+          onRefresh={loadData}
+          appendGasto={appendGasto}
+          updateGastoInState={updateGastoInState}
+          removeGasto={removeGasto}
+          showToast={showToast}
+        />
         </LazyTab>
       )}
     </>

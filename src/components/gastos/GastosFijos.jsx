@@ -36,7 +36,7 @@ const formatFecha = (fecha) => {
       });
 };
 
-export default function GastosFijos({ gastos, onRefresh, showToast }) {
+export default function GastosFijos({ gastos, onRefresh, appendGasto, updateGastoInState, removeGasto, showToast }) {
   const [deleteModal, setDeleteModal] = useState(null);
   const [deleteMode, setDeleteMode] = useState("solo-futuro");
   const [deleteDesde, setDeleteDesde] = useState("");
@@ -44,7 +44,7 @@ export default function GastosFijos({ gastos, onRefresh, showToast }) {
   const {
     saveGastoFijo,
     deleteGastoFijo,
-  } = useGastosFijosMutations({ onRefresh, showToast });
+  } = useGastosFijosMutations({ onRefresh, showToast, appendGasto, updateGastoInState, removeGasto });
 
   const formState = useGastosFijosForm({ showToast, saveGastoFijo });
 

@@ -6,13 +6,34 @@ import { useVentas } from "../../hooks/useVentas";
 import PedidosList from "./PedidosList";
 import PedidosListFilters from "./PedidosListFilters";
 
+function buildStockDeltasFromPedidoItems(items) {
+  return items
+    .filter((p) => p.receta_id && (p.cantidad || 0) > 0)
+    .map((p) => ({ receta_id: p.receta_id, delta: -(p.cantidad || 0) }));
+}
+
+function withPendingVentaIds(rows, transaccionId) {
+  const now = new Date().toISOString();
+  return rows.map((r, i) => ({
+    ...r,
+    id: `pending-${transaccionId}-${i}`,
+    created_at: now,
+  }));
+}
+
 export default function Pedidos({
   recetas,
   pedidos,
   clientes,
   stock,
   actualizarStock,
+  actualizarStockBatch,
   onRefresh,
+  appendVentas,
+  patchStock,
+  removeVentas,
+  updatePedidosEstado,
+  removePedidosByPedidoIdInState,
   showToast,
   confirm,
   onOpenNuevoPedido,
@@ -22,6 +43,8 @@ export default function Pedidos({
   const { updatePedidoEntregado, deletePedidosByPedidoId } = useClientes({
     onRefresh,
     showToast,
+    updatePedidosEstado,
+    removePedidosByPedidoIdInState,
   });
 
   const { insertVentas, deleteVentas } = useVentas();
@@ -37,29 +60,38 @@ export default function Pedidos({
       { destructive: false },
     );
     if (!ok) return;
+
+    const hoy = hoyLocalISO();
+    const transaccionId = crypto.randomUUID?.() || `p-${grupo.key}`;
+    const rows = grupo.rawItems.map((p) => {
+      const precio = p.precio_unitario || 0;
+      const cantidad = p.cantidad || 0;
+      const subtotal = precio * cantidad;
+      return {
+        receta_id: p.receta_id,
+        cantidad,
+        precio_unitario: precio,
+        subtotal,
+        descuento: 0,
+        total_final: subtotal,
+        fecha: hoy,
+        transaccion_id: transaccionId,
+        cliente_id: p.cliente_id || null,
+        medio_pago: "efectivo",
+        estado_pago: "pagado",
+      };
+    });
+    const pendingRows = withPendingVentaIds(rows, transaccionId);
+    const pendingIds = pendingRows.map((r) => r.id);
+    const stockDeltas = buildStockDeltasFromPedidoItems(grupo.rawItems);
+    const estadoAnterior = grupo.estado || "pendiente";
+
+    appendVentas?.(pendingRows);
+    patchStock?.(stockDeltas);
+    updatePedidosEstado?.(grupo.key, "entregado");
+    showToast?.("Registrando entrega…");
+
     try {
-      const hoy = hoyLocalISO();
-      const transaccionId = crypto.randomUUID?.() || `p-${grupo.key}`;
-      const rows = grupo.rawItems.map((p) => {
-        const precio = p.precio_unitario || 0;
-        const cantidad = p.cantidad || 0;
-        const subtotal = precio * cantidad;
-        const descuento = 0;
-        const total_final = subtotal - descuento;
-        return {
-          receta_id: p.receta_id,
-          cantidad,
-          precio_unitario: precio,
-          subtotal,
-          descuento,
-          total_final,
-          fecha: hoy,
-          transaccion_id: transaccionId,
-          cliente_id: p.cliente_id || null,
-          medio_pago: "efectivo",
-          estado_pago: "pagado",
-        };
-      });
       let insertedIds = [];
       try {
         const inserted = await insertVentas(rows);
@@ -77,14 +109,18 @@ export default function Pedidos({
         }
         throw ventaErr;
       }
-      if (actualizarStock) {
-        for (const p of grupo.rawItems) {
-          const cant = p.cantidad || 0;
-          if (!p.receta_id || cant <= 0) continue;
-          await actualizarStock(p.receta_id, -cant);
-        }
+      if (actualizarStockBatch && stockDeltas.length) {
+        await actualizarStockBatch(stockDeltas, { useLocalBase: true });
       }
+      removeVentas?.(pendingIds);
+      appendVentas?.(
+        rows.map((r, i) => ({ ...r, id: insertedIds[i] || r.id })),
+      );
     } catch (err) {
+      removeVentas?.(pendingIds);
+      patchStock?.(stockDeltas.map((d) => ({ ...d, delta: -d.delta })));
+      updatePedidosEstado?.(grupo.key, estadoAnterior);
+      await onRefresh?.();
       reportError(err, {
         action: "marcarPedidoEntregadoDesdeMAS",
         pedido_id: grupo?.key,
@@ -99,7 +135,11 @@ export default function Pedidos({
       "¿Cancelar este pedido?\nSe va a borrar y no contará en Analytics ni en la planificación.",
     );
     if (!ok) return;
-    await deletePedidosByPedidoId(grupo.key);
+    try {
+      await deletePedidosByPedidoId(grupo.key);
+    } catch {
+      showToast?.("⚠️ No se pudo cancelar el pedido");
+    }
   };
 
   return (
@@ -150,18 +190,9 @@ export default function Pedidos({
           onChangeEstado={handleChangeEstado}
           onMarcarEntregado={handleMarcarEntregado}
           onCancelar={handleCancelar}
+          onOpenNuevoPedido={onOpenNuevoPedido}
         />
       </div>
-
-      <button
-        className="fab fab-receta"
-        onClick={onOpenNuevoPedido}
-        title="Nuevo pedido"
-      >
-        <span>+</span>
-        <span>Nuevo pedido</span>
-      </button>
     </div>
   );
 }
-

@@ -153,6 +153,25 @@ export default function App() {
     patchStock,
     appendCliente,
     updateClienteInState,
+    removeClienteFromState,
+    appendReceta,
+    updateRecetaInState,
+    removeReceta,
+    replaceRecetaIngredientes,
+    patchRecetasCosts,
+    appendInsumo,
+    updateInsumoInState,
+    removeInsumo,
+    upsertPromocionInState,
+    removePromocion,
+    appendGasto,
+    updateGastoInState,
+    removeGasto,
+    appendPedidos,
+    updatePedidosEstado,
+    removePedidosByPedidoIdInState,
+    upsertInsumoComposicionInState,
+    removeInsumoComposicionInState,
     loadVentasHistoricas,
     trimVentasToRecent,
     ventasHistoricasLoaded,
@@ -503,8 +522,28 @@ export default function App() {
         appendVentas={appendVentas}
         removeVentas={removeVentas}
         replaceVentas={replaceVentas}
+        patchStock={patchStock}
         appendCliente={appendCliente}
         updateClienteInState={updateClienteInState}
+        removeClienteFromState={removeClienteFromState}
+        appendReceta={appendReceta}
+        updateRecetaInState={updateRecetaInState}
+        removeReceta={removeReceta}
+        replaceRecetaIngredientes={replaceRecetaIngredientes}
+        patchRecetasCosts={patchRecetasCosts}
+        appendInsumo={appendInsumo}
+        updateInsumoInState={updateInsumoInState}
+        removeInsumo={removeInsumo}
+        upsertPromocionInState={upsertPromocionInState}
+        removePromocion={removePromocion}
+        appendGasto={appendGasto}
+        updateGastoInState={updateGastoInState}
+        removeGasto={removeGasto}
+        appendPedidos={appendPedidos}
+        updatePedidosEstado={updatePedidosEstado}
+        removePedidosByPedidoIdInState={removePedidosByPedidoIdInState}
+        upsertInsumoComposicionInState={upsertInsumoComposicionInState}
+        removeInsumoComposicionInState={removeInsumoComposicionInState}
         showToast={showToast}
         confirm={confirm}
         recetasFilterIds={recetasFilterIds}

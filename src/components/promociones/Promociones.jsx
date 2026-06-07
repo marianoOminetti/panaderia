@@ -29,10 +29,12 @@ const emptyForm = () => ({
   receta_ids: [],
 });
 
-export default function Promociones({ promociones, recetas, onRefresh, showToast, confirm }) {
+export default function Promociones({ promociones, recetas, onRefresh, upsertPromocionInState, removePromocion, showToast, confirm }) {
   const { savePromocion, toggleActiva, deletePromocion } = usePromociones({
     onRefresh,
     showToast,
+    upsertPromocionInState,
+    removePromocion,
   });
   const [modalOpen, setModalOpen] = useState(false);
   const [editId, setEditId] = useState(null);
