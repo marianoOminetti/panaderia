@@ -409,22 +409,37 @@ export default function App() {
     handlePersistCache,
   ]);
 
+  const loadingRef = useRef(loading);
+  loadingRef.current = loading;
+  const bootCompletedAtRef = useRef(0);
+  useEffect(() => {
+    if (!loading && session && roleReady) {
+      bootCompletedAtRef.current = Date.now();
+    }
+  }, [loading, session, roleReady]);
+
+  const shouldSkipBackgroundRefresh = useCallback(() => {
+    if (loadingRef.current) return true;
+    const sinceBoot = Date.now() - bootCompletedAtRef.current;
+    return bootCompletedAtRef.current > 0 && sinceBoot < 5000;
+  }, []);
+
   useEffect(() => {
     if (typeof window === "undefined") return;
     const onPageShow = () => {
-      if (!session || !roleReady) return;
+      if (!session || !roleReady || shouldSkipBackgroundRefresh()) return;
       refreshData();
     };
     window.addEventListener("pageshow", onPageShow);
     return () => window.removeEventListener("pageshow", onPageShow);
-  }, [session, roleReady, refreshData]);
+  }, [session, roleReady, refreshData, shouldSkipBackgroundRefresh]);
 
   const lastVisibilityRefreshRef = useRef(0);
   useEffect(() => {
     if (typeof document === "undefined") return;
     const onVisibility = () => {
       if (document.visibilityState !== "visible") return;
-      if (!session || !roleReady) return;
+      if (!session || !roleReady || shouldSkipBackgroundRefresh()) return;
       const now = Date.now();
       const throttleMs = normalizedRole === "venta" ? 60_000 : 30_000;
       if (now - lastVisibilityRefreshRef.current < throttleMs) return;
@@ -433,7 +448,7 @@ export default function App() {
     };
     document.addEventListener("visibilitychange", onVisibility);
     return () => document.removeEventListener("visibilitychange", onVisibility);
-  }, [session, roleReady, refreshData, normalizedRole]);
+  }, [session, roleReady, refreshData, normalizedRole, shouldSkipBackgroundRefresh]);
 
   useEffect(() => {
     if (tab === "analytics" && !ventasHistoricasLoaded && normalizedRole !== "venta") {
@@ -520,6 +535,7 @@ export default function App() {
       <AppDataProvider value={appDataContextValue}>
       <AppContent
         role={normalizedRole}
+        userId={session?.user?.id ?? null}
         tab={tab}
         setTab={setTab}
         stockProductionPreloadRecetas={stockProductionPreloadRecetas}

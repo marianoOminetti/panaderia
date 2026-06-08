@@ -1,12 +1,9 @@
 /**
  * Pantalla "Más": grilla de ítems (analytics, plan, clientes, insumos, recetas) que navegan por setTab.
  */
-import { useAuth } from "../../hooks/useAuth";
 import PushNotificationsPanel from "./PushNotificationsPanel";
 
-export default function MoreMenuScreen({ items, onNavigate }) {
-  const { session } = useAuth();
-  const userId = session?.user?.id || null;
+export default function MoreMenuScreen({ items, onNavigate, userId = null }) {
 
   return (
     <div className="content">

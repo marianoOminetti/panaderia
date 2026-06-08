@@ -230,7 +230,11 @@ export function useAppData({ showToast, role, onCachePatch, onPersistCache } = {
         precioHistPromise,
       ]);
 
-      if (bailIfStale()) return;
+      if (bailIfStale()) {
+        if (!background) setLoading(false);
+        else setDataSyncing(false);
+        return;
+      }
 
       const authErr = (e) => e && (e.status === 401 || e.status === 403);
       if ([recRes.error, cliRes.error, promosRes?.error].some(authErr)) {
@@ -347,7 +351,11 @@ export function useAppData({ showToast, role, onCachePatch, onPersistCache } = {
         if (!isStale()) setVentasSyncing(false);
       }
 
-      if (bailIfStale()) return;
+      if (bailIfStale()) {
+        if (!background) setLoading(false);
+        else setDataSyncing(false);
+        return;
+      }
 
       const stockMap = stRes.ok
         ? Object.fromEntries(
