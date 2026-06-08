@@ -5,6 +5,7 @@
 import { useState, useMemo, useRef } from "react";
 import { toCantidadNumber, fmt } from "../lib/format";
 import { generateTransaccionId, isPendingVentaId } from "../lib/ventas";
+import { enqueueVentaWrite } from "../lib/ventaWriteQueue";
 import { buildVentaRowsConPromos } from "../lib/buildVentaRowsConPromos";
 import { calcularPromosEnCarrito } from "../lib/promociones";
 import { useCartConPromos } from "./useCartConPromos";
@@ -380,7 +381,7 @@ export function useVentasEdit({
     showToast("Guardando cambios…");
     editInFlightRef.current = true;
 
-    (async () => {
+    enqueueVentaWrite(async () => {
       try {
         if (stockDeltas.length > 0 && actualizarStockBatch) {
           await actualizarStockBatch(stockDeltas, { useLocalBase: true });
@@ -498,7 +499,7 @@ export function useVentasEdit({
       } finally {
         editInFlightRef.current = false;
       }
-    })();
+    });
   };
 
   return {

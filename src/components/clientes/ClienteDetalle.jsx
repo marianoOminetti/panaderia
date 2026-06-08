@@ -2,11 +2,14 @@
  * Detalle de un cliente: pedidos (ClienteDetallePedidos) y ventas (ClienteDetalleVentas), alta de pedido y acciones.
  * Usa useClientes para operaciones de estado.
  */
+import { useRef } from "react";
 import { fmt } from "../../lib/format";
 import { hoyLocalISO } from "../../lib/dates";
 import { agruparPedidos, agruparVentas } from "../../lib/agrupadores";
 import { reportError } from "../../utils/errorReport";
 import { useClientes } from "../../hooks/useClientes";
+import { useVentas, releaseVentaTransaccionClaim } from "../../hooks/useVentas";
+import { enqueueVentaWrite } from "../../lib/ventaWriteQueue";
 import ClienteDetallePedidos from "./ClienteDetallePedidos";
 import ClienteDetalleVentas from "./ClienteDetalleVentas";
 
@@ -28,13 +31,14 @@ function ClienteDetalle({
   resolveOptimisticVentas,
   updatePedidosEstado,
 }) {
+  const entregaInFlightRef = useRef(new Set());
   const {
     updatePedidoEstado,
-    insertVentas,
     updatePedidoEntregado,
     deleteVentasByIds,
     softDeleteCliente,
   } = useClientes({ onRefresh, showToast, updateClienteInState, updatePedidosEstado });
+  const { insertVentas } = useVentas();
 
   if (!cliente) return null;
 
@@ -56,12 +60,17 @@ function ClienteDetalle({
 
   const marcarPedidoEntregado = async (grupo) => {
     if (!grupo || !grupo.rawItems?.length) return;
+    if (entregaInFlightRef.current.has(grupo.key)) {
+      showToast("Registrando entrega anterior…");
+      return;
+    }
     const ok = await confirm(
       "¿Marcar este pedido como entregado? Se registrará la venta y se descontará el stock.",
       { destructive: false },
     );
     if (!ok) return;
 
+    entregaInFlightRef.current.add(grupo.key);
     const hoy = hoyLocalISO();
     const transaccionId = crypto.randomUUID?.() || `p-${grupo.key}`;
     const rows = grupo.rawItems.map((p) => {
@@ -100,31 +109,36 @@ function ClienteDetalle({
     showToast("Registrando entrega…");
 
     try {
-      let inserted = [];
-      let insertedIds = [];
-      try {
-        inserted = await insertVentas(rows);
-        insertedIds = (inserted || []).map((r) => r.id).filter(Boolean);
-        await updatePedidoEntregado(grupo.key);
-      } catch (ventaErr) {
-        if (insertedIds.length > 0) {
-          try {
-            await deleteVentasByIds(insertedIds);
-          } catch (rollbackErr) {
-            reportError(rollbackErr, { action: "rollbackVentasAfterPedidoEntregadoFail" });
+      await enqueueVentaWrite(async () => {
+        let inserted = [];
+        let insertedIds = [];
+        try {
+          inserted = await insertVentas(rows, { source: "pedido_entrega" });
+          insertedIds = (inserted || []).map((r) => r.id).filter(Boolean);
+          await updatePedidoEntregado(grupo.key);
+        } catch (ventaErr) {
+          if (insertedIds.length > 0) {
+            try {
+              await deleteVentasByIds(insertedIds);
+            } catch (rollbackErr) {
+              reportError(rollbackErr, { action: "rollbackVentasAfterPedidoEntregadoFail" });
+            }
           }
+          if (transaccionId) {
+            await releaseVentaTransaccionClaim(transaccionId);
+          }
+          throw ventaErr;
         }
-        throw ventaErr;
-      }
-      if (actualizarStockBatch && stockDeltas.length) {
-        await actualizarStockBatch(stockDeltas, { useLocalBase: true });
-      }
-      if (resolveOptimisticVentas) {
-        resolveOptimisticVentas(transaccionId, inserted || [], pendingIds);
-      } else {
-        removeVentas?.(pendingIds);
-        appendVentas?.(inserted || []);
-      }
+        if (actualizarStockBatch && stockDeltas.length) {
+          await actualizarStockBatch(stockDeltas, { useLocalBase: true });
+        }
+        if (resolveOptimisticVentas) {
+          resolveOptimisticVentas(transaccionId, inserted || [], pendingIds);
+        } else {
+          removeVentas?.(pendingIds);
+          appendVentas?.(inserted || []);
+        }
+      });
     } catch (err) {
       removeVentas?.(pendingIds);
       patchStock?.(stockDeltas.map((d) => ({ ...d, delta: -d.delta })));
@@ -135,6 +149,8 @@ function ClienteDetalle({
         pedido_id: grupo?.key,
       });
       showToast("⚠️ No se pudo marcar el pedido como entregado");
+    } finally {
+      entregaInFlightRef.current.delete(grupo.key);
     }
   };
 

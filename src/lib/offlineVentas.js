@@ -5,6 +5,7 @@
 const OFFLINE_DB_NAME = "panaderia-offline";
 const OFFLINE_DB_VERSION = 3;
 const OFFLINE_VENTAS_STORE = "ventas_pendientes";
+const SYNCING_STALE_MS = 5 * 60 * 1000;
 
 function openOfflineDB() {
   return new Promise((resolve) => {
@@ -46,6 +47,13 @@ function openOfflineDB() {
   });
 }
 
+function isSyncingStale(record) {
+  if (record?.status !== "syncing") return false;
+  const at = record.syncing_at || record.created_at;
+  if (!at) return true;
+  return Date.now() - new Date(at).getTime() > SYNCING_STALE_MS;
+}
+
 export async function saveVentaPendiente(rows) {
   const db = await openOfflineDB();
   if (!db) throw new Error("IndexedDB no disponible");
@@ -61,6 +69,7 @@ export async function saveVentaPendiente(rows) {
     const record = {
       id,
       created_at: new Date().toISOString(),
+      status: "pending",
       rows: Array.isArray(rows) ? rows : [],
     };
     store.put(record);
@@ -77,8 +86,38 @@ export async function getVentasPendientes() {
     const tx = db.transaction(OFFLINE_VENTAS_STORE, "readonly");
     const store = tx.objectStore(OFFLINE_VENTAS_STORE);
     const req = store.getAll();
-    req.onsuccess = () => resolve(req.result || []);
+    req.onsuccess = () => {
+      const all = req.result || [];
+      resolve(
+        all.filter((item) => item.status !== "syncing" || isSyncingStale(item)),
+      );
+    };
     req.onerror = () => resolve([]);
+  });
+}
+
+export async function markVentaPendienteSyncing(id) {
+  const db = await openOfflineDB();
+  if (!db) return false;
+  return new Promise((resolve) => {
+    const tx = db.transaction(OFFLINE_VENTAS_STORE, "readwrite");
+    const store = tx.objectStore(OFFLINE_VENTAS_STORE);
+    const req = store.get(id);
+    req.onsuccess = () => {
+      const record = req.result;
+      if (!record) {
+        resolve(false);
+        return;
+      }
+      store.put({
+        ...record,
+        status: "syncing",
+        syncing_at: new Date().toISOString(),
+      });
+    };
+    req.onerror = () => resolve(false);
+    tx.oncomplete = () => resolve(true);
+    tx.onerror = () => resolve(false);
   });
 }
 
@@ -93,4 +132,3 @@ export async function deleteVentaPendiente(id) {
     tx.onerror = () => resolve();
   });
 }
-

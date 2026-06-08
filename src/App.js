@@ -226,7 +226,7 @@ export default function App() {
       showToast,
     });
 
-  const { deleteVentas } = useVentas();
+  const { deleteVentas, insertVentas } = useVentas();
 
   const resumenPlanSemanal = usePlanResumen({
     recetas,
@@ -243,8 +243,9 @@ export default function App() {
     isOnline,
     actualizarStockBatch,
     deleteVentas,
+    insertVentas,
     loadData,
-    appendVentas,
+    resolveOptimisticVentas,
     showToast,
   });
 
@@ -399,13 +400,14 @@ export default function App() {
       if (document.visibilityState !== "visible") return;
       if (!session || !roleReady) return;
       const now = Date.now();
-      if (now - lastVisibilityRefreshRef.current < 30_000) return;
+      const throttleMs = normalizedRole === "venta" ? 60_000 : 30_000;
+      if (now - lastVisibilityRefreshRef.current < throttleMs) return;
       lastVisibilityRefreshRef.current = now;
       refreshData();
     };
     document.addEventListener("visibilitychange", onVisibility);
     return () => document.removeEventListener("visibilitychange", onVisibility);
-  }, [session, roleReady, refreshData]);
+  }, [session, roleReady, refreshData, normalizedRole]);
 
   useEffect(() => {
     if (tab === "analytics" && !ventasHistoricasLoaded && normalizedRole !== "venta") {

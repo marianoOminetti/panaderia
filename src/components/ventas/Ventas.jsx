@@ -5,7 +5,7 @@
 import { useState, useEffect, useMemo, memo, useRef } from "react";
 import { fmt, toCantidadNumber } from "../../lib/format";
 import { generateTransaccionId, isPendingVentaId } from "../../lib/ventas";
-import { useVentas } from "../../hooks/useVentas";
+import { useVentas, releaseVentaTransaccionClaim } from "../../hooks/useVentas";
 import { useClientes } from "../../hooks/useClientes";
 import { useVentasCart } from "../../hooks/useVentasCart";
 import { useCartConPromos } from "../../hooks/useCartConPromos";
@@ -14,6 +14,7 @@ import { buildVentaRowsConPromos } from "../../lib/buildVentaRowsConPromos";
 import { useVentasEdit } from "../../hooks/useVentasEdit";
 import { hoyLocalISO } from "../../lib/dates";
 import { saveVentaPendiente } from "../../lib/offlineVentas";
+import { enqueueVentaWrite } from "../../lib/ventaWriteQueue";
 import {
   getVentaSession,
   persistVentaSession,
@@ -107,8 +108,9 @@ function Ventas({
   const [clienteSel, setClienteSel] = useState(null);
   const [medioPago, setMedioPago] = useState("efectivo");
   const [estadoPago, setEstadoPago] = useState("pagado");
-  const [saving, setSaving] = useState(false);
+  const [registering, setRegistering] = useState(false);
   const registerInFlightRef = useRef(false);
+  const registerTimeoutRef = useRef(null);
   const [fechaEntrega, setFechaEntrega] = useState("");
   const [senia, setSenia] = useState("");
   const [horaEntrega, setHoraEntrega] = useState("");
@@ -263,8 +265,32 @@ function Ventas({
     [gruposConDeuda, isVentaRole],
   );
 
+  const releaseRegisterGuard = () => {
+    registerInFlightRef.current = false;
+    setRegistering(false);
+    if (registerTimeoutRef.current) {
+      clearTimeout(registerTimeoutRef.current);
+      registerTimeoutRef.current = null;
+    }
+  };
+
+  const beginRegisterGuard = () => {
+    if (registerInFlightRef.current) {
+      showToast("Registrando venta anterior…");
+      return false;
+    }
+    registerInFlightRef.current = true;
+    setRegistering(true);
+    registerTimeoutRef.current = setTimeout(() => {
+      if (registerInFlightRef.current) {
+        showToast("La venta sigue registrándose. Esperá un momento…");
+      }
+    }, 45_000);
+    return true;
+  };
+
   const persistVentaOnline = async (rows, transaccionId, { stockAlreadyPatched = false } = {}) => {
-    const inserted = await insertVentas(rows);
+    const inserted = await insertVentas(rows, { source: "online" });
     const stockDeltas = buildStockDeltasFromRows(rows);
     if (actualizarStockBatch && stockDeltas.length > 0) {
       try {
@@ -277,6 +303,9 @@ function Ventas({
           } catch (rollbackErr) {
             reportError(rollbackErr, { action: "rollbackVentasAfterStockFail", ids });
           }
+        }
+        if (transaccionId) {
+          await releaseVentaTransaccionClaim(transaccionId);
         }
         throw err;
       }
@@ -669,7 +698,10 @@ function Ventas({
   };
 
   const registrarVentaCarrito = async ({ cobroPorDefecto = false } = {}) => {
-    if (registerInFlightRef.current) return;
+    if (registerInFlightRef.current) {
+      showToast("Registrando venta anterior…");
+      return;
+    }
 
     if (cartItems.length === 0) {
       showToast("Agregá productos al carrito primero.");
@@ -736,21 +768,21 @@ function Ventas({
           };
         });
         const fechaDisplay = new Date(fechaFinal).toLocaleDateString("es-AR");
+        if (!beginRegisterGuard()) return;
         resetNuevaVenta();
         showToast(`Guardando pedido…`);
-        registerInFlightRef.current = true;
-        insertPedidos(rows, { skipToast: true })
-          .then(() => {
-            showToast(`✅ Pedido guardado para ${fechaDisplay}: ${fmt(subtotalLista)}`);
-          })
-          .catch((err) => {
-            reportError(err, { action: "registrarPedido" });
-            showToast("⚠️ Error al guardar pedido");
-          })
-          .finally(() => {
-            registerInFlightRef.current = false;
-            perfMark("venta:register:end");
-          });
+        try {
+          await enqueueVentaWrite(() =>
+            insertPedidos(rows, { skipToast: true }),
+          );
+          showToast(`✅ Pedido guardado para ${fechaDisplay}: ${fmt(subtotalLista)}`);
+        } catch (err) {
+          reportError(err, { action: "registrarPedido" });
+          showToast("⚠️ Error al guardar pedido");
+        } finally {
+          releaseRegisterGuard();
+          perfMark("venta:register:end");
+        }
         return;
       }
 
@@ -796,9 +828,9 @@ function Ventas({
       }
 
       if (typeof navigator !== "undefined" && !navigator.onLine) {
-        setSaving(true);
+        if (!beginRegisterGuard()) return;
         try {
-          await saveVentaPendiente(rows);
+          await enqueueVentaWrite(() => saveVentaPendiente(rows));
           resetNuevaVenta();
           showToast(
             `✅ Venta guardada offline: ${fmt(totalCobrado)}${promoLabel ? ` (${promoLabel})` : ""}. Se sincronizará cuando vuelva la conexión.`,
@@ -807,15 +839,16 @@ function Ventas({
           reportError(err, { action: "registrarVentaCarritoOffline" });
           showToast("⚠️ Error al guardar venta offline");
         } finally {
-          setSaving(false);
+          releaseRegisterGuard();
           perfMark("venta:register:end");
         }
         return;
       }
 
+      if (!beginRegisterGuard()) return;
+
       resetNuevaVenta();
       showToast(`Registrando venta ${fmt(totalCobrado)}…`);
-      registerInFlightRef.current = true;
 
       const stockDeltas = buildStockDeltasFromRows(rows);
       const pendingRows = withPendingVentaIds(rows, transaccionId);
@@ -824,7 +857,9 @@ function Ventas({
       if (patchStock && stockDeltas.length) patchStock(stockDeltas);
       if (appendVentas) appendVentas(pendingRows);
 
-      persistVentaOnline(rows, transaccionId, { stockAlreadyPatched: true })
+      enqueueVentaWrite(() =>
+        persistVentaOnline(rows, transaccionId, { stockAlreadyPatched: true }),
+      )
         .then(({ inserted }) => {
           if (resolveOptimisticVentas) {
             resolveOptimisticVentas(transaccionId, inserted, pendingIds);
@@ -854,7 +889,7 @@ function Ventas({
           showToast("⚠️ Error al registrar venta");
         })
         .finally(() => {
-          registerInFlightRef.current = false;
+          releaseRegisterGuard();
           perfMark("venta:register:end");
         });
     } catch (err) {
@@ -956,7 +991,7 @@ function Ventas({
           openChargeModal();
         }}
         onRegistrarRapida={() => registrarVentaCarrito({ cobroPorDefecto: true })}
-        savingVenta={saving}
+        savingVenta={registering}
         editCartItems={edit.editCartItems}
         editCartTotal={edit.editCartTotal}
         editUpdateQuantity={edit.editUpdateQuantity}
@@ -1016,7 +1051,7 @@ function Ventas({
         chargeTotalOverride={chargeTotalOverride}
         setChargeTotalOverride={setChargeTotalOverride}
         onRegistrar={() => registrarVentaCarrito()}
-        saving={saving}
+        saving={registering}
         clientes={clientes}
         insertCliente={insertCliente}
         showToast={showToast}
