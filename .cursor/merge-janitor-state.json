@@ -1,6 +1,6 @@
 {
-  "mergesSinceLastRun": 4,
-  "janitorDue": false,
+  "mergesSinceLastRun": 0,
+  "janitorDue": true,
   "lastJanitorRunAt": null,
   "threshold": 5
 }
