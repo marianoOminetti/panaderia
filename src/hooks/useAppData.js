@@ -11,6 +11,7 @@ import {
   mergeVentasFromFetch,
   resolveOptimisticVentasState,
 } from "../lib/ventas";
+import { isVentaWriteBusy } from "../lib/ventaWriteQueue";
 
 /** PostgREST suele limitar filas por request (p. ej. max_rows 1000); paginamos para no truncar analytics. */
 const VENTAS_PAGE = 1000;
@@ -125,6 +126,8 @@ export function useAppData({ showToast, role, onCachePatch, onPersistCache } = {
     }
 
     const run = async () => {
+      if (background && isVentaWriteBusy()) return;
+
       const generation = ++loadGenerationRef.current;
       const isStale = () => generation !== loadGenerationRef.current;
 
@@ -435,7 +438,9 @@ export function useAppData({ showToast, role, onCachePatch, onPersistCache } = {
         return;
       }
       if (venHist.data?.length) {
-        setVentas((prev) => mergeVentasFromFetch(prev, venHist.data));
+        setVentas((prev) =>
+          dedupeOptimisticVentas(mergeVentasFromFetch(prev, venHist.data)),
+        );
       }
       setVentasHistoricasLoaded(true);
       onPersistCache?.({ ventasHistoricas: venHist.data || [] });
@@ -458,7 +463,17 @@ export function useAppData({ showToast, role, onCachePatch, onPersistCache } = {
   const appendVentas = useCallback(
     (newRows) => {
       if (!Array.isArray(newRows) || newRows.length === 0) return;
-      setVentas((prev) => [...newRows, ...asVentasArray(prev)]);
+      setVentas((prev) => {
+        const list = asVentasArray(prev);
+        const existingTx = new Set(
+          list.map((v) => v.transaccion_id).filter(Boolean),
+        );
+        const toAdd = newRows.filter(
+          (r) => !r.transaccion_id || !existingTx.has(r.transaccion_id),
+        );
+        if (toAdd.length === 0) return prev;
+        return [...toAdd, ...list];
+      });
       onCachePatch?.({ appendVentas: newRows });
     },
     [onCachePatch],

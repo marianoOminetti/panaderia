@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { hoyLocalISO } from "../../lib/dates";
 import { reportError } from "../../utils/errorReport";
 import { useClientes } from "../../hooks/useClientes";
-import { useVentas } from "../../hooks/useVentas";
+import { useVentas, releaseVentaTransaccionClaim } from "../../hooks/useVentas";
+import { enqueueVentaWrite } from "../../lib/ventaWriteQueue";
 import PedidosList from "./PedidosList";
 import PedidosListFilters from "./PedidosListFilters";
 
@@ -40,6 +41,7 @@ export default function Pedidos({
   onOpenNuevoPedido,
 }) {
   const [search, setSearch] = useState("");
+  const entregaInFlightRef = useRef(new Set());
 
   const { updatePedidoEntregado, deletePedidosByPedidoId } = useClientes({
     onRefresh,
@@ -56,12 +58,17 @@ export default function Pedidos({
 
   const handleMarcarEntregado = async (grupo) => {
     if (!grupo || !grupo.rawItems?.length) return;
+    if (entregaInFlightRef.current.has(grupo.key)) {
+      showToast?.("Registrando entrega anterior…");
+      return;
+    }
     const ok = await confirm?.(
       "¿Marcar este pedido como entregado? Se registrará la venta y se descontará el stock.",
       { destructive: false },
     );
     if (!ok) return;
 
+    entregaInFlightRef.current.add(grupo.key);
     const hoy = hoyLocalISO();
     const transaccionId = crypto.randomUUID?.() || `p-${grupo.key}`;
     const rows = grupo.rawItems.map((p) => {
@@ -93,33 +100,38 @@ export default function Pedidos({
     showToast?.("Registrando entrega…");
 
     try {
-      let inserted = [];
-      let insertedIds = [];
-      try {
-        inserted = await insertVentas(rows);
-        insertedIds = (inserted || []).map((r) => r.id).filter(Boolean);
-        await updatePedidoEntregado(grupo.key);
-      } catch (ventaErr) {
-        if (insertedIds.length > 0) {
-          try {
-            await deleteVentas(insertedIds);
-          } catch (rollbackErr) {
-            reportError(rollbackErr, {
-              action: "rollbackVentasAfterPedidoEntregadoFailFromMAS",
-            });
+      await enqueueVentaWrite(async () => {
+        let inserted = [];
+        let insertedIds = [];
+        try {
+          inserted = await insertVentas(rows, { source: "pedido_entrega" });
+          insertedIds = (inserted || []).map((r) => r.id).filter(Boolean);
+          await updatePedidoEntregado(grupo.key);
+        } catch (ventaErr) {
+          if (insertedIds.length > 0) {
+            try {
+              await deleteVentas(insertedIds);
+            } catch (rollbackErr) {
+              reportError(rollbackErr, {
+                action: "rollbackVentasAfterPedidoEntregadoFailFromMAS",
+              });
+            }
           }
+          if (transaccionId) {
+            await releaseVentaTransaccionClaim(transaccionId);
+          }
+          throw ventaErr;
         }
-        throw ventaErr;
-      }
-      if (actualizarStockBatch && stockDeltas.length) {
-        await actualizarStockBatch(stockDeltas, { useLocalBase: true });
-      }
-      if (resolveOptimisticVentas) {
-        resolveOptimisticVentas(transaccionId, inserted || [], pendingIds);
-      } else {
-        removeVentas?.(pendingIds);
-        appendVentas?.(inserted || []);
-      }
+        if (actualizarStockBatch && stockDeltas.length) {
+          await actualizarStockBatch(stockDeltas, { useLocalBase: true });
+        }
+        if (resolveOptimisticVentas) {
+          resolveOptimisticVentas(transaccionId, inserted || [], pendingIds);
+        } else {
+          removeVentas?.(pendingIds);
+          appendVentas?.(inserted || []);
+        }
+      });
     } catch (err) {
       removeVentas?.(pendingIds);
       patchStock?.(stockDeltas.map((d) => ({ ...d, delta: -d.delta })));
@@ -130,6 +142,8 @@ export default function Pedidos({
         pedido_id: grupo?.key,
       });
       showToast?.("⚠️ No se pudo marcar el pedido como entregado");
+    } finally {
+      entregaInFlightRef.current.delete(grupo.key);
     }
   };
 
