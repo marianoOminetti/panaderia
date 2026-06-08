@@ -34,10 +34,33 @@ export function useAuth() {
   }, []);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session: s } }) => {
-      setSession(s);
+    (async () => {
+      const { data: { session: initial } } = await supabase.auth.getSession();
+      let session = initial;
+      if (session) {
+        const { data, error } = await supabase.auth.refreshSession();
+        if (!error && data?.session) {
+          session = data.session;
+        } else if (error) {
+          const msg = String(error.message || "").toLowerCase();
+          const authExpired =
+            error.status === 401 ||
+            msg.includes("invalid") ||
+            msg.includes("expired") ||
+            msg.includes("refresh_token");
+          if (authExpired) {
+            await supabase.auth.signOut();
+            session = null;
+          }
+        }
+      }
+      setSession(session);
       setAuthLoading(false);
-      loadRole(s);
+      loadRole(session);
+    })().catch((err) => {
+      console.error("[auth/getSession]", err);
+      setAuthLoading(false);
+      setRoleLoading(false);
     });
     const {
       data: { subscription },

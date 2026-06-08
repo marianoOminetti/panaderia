@@ -130,6 +130,7 @@ export function useAppData({ showToast, role, onCachePatch, onPersistCache } = {
 
       const generation = ++loadGenerationRef.current;
       const isStale = () => generation !== loadGenerationRef.current;
+      const bailIfStale = () => isStale();
 
       if (!background) {
         perfMark("loadData:start");
@@ -229,7 +230,7 @@ export function useAppData({ showToast, role, onCachePatch, onPersistCache } = {
         precioHistPromise,
       ]);
 
-      if (isStale()) return;
+      if (bailIfStale()) return;
 
       const authErr = (e) => e && (e.status === 401 || e.status === 403);
       if ([recRes.error, cliRes.error, promosRes?.error].some(authErr)) {
@@ -346,11 +347,7 @@ export function useAppData({ showToast, role, onCachePatch, onPersistCache } = {
         if (!isStale()) setVentasSyncing(false);
       }
 
-      if (isStale()) {
-        setVentasSyncing(false);
-        if (background) setDataSyncing(false);
-        return;
-      }
+      if (bailIfStale()) return;
 
       const stockMap = stRes.ok
         ? Object.fromEntries(
@@ -401,6 +398,10 @@ export function useAppData({ showToast, role, onCachePatch, onPersistCache } = {
     };
 
     const promise = run().catch((err) => {
+      reportError(err, { action: "loadData", background });
+      if (!background) {
+        showToast?.("⚠️ Error al cargar datos");
+      }
       setLoading(false);
       setDataSyncing(false);
       setVentasSyncing(false);
@@ -731,10 +732,20 @@ export function useAppData({ showToast, role, onCachePatch, onPersistCache } = {
 
   const hydrateFromCache = useCallback((snapshot) => {
     if (!snapshot) return;
-    if (snapshot.recetas) setRecetas(snapshot.recetas);
-    if (snapshot.clientes) setClientes(snapshot.clientes);
-    if (snapshot.stock) setStock(snapshot.stock);
-    if (snapshot.promociones) setPromociones(snapshot.promociones);
+    if (Array.isArray(snapshot.recetas)) setRecetas(snapshot.recetas);
+    if (Array.isArray(snapshot.clientes)) {
+      setClientes(snapshot.clientes.filter((c) => c?.eliminado !== true));
+    }
+    if (
+      snapshot.stock &&
+      typeof snapshot.stock === "object" &&
+      !Array.isArray(snapshot.stock)
+    ) {
+      setStock(snapshot.stock);
+    }
+    if (Array.isArray(snapshot.promociones)) {
+      setPromociones(normalizarPromociones(snapshot.promociones));
+    }
     if (Array.isArray(snapshot.ventas)) {
       setVentas(dedupeOptimisticVentas(snapshot.ventas));
     }

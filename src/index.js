@@ -39,6 +39,14 @@ window.addEventListener("unhandledrejection", (e) => {
 });
 
 function SentryCrashFallback({ resetError }) {
+  const handleReload = () => {
+    try {
+      window.location.reload();
+    } catch {
+      resetError();
+    }
+  };
+
   return (
     <div
       style={{
@@ -50,12 +58,24 @@ function SentryCrashFallback({ resetError }) {
         gap: 16,
         padding: 24,
         fontFamily: "system-ui, sans-serif",
+        background: "#faf8f5",
+        color: "#1a1a1a",
       }}
     >
-      <p style={{ margin: 0, fontSize: 18 }}>Algo salió mal en la app.</p>
-      <button type="button" onClick={resetError}>
-        Reintentar
-      </button>
+      <p style={{ margin: 0, fontSize: 18, textAlign: "center" }}>
+        Algo salió mal al cargar la app.
+      </p>
+      <p style={{ margin: 0, fontSize: 14, opacity: 0.75, textAlign: "center" }}>
+        Podés reintentar o recargar la página.
+      </p>
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center" }}>
+        <button type="button" onClick={resetError}>
+          Reintentar
+        </button>
+        <button type="button" onClick={handleReload}>
+          Recargar
+        </button>
+      </div>
     </div>
   );
 }
@@ -79,9 +99,6 @@ root.render(
   )
 );
 
-// If you want to start measuring performance in your app, pass a function
-// to log results (for example: reportWebVitals(console.log))
-// or send to an analytics endpoint. Learn more: https://bit.ly/CRA-vitals
 reportWebVitals((metric) => {
   if (!sentryDsn) return;
   Sentry.addBreadcrumb({

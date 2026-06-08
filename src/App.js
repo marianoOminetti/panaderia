@@ -18,6 +18,7 @@ import {
   patchAppCache,
   clearAppCache,
 } from "./lib/sessionCache";
+import { reportError } from "./utils/errorReport";
 import { MORE_MENU_ITEMS, NAV_TABS } from "./config/nav";
 import { canAccessTab, getAllowedTabs, getDefaultTabForRole, normalizeRole } from "./config/permissions";
 import Toast from "./components/ui/Toast";
@@ -339,17 +340,42 @@ export default function App() {
     const key = normalizeRole(role) ?? "__pending__";
     (async () => {
       const cache = await getAppCache(key);
-      const canHydrate =
+      const hasCachedCatalog =
         cache?.catalog &&
-        (cache.catalogFresh || cache.ventasRecentFresh);
-      if (!cancelled && canHydrate) {
-        hydrateFromCache({
-          ...cache.catalog,
-          ventas: cache.ventasRecentFresh ? cache.ventasRecent?.ventas : undefined,
+        Array.isArray(cache.catalog.recetas) &&
+        cache.catalog.recetas.length > 0;
+      const cacheSnapshot = hasCachedCatalog
+        ? {
+            ...cache.catalog,
+            ventas: cache.ventasRecent?.ventas,
+          }
+        : null;
+
+      if (!cancelled && cacheSnapshot) {
+        hydrateFromCache(cacheSnapshot);
+        loadData({ background: true }).catch((err) => {
+          reportError(err, { action: "bootBackgroundLoad" });
+          showToast(
+            "⚠️ No se pudieron actualizar los datos. Mostrando la última copia guardada.",
+          );
         });
-        await loadData({ background: true });
-      } else if (!cancelled) {
-        await loadData();
+        return;
+      }
+
+      if (!cancelled) {
+        try {
+          await loadData();
+        } catch (err) {
+          reportError(err, { action: "bootLoad" });
+          if (cacheSnapshot) {
+            hydrateFromCache(cacheSnapshot);
+            showToast(
+              "⚠️ Error de conexión. Mostrando la última copia guardada.",
+            );
+          } else {
+            showToast("⚠️ No se pudieron cargar los datos. Reintentá en unos segundos.");
+          }
+        }
       }
     })();
     return () => {
@@ -430,7 +456,8 @@ export default function App() {
   }, [tab, trimVentasToRecent, normalizedRole, ventasFiltroFecha]);
 
   const isMoreSection = ["analytics", "plan", "clientes", "insumos", "recetas"].includes(tab);
-  const sinStockCount = recetas.filter((r) => (stock[r.id] ?? 0) <= 0).length;
+  const stockMap = stock && typeof stock === "object" && !Array.isArray(stock) ? stock : {};
+  const sinStockCount = recetas.filter((r) => (stockMap[r.id] ?? 0) <= 0).length;
   const { headerVisible, navVisible } = useScrollToHide();
 
   const handleManualRefresh = useCallback(async () => {
