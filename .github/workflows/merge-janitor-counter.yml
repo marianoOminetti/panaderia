@@ -1,0 +1,70 @@
+# Incrementa el contador en cada merge de PR a master (producción).
+# Al llegar a threshold (5), marca janitorDue y abre un issue para el agente code-janitor.
+
+name: Merge janitor counter
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [master]
+
+jobs:
+  count-production-merge:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 1
+
+      - name: Actualizar contador
+        id: counter
+        run: |
+          FILE=".cursor/merge-janitor-state.json"
+          THRESHOLD=$(jq -r '.threshold // 5' "$FILE")
+          COUNT=$(jq -r '.mergesSinceLastRun // 0' "$FILE")
+          COUNT=$((COUNT + 1))
+          JANITOR=false
+          if [ "$COUNT" -ge "$THRESHOLD" ]; then
+            JANITOR=true
+            COUNT=0
+          fi
+          jq --argjson c "$COUNT" --argjson j "$JANITOR" \
+            '.mergesSinceLastRun = $c | .janitorDue = $j' "$FILE" > "${FILE}.tmp"
+          mv "${FILE}.tmp" "$FILE"
+          echo "janitor_due=${JANITOR}" >> "$GITHUB_OUTPUT"
+          echo "new_count=${COUNT}" >> "$GITHUB_OUTPUT"
+
+      - name: Commit state
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .cursor/merge-janitor-state.json
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git commit -m "chore: contador merge-janitor ($(jq -r .mergesSinceLastRun .cursor/merge-janitor-state.json)/5)"
+          git push origin HEAD:master
+
+      - name: Abrir issue de janitor
+        if: steps.counter.outputs.janitor_due == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          BODY="Se mergearon 5 PRs a master desde el último ciclo de janitor.
+
+          Acción: invocar el agente code-janitor en Cursor (ver docs/AGENTES-CURSOR.md).
+
+          - State: .cursor/merge-janitor-state.json → janitorDue: true
+          - Abrir PR chore a develop, QA, luego janitorDue: false en ese PR.
+
+          Cerrar este issue cuando el PR de janitor esté mergeado."
+          gh issue create \
+            --title "Code janitor: limpieza tras 5 merges a master" \
+            --body "$BODY" \
+            || echo "No se pudo crear el issue (permisos o gh no disponible)"
