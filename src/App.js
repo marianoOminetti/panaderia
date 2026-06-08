@@ -381,7 +381,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [session, roleReady, loadData, role, hydrateFromCache]);
+  }, [session, roleReady, loadData, role, hydrateFromCache, showToast]);
 
   useEffect(() => {
     if (!session || !roleReady || loading) return;
