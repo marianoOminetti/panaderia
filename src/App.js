@@ -152,6 +152,7 @@ export default function App() {
     appendVentas,
     removeVentas,
     replaceVentas,
+    resolveOptimisticVentas,
     patchStock,
     appendCliente,
     updateClienteInState,
@@ -556,6 +557,7 @@ export default function App() {
         appendVentas={appendVentas}
         removeVentas={removeVentas}
         replaceVentas={replaceVentas}
+        resolveOptimisticVentas={resolveOptimisticVentas}
         patchStock={patchStock}
         appendCliente={appendCliente}
         updateClienteInState={updateClienteInState}

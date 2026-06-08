@@ -4,7 +4,7 @@
  */
 import { useState, useMemo, useRef } from "react";
 import { toCantidadNumber, fmt } from "../lib/format";
-import { generateTransaccionId } from "../lib/ventas";
+import { generateTransaccionId, isPendingVentaId } from "../lib/ventas";
 import { buildVentaRowsConPromos } from "../lib/buildVentaRowsConPromos";
 import { calcularPromosEnCarrito } from "../lib/promociones";
 import { useCartConPromos } from "./useCartConPromos";
@@ -24,6 +24,7 @@ export function useVentasEdit({
   removeVentas,
   replaceVentas,
   appendVentas,
+  resolveOptimisticVentas,
   onRefresh,
   hoy,
   onCloseEdit,
@@ -255,11 +256,14 @@ export function useVentasEdit({
     const idsToDelete = [];
     for (const rid of editRemovedRecetas) {
       for (const v of editGrupo.rawItems) {
-        if (v.receta_id === rid && v.id != null) idsToDelete.push(v.id);
+        if (v.receta_id === rid && v.id != null && !isPendingVentaId(v.id)) {
+          idsToDelete.push(v.id);
+        }
       }
     }
     const rawByReceta = {};
     for (const v of editGrupo.rawItems) {
+      if (isPendingVentaId(v.id)) continue;
       if (editRemovedRecetas.includes(v.receta_id)) continue;
       if (!rawByReceta[v.receta_id]) rawByReceta[v.receta_id] = [];
       rawByReceta[v.receta_id].push(v);
@@ -273,7 +277,9 @@ export function useVentasEdit({
         deltasMap[rid] = (deltasMap[rid] || 0) - deltaCant;
       }
       if (raws.length > 1) {
-        for (let i = 1; i < raws.length; i++) idsToDelete.push(raws[i].id);
+        for (let i = 1; i < raws.length; i++) {
+          if (!isPendingVentaId(raws[i].id)) idsToDelete.push(raws[i].id);
+        }
       }
     }
     const addByReceta = {};
@@ -430,10 +436,18 @@ export function useVentasEdit({
           }).catch(() => {});
         }
 
-        if (removeVentas && pendingNewRows.length) {
-          removeVentas(pendingNewRows.map((r) => r.id));
+        if (pendingNewRows.length && resolveOptimisticVentas) {
+          resolveOptimisticVentas(
+            transaccionId,
+            insertedNew,
+            pendingNewRows.map((r) => r.id),
+          );
+        } else {
+          if (removeVentas && pendingNewRows.length) {
+            removeVentas(pendingNewRows.map((r) => r.id));
+          }
+          if (appendVentas && insertedNew.length) appendVentas(insertedNew);
         }
-        if (appendVentas && insertedNew.length) appendVentas(insertedNew);
 
         showToast(
           `✅ Venta actualizada: ${fmt(totalCobrado)}${promoLabel ? ` · ${promoLabel}` : ""}`,

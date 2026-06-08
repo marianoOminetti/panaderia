@@ -3,6 +3,7 @@
  */
 import { fechaHaceDiasISO } from "./recetasParaVenta";
 import { hoyLocalISO } from "./dates";
+import { resolveOptimisticVentasState } from "./ventas";
 
 const SESSION_DB_NAME = "panaderia-offline";
 export const SESSION_DB_VERSION = 3;
@@ -265,6 +266,29 @@ export async function patchAppCache(roleKey, partial = {}) {
     for (const row of partial.replaceVentas) {
       if (row.id && !merged.some((v) => v.id === row.id)) merged.unshift(row);
     }
+    const tx = db.transaction([VENTAS_RECENT_STORE, CACHE_META_STORE], "readwrite");
+    await idbPut(tx.objectStore(VENTAS_RECENT_STORE), {
+      roleKey: key,
+      savedAt: now,
+      ventas: trimVentasForCache(merged),
+    });
+    await idbPut(tx.objectStore(CACHE_META_STORE), {
+      roleKey: key,
+      lastSyncAt: now,
+      appCacheVersion: APP_CACHE_VERSION,
+    });
+  }
+
+  if (partial.resolveOptimisticVentas) {
+    const { transaccionId, inserted, pendingIds } = partial.resolveOptimisticVentas;
+    const cache = await getAppCache(key);
+    const prevVentas = cache?.ventasRecent?.ventas || [];
+    const merged = resolveOptimisticVentasState(
+      prevVentas,
+      transaccionId,
+      inserted,
+      pendingIds,
+    );
     const tx = db.transaction([VENTAS_RECENT_STORE, CACHE_META_STORE], "readwrite");
     await idbPut(tx.objectStore(VENTAS_RECENT_STORE), {
       roleKey: key,

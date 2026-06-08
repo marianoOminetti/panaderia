@@ -6,6 +6,11 @@ import { hoyLocalISO } from "../lib/dates";
 import { fechaHaceDiasISO } from "../lib/recetasParaVenta";
 import { reportError } from "../utils/errorReport";
 import { perfMark, perfMeasure } from "../lib/perf";
+import {
+  dedupeOptimisticVentas,
+  mergeVentasFromFetch,
+  resolveOptimisticVentasState,
+} from "../lib/ventas";
 
 /** PostgREST suele limitar filas por request (p. ej. max_rows 1000); paginamos para no truncar analytics. */
 const VENTAS_PAGE = 1000;
@@ -38,13 +43,6 @@ async function supabaseVentasPage(fechaGte, from, to, fechaLt) {
     await new Promise((resolve) => setTimeout(resolve, 400 * (attempt + 1)));
   }
   return { data: null, error: new Error("Failed to fetch ventas") };
-}
-
-function mergeVentasFromFetch(prev, fetched) {
-  const list = asVentasArray(fetched);
-  const fetchedIds = new Set(list.map((v) => v.id).filter(Boolean));
-  const localOnly = asVentasArray(prev).filter((v) => v.id && !fetchedIds.has(v.id));
-  return [...localOnly, ...list];
 }
 
 async function loadVentasDesde(fechaGte, fechaLt) {
@@ -336,7 +334,9 @@ export function useAppData({ showToast, role, onCachePatch, onPersistCache } = {
         } else {
           recentVentas = asVentasArray(venRecent.data);
           if (!isStale()) {
-            setVentas((prev) => mergeVentasFromFetch(prev, venRecent.data));
+            setVentas((prev) =>
+              dedupeOptimisticVentas(mergeVentasFromFetch(prev, venRecent.data)),
+            );
           }
         }
       } finally {
@@ -486,6 +486,18 @@ export function useAppData({ showToast, role, onCachePatch, onPersistCache } = {
         return next;
       });
       onCachePatch?.({ replaceVentas: rows });
+    },
+    [onCachePatch],
+  );
+
+  const resolveOptimisticVentas = useCallback(
+    (transaccionId, inserted, pendingIds = []) => {
+      setVentas((prev) =>
+        resolveOptimisticVentasState(prev, transaccionId, inserted, pendingIds),
+      );
+      onCachePatch?.({
+        resolveOptimisticVentas: { transaccionId, inserted, pendingIds },
+      });
     },
     [onCachePatch],
   );
@@ -708,7 +720,9 @@ export function useAppData({ showToast, role, onCachePatch, onPersistCache } = {
     if (snapshot.clientes) setClientes(snapshot.clientes);
     if (snapshot.stock) setStock(snapshot.stock);
     if (snapshot.promociones) setPromociones(snapshot.promociones);
-    if (Array.isArray(snapshot.ventas)) setVentas(snapshot.ventas);
+    if (Array.isArray(snapshot.ventas)) {
+      setVentas(dedupeOptimisticVentas(snapshot.ventas));
+    }
     setLoading(false);
   }, []);
 
@@ -747,6 +761,7 @@ export function useAppData({ showToast, role, onCachePatch, onPersistCache } = {
     appendVentas,
     removeVentas,
     replaceVentas,
+    resolveOptimisticVentas,
     patchStock,
     appendCliente,
     updateClienteInState,

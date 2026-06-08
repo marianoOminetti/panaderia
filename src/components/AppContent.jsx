@@ -80,6 +80,7 @@ export default function AppContent({
   appendVentas,
   removeVentas,
   replaceVentas,
+  resolveOptimisticVentas,
   patchStock,
   appendCliente,
   updateClienteInState,
@@ -231,6 +232,7 @@ export default function AppContent({
           appendVentas={appendVentas}
           removeVentas={removeVentas}
           replaceVentas={replaceVentas}
+          resolveOptimisticVentas={resolveOptimisticVentas}
           patchStock={patchStock}
           appendPedidos={appendPedidos}
           showToast={showToast}
@@ -274,6 +276,7 @@ export default function AppContent({
           onRefresh={loadData}
           appendVentas={appendVentas}
           removeVentas={removeVentas}
+          resolveOptimisticVentas={resolveOptimisticVentas}
           patchStock={patchStock}
           updatePedidosEstado={updatePedidosEstado}
           removePedidosByPedidoIdInState={removePedidosByPedidoIdInState}
@@ -343,6 +346,7 @@ export default function AppContent({
           removePedidosByPedidoIdInState={removePedidosByPedidoIdInState}
           appendVentas={appendVentas}
           removeVentas={removeVentas}
+          resolveOptimisticVentas={resolveOptimisticVentas}
           patchStock={patchStock}
           showToast={showToast}
           actualizarStock={actualizarStock}
