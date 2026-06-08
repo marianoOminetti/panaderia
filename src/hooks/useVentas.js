@@ -50,9 +50,9 @@ async function insertVentasDirect(rows) {
  * insertVentas devuelve los ids insertados para poder hacer rollback si falla el stock.
  */
 export function useVentas() {
-  const insertVentas = useCallback(async (rows, { source = "online" } = {}) => {
+  const insertVentas = useCallback(async (rows, { source = "online", idempotent = true } = {}) => {
     const txId = rows?.[0]?.transaccion_id;
-    if (txId) {
+    if (txId && idempotent) {
       const { data, error } = await supabase.rpc("insert_ventas_idempotente", {
         p_rows: rows,
         p_source: source,

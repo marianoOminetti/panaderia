@@ -35,6 +35,7 @@ function LazyTab({ children }) {
 
 export default function AppContent({
   role,
+  userId = null,
   tab,
   setTab,
   stockProductionPreloadReceta,
@@ -114,7 +115,8 @@ export default function AppContent({
   onClearVentasFiltroFecha,
   onAbrirVentasPeriodo,
 }) {
-  if (loading) {
+  const hasCatalogData = Array.isArray(recetas) && recetas.length > 0;
+  if (loading && !hasCatalogData) {
     return (
       <div className="loading">
         <div className="spinner" />
@@ -150,7 +152,7 @@ export default function AppContent({
       {/* --- More (menú) --- */}
       {tab === "more" && (
         <LazyTab>
-          <MoreMenuScreen items={moreMenuItems} onNavigate={setTab} />
+          <MoreMenuScreen items={moreMenuItems} onNavigate={setTab} userId={userId} />
         </LazyTab>
       )}
       {/* --- Analytics --- */}

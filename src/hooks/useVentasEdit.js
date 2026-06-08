@@ -248,7 +248,11 @@ export function useVentasEdit({
   };
 
   const guardarEdicion = async (afipOpts = null) => {
-    if (!editGrupo || editInFlightRef.current) return;
+    if (!editGrupo) return;
+    if (editInFlightRef.current) {
+      showToast("Guardando cambios de la venta anterior…");
+      return;
+    }
     const fechaEdit = (editForm.fecha && editForm.fecha.slice(0, 10)) || hoy;
     let transaccionId = editGrupo.rawItems[0]?.transaccion_id;
     if (editItemsToAdd.length > 0 && !transaccionId)
@@ -419,7 +423,9 @@ export function useVentasEdit({
           const rows = Object.keys(addByReceta)
             .map((receta_id) => rowByReceta[receta_id])
             .filter(Boolean);
-          if (rows.length > 0) insertedNew = await insertVentas(rows);
+          if (rows.length > 0) {
+            insertedNew = await insertVentas(rows, { idempotent: false });
+          }
         }
 
         if (typeof navigator !== "undefined" && navigator.onLine) {
