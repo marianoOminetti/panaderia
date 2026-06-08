@@ -1,5 +1,6 @@
 import { useCallback } from "react";
 import { supabase } from "../lib/supabaseClient";
+import { isPendingVentaId } from "../lib/ventas";
 
 /**
  * Mutaciones de ventas. No incluye actualizarStock; el componente debe llamarlo.
@@ -27,7 +28,9 @@ export function useVentas() {
   }, []);
 
   const deleteVentas = useCallback(async (ids) => {
-    const { error } = await supabase.from("ventas").delete().in("id", ids);
+    const realIds = (ids || []).filter((id) => id && !isPendingVentaId(id));
+    if (realIds.length === 0) return;
+    const { error } = await supabase.from("ventas").delete().in("id", realIds);
     if (error) {
       console.error("[ventas/deleteVentas]", error);
       throw error;
@@ -35,6 +38,9 @@ export function useVentas() {
   }, []);
 
   const updateVenta = useCallback(async (id, payload) => {
+    if (isPendingVentaId(id)) {
+      throw new Error("Esperá a que termine de guardarse la venta");
+    }
     let { error } = await supabase.from("ventas").update(payload).eq("id", id);
     if (error?.code === "42703") {
       const strip = (keys, obj) => {

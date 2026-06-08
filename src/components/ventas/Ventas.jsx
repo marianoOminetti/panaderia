@@ -4,7 +4,7 @@
  */
 import { useState, useEffect, useMemo, memo, useRef } from "react";
 import { fmt, toCantidadNumber } from "../../lib/format";
-import { generateTransaccionId } from "../../lib/ventas";
+import { generateTransaccionId, isPendingVentaId } from "../../lib/ventas";
 import { useVentas } from "../../hooks/useVentas";
 import { useClientes } from "../../hooks/useClientes";
 import { useVentasCart } from "../../hooks/useVentasCart";
@@ -66,6 +66,7 @@ function Ventas({
   appendVentas,
   removeVentas,
   replaceVentas,
+  resolveOptimisticVentas,
   patchStock,
   appendPedidos,
   showToast,
@@ -195,6 +196,7 @@ function Ventas({
     removeVentas,
     replaceVentas,
     appendVentas,
+    resolveOptimisticVentas,
     onRefresh,
     hoy,
     onCloseEdit: () => setManualScreenOpen(false),
@@ -412,7 +414,15 @@ function Ventas({
     if (!(await confirm("¿Eliminar esta venta?", { destructive: true }))) return;
 
     const rawItems = grupo?.rawItems || [];
-    const ids = rawItems.map((i) => i.id).filter(Boolean);
+    const pendingIds = rawItems.map((i) => i.id).filter((id) => isPendingVentaId(id));
+    const ids = rawItems.map((i) => i.id).filter((id) => id && !isPendingVentaId(id));
+
+    if (pendingIds.length > 0 && ids.length === 0) {
+      removeVentas?.(pendingIds);
+      showToast("Venta pendiente descartada");
+      return;
+    }
+
     if (ids.length === 0) {
       showToast("⚠️ No hay ventas para eliminar");
       return;
@@ -422,8 +432,12 @@ function Ventas({
     if (deleteInFlightRef.current.has(deleteKey)) return;
     deleteInFlightRef.current.add(deleteKey);
 
+    const itemsForStock =
+      grupo?.items?.length > 0
+        ? grupo.items
+        : rawItems.filter((v) => !isPendingVentaId(v.id));
     const deltasMap = {};
-    for (const v of rawItems) {
+    for (const v of itemsForStock) {
       if (!v?.receta_id) continue;
       const cant = toCantidadNumber(v.cantidad);
       if (cant <= 0) continue;
@@ -433,8 +447,9 @@ function Ventas({
       .filter(([, d]) => d !== 0)
       .map(([receta_id, delta]) => ({ receta_id, delta }));
     const snapshot = [...rawItems];
+    const allLocalIds = rawItems.map((i) => i.id).filter(Boolean);
 
-    if (removeVentas) removeVentas(ids);
+    if (removeVentas) removeVentas(allLocalIds);
     if (patchStock && stockDeltas.length) patchStock(stockDeltas);
     showToast("Eliminando venta…");
 
@@ -798,6 +813,10 @@ function Ventas({
         return;
       }
 
+      resetNuevaVenta();
+      showToast(`Registrando venta ${fmt(totalCobrado)}…`);
+      registerInFlightRef.current = true;
+
       const stockDeltas = buildStockDeltasFromRows(rows);
       const pendingRows = withPendingVentaIds(rows, transaccionId);
       const pendingIds = pendingRows.map((r) => r.id);
@@ -805,14 +824,14 @@ function Ventas({
       if (patchStock && stockDeltas.length) patchStock(stockDeltas);
       if (appendVentas) appendVentas(pendingRows);
 
-      resetNuevaVenta();
-      showToast(`Registrando venta ${fmt(totalCobrado)}…`);
-      registerInFlightRef.current = true;
-
       persistVentaOnline(rows, transaccionId, { stockAlreadyPatched: true })
         .then(({ inserted }) => {
-          if (removeVentas && pendingIds.length) removeVentas(pendingIds);
-          if (appendVentas && inserted?.length) appendVentas(inserted);
+          if (resolveOptimisticVentas) {
+            resolveOptimisticVentas(transaccionId, inserted, pendingIds);
+          } else {
+            if (removeVentas && pendingIds.length) removeVentas(pendingIds);
+            if (appendVentas && inserted?.length) appendVentas(inserted);
+          }
           showToast(`✅ Venta registrada: ${fmt(totalCobrado)}${promoLabel ? ` · ${promoLabel}` : ""}`);
           runAfipAfterVenta(transaccionId, afipReceptor, totalCobrado, afipActivo, clienteEff);
         })

@@ -23,6 +23,7 @@ export default function Clientes({
   removePedidosByPedidoIdInState,
   appendVentas,
   removeVentas,
+  resolveOptimisticVentas,
   patchStock,
   showToast,
   actualizarStock,
@@ -133,6 +134,7 @@ export default function Clientes({
           appendVentas={appendVentas}
           patchStock={patchStock}
           removeVentas={removeVentas}
+          resolveOptimisticVentas={resolveOptimisticVentas}
           updatePedidosEstado={updatePedidosEstado}
         />
       )}

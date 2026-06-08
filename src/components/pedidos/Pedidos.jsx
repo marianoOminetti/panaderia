@@ -32,6 +32,7 @@ export default function Pedidos({
   appendVentas,
   patchStock,
   removeVentas,
+  resolveOptimisticVentas,
   updatePedidosEstado,
   removePedidosByPedidoIdInState,
   showToast,
@@ -92,9 +93,10 @@ export default function Pedidos({
     showToast?.("Registrando entrega…");
 
     try {
+      let inserted = [];
       let insertedIds = [];
       try {
-        const inserted = await insertVentas(rows);
+        inserted = await insertVentas(rows);
         insertedIds = (inserted || []).map((r) => r.id).filter(Boolean);
         await updatePedidoEntregado(grupo.key);
       } catch (ventaErr) {
@@ -112,10 +114,12 @@ export default function Pedidos({
       if (actualizarStockBatch && stockDeltas.length) {
         await actualizarStockBatch(stockDeltas, { useLocalBase: true });
       }
-      removeVentas?.(pendingIds);
-      appendVentas?.(
-        rows.map((r, i) => ({ ...r, id: insertedIds[i] || r.id })),
-      );
+      if (resolveOptimisticVentas) {
+        resolveOptimisticVentas(transaccionId, inserted || [], pendingIds);
+      } else {
+        removeVentas?.(pendingIds);
+        appendVentas?.(inserted || []);
+      }
     } catch (err) {
       removeVentas?.(pendingIds);
       patchStock?.(stockDeltas.map((d) => ({ ...d, delta: -d.delta })));
