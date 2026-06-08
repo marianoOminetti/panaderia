@@ -6,18 +6,18 @@ import { hoyLocalISO } from "./dates";
 import { resolveOptimisticVentasState } from "./ventas";
 
 const SESSION_DB_NAME = "panaderia-offline";
-export const SESSION_DB_VERSION = 3;
+const SESSION_DB_VERSION = 3;
 const CATALOG_STORE = "catalog_snapshot";
 const VENTAS_RECENT_STORE = "ventas_recent";
 const VENTA_SESSION_STORE = "venta_session";
 const CACHE_META_STORE = "cache_meta";
 const VENTAS_HISTORICAS_STORE = "ventas_historicas";
 
-export const CATALOG_TTL_MS = 5 * 60 * 1000;
-export const VENTAS_RECENT_TTL_MS = 15 * 60 * 1000;
-export const VENTAS_HISTORICAS_TTL_MS = 24 * 60 * 60 * 1000;
-export const VENTAS_RECENT_MAX_ROWS = 2000;
-export const VENTAS_RECENT_DAYS = 30;
+const CATALOG_TTL_MS = 5 * 60 * 1000;
+const VENTAS_RECENT_TTL_MS = 15 * 60 * 1000;
+const VENTAS_HISTORICAS_TTL_MS = 24 * 60 * 60 * 1000;
+const VENTAS_RECENT_MAX_ROWS = 2000;
+const VENTAS_RECENT_DAYS = 30;
 
 const APP_CACHE_VERSION = 1;
 
@@ -92,11 +92,6 @@ export function isCacheFresh(savedAt, ttlMs) {
   return Date.now() - savedAt < ttlMs;
 }
 
-/** @deprecated use isCacheFresh(savedAt, CATALOG_TTL_MS) */
-export function isCatalogCacheFresh(savedAt) {
-  return isCacheFresh(savedAt, CATALOG_TTL_MS);
-}
-
 export function trimVentasForCache(ventas, { maxRows = VENTAS_RECENT_MAX_ROWS, days = VENTAS_RECENT_DAYS } = {}) {
   const list = Array.isArray(ventas) ? ventas : [];
   const desde = fechaHaceDiasISO(hoyLocalISO(), days - 1);
@@ -135,17 +130,6 @@ export async function getAppCache(roleKey) {
     catalogFresh: isCacheFresh(catalog?.savedAt, CATALOG_TTL_MS),
     ventasRecentFresh: isCacheFresh(ventasRecent?.savedAt, VENTAS_RECENT_TTL_MS),
     ventasHistoricasFresh: isCacheFresh(ventasHistoricas?.savedAt, VENTAS_HISTORICAS_TTL_MS),
-  };
-}
-
-/** Compat: devuelve snapshot plano para hydrateFromCache */
-export async function getCatalogSnapshot(roleKey) {
-  const cache = await getAppCache(roleKey);
-  if (!cache?.catalog) return null;
-  return {
-    ...cache.catalog,
-    ventas: cache.ventasRecent?.ventas,
-    ventasRecentSavedAt: cache.ventasRecent?.savedAt,
   };
 }
 
@@ -196,11 +180,6 @@ export async function persistAppCache(roleKey, data = {}) {
   });
 
   await Promise.all([catalogPut, ventasRecentPut, ventasHistPut, metaPut]);
-}
-
-/** @deprecated use persistAppCache */
-export async function persistCatalogSnapshot(roleKey, snapshot) {
-  return persistAppCache(roleKey, snapshot);
 }
 
 export async function patchAppCache(roleKey, partial = {}) {
