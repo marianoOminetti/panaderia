@@ -17,8 +17,11 @@ function Analytics({
   recetaIngredientes,
   insumos,
   gastosFijos,
+  ventasSyncing = false,
+  ventasHistoricasLoaded = true,
   onAbrirVentasPeriodo,
 }) {
+  const cargandoHistorico = ventasSyncing && !ventasHistoricasLoaded;
   const [vista, setVista] = useState("resumen");
   const [offsetDia, setOffsetDia] = useState(0);
   const [offsetSemana, setOffsetSemana] = useState(0);
@@ -82,6 +85,23 @@ function Analytics({
     </div>
   );
 
+  const historicoBanner = cargandoHistorico ? (
+    <p className="page-subtitle" style={{ marginBottom: 12 }}>
+      Hoy y Semana ya están listos. Mes y Año se completan en unos segundos al cargar
+      ventas históricas.
+    </p>
+  ) : null;
+
+  const historicoLoadingView = (periodoLabel) => (
+    <div className="content">
+      {detailHeader}
+      <div className="loading">
+        <div className="spinner" />
+        <p>Cargando ventas de {periodoLabel}…</p>
+      </div>
+    </div>
+  );
+
   if (vista === "resumen") {
     return (
       <div className="content">
@@ -89,7 +109,12 @@ function Analytics({
         <p className="page-subtitle">
           Hoy · Semana · Mes · Año · tocá para ver el detalle
         </p>
-        <AnalyticsResumen data={data} onVerDetalle={handleVerDetalle} />
+        {historicoBanner}
+        <AnalyticsResumen
+          data={data}
+          onVerDetalle={handleVerDetalle}
+          cargandoHistorico={cargandoHistorico}
+        />
       </div>
     );
   }
@@ -156,6 +181,9 @@ function Analytics({
   }
 
   if (vista === "detalle-mes") {
+    if (cargandoHistorico && offsetMes !== 0) {
+      return historicoLoadingView(data.mesLabel || "ese mes");
+    }
     if (drill?.tipo) {
       return (
         <AnalyticsDrilldown
@@ -202,6 +230,9 @@ function Analytics({
   }
 
   if (vista === "detalle-anio") {
+    if (cargandoHistorico) {
+      return historicoLoadingView(data.anioLabel || "ese año");
+    }
     if (drill?.tipo) {
       return (
         <AnalyticsDrilldown

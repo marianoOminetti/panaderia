@@ -12,14 +12,63 @@ import {
   resolveOptimisticVentasState,
 } from "../lib/ventas";
 import { isVentaWriteBusy } from "../lib/ventaWriteQueue";
+import { getAppCache, isVentasHistoricasCacheTrusted } from "../lib/sessionCache";
 
 /** PostgREST suele limitar filas por request (p. ej. max_rows 1000); paginamos para no truncar analytics. */
 const VENTAS_PAGE = 1000;
 const VENTAS_MAX_PAGES = 500;
 const VENTAS_PAGE_CONCURRENCY = 4;
+const VENTAS_HISTORICAS_MESES = 36;
+const VENTAS_HISTORICAS_CHUNK_MESES = 3;
+
+function ymdFromDate(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/** Rangos de 3 meses (más viejos primero) para no truncar meses pasados en un solo fetch DESC. */
+function buildVentasHistoricasChunks(
+  monthsBack = VENTAS_HISTORICAS_MESES,
+  chunkMonths = VENTAS_HISTORICAS_CHUNK_MESES,
+) {
+  const recentCutoff = fechaHaceDiasISO(hoyLocalISO(), 29);
+  const [cy, cm, cd] = recentCutoff.split("-").map(Number);
+  const cutoff = new Date(cy, cm - 1, cd);
+
+  const start = new Date();
+  start.setMonth(start.getMonth() - monthsBack);
+  start.setDate(1);
+  start.setHours(0, 0, 0, 0);
+
+  const chunks = [];
+  let cursor = new Date(start);
+  while (cursor.getTime() < cutoff.getTime()) {
+    const desde = ymdFromDate(cursor);
+    const next = new Date(cursor);
+    next.setMonth(next.getMonth() + chunkMonths);
+    const hasta = next.getTime() < cutoff.getTime() ? ymdFromDate(next) : recentCutoff;
+    chunks.push({ desde, hasta });
+    cursor = next;
+  }
+  return chunks;
+}
 
 function asVentasArray(value) {
   return Array.isArray(value) ? value : [];
+}
+
+function ventaFechaISO(v) {
+  return v?.fecha ? String(v.fecha).slice(0, 10) : null;
+}
+
+function hasHistoricVentasInMemory(ventas, recentCutoff) {
+  return asVentasArray(ventas).some((v) => {
+    const f = ventaFechaISO(v);
+    return f && f < recentCutoff;
+  });
+}
+
+function recentCutoffISO() {
+  return fechaHaceDiasISO(hoyLocalISO(), 29);
 }
 
 function isTransientFetchError(error) {
@@ -53,10 +102,11 @@ async function loadVentasDesde(fechaGte, fechaLt) {
   }
   const all = [...(first.data || [])];
   if ((first.data || []).length < VENTAS_PAGE) {
-    return { data: all, error: null };
+    return { data: all, error: null, truncated: false };
   }
 
   let page = 1;
+  let hitPageCap = false;
   while (page < VENTAS_MAX_PAGES) {
     const pagePromises = [];
     for (
@@ -81,7 +131,8 @@ async function loadVentasDesde(fechaGte, fechaLt) {
     }
     if (truncated) break;
   }
-  return { data: all, error: null };
+  if (page >= VENTAS_MAX_PAGES) hitPageCap = true;
+  return { data: all, error: null, truncated: hitPageCap };
 }
 
 /**
@@ -112,6 +163,7 @@ export function useAppData({ showToast, role, onCachePatch, onPersistCache } = {
   const seededRef = useRef(false);
   seededRef.current = seeded;
   const loadInFlightRef = useRef(null);
+  const loadVentasHistoricasInFlightRef = useRef(null);
   const loadGenerationRef = useRef(0);
   const ventasRef = useRef([]);
   ventasRef.current = ventas;
@@ -426,47 +478,139 @@ export function useAppData({ showToast, role, onCachePatch, onPersistCache } = {
   }, [role, showToast, onPersistCache]);
 
   const loadVentasHistoricas = useCallback(async () => {
-    if (role === "venta" || ventasHistoricasLoaded) return;
-    const ventasDesde = new Date();
-    ventasDesde.setMonth(ventasDesde.getMonth() - 36);
-    ventasDesde.setDate(1);
-    ventasDesde.setHours(0, 0, 0, 0);
-    const ventasDesdeStr = `${ventasDesde.getFullYear()}-${String(ventasDesde.getMonth() + 1).padStart(2, "0")}-01`;
-    const ventasRecientesDesde = fechaHaceDiasISO(hoyLocalISO(), 29);
+    if (role === "venta") return;
+    if (loadVentasHistoricasInFlightRef.current) {
+      return loadVentasHistoricasInFlightRef.current;
+    }
 
-    setVentasSyncing(true);
-    try {
-      const venHist = await loadVentasDesde(ventasDesdeStr, ventasRecientesDesde);
-      if (venHist.error) {
-        reportError(venHist.error, {
-          action: "loadVentasHistoricas",
-          source: "ventas_historico",
-          code: venHist.error?.code,
+    const run = async () => {
+      const recentCutoff = recentCutoffISO();
+      const roleKey = role ?? "__pending__";
+      const cache = await getAppCache(roleKey);
+      const trusted = isVentasHistoricasCacheTrusted(cache?.meta);
+      const cachedHistoric = cache?.ventasHistoricas?.ventas;
+      const cachedCorte = cache?.ventasHistoricas?.corteReciente ?? null;
+      const inMemory = asVentasArray(ventasRef.current);
+
+      if (!hasHistoricVentasInMemory(inMemory, recentCutoff) && Array.isArray(cachedHistoric)) {
+        setVentas((prev) =>
+          dedupeOptimisticVentas(mergeVentasFromFetch(prev, cachedHistoric)),
+        );
+        setVentasHistoricasLoaded(true);
+      }
+
+      const persistHistoricas = (ventas, corte) => {
+        onPersistCache?.({
+          ventasHistoricas: ventas,
+          ventasHistoricasCorte: corte,
         });
-        showToast?.("⚠️ Error al cargar histórico de ventas");
+      };
+
+      const runFullLoad = async () => {
+        const snapshotBefore = asVentasArray(ventasRef.current);
+        setVentasSyncing(true);
+        try {
+          const chunks = buildVentasHistoricasChunks();
+          const allHistoric = [];
+          let hadTruncation = false;
+
+          for (const { desde, hasta } of chunks) {
+            const venHist = await loadVentasDesde(desde, hasta);
+            if (venHist.error) {
+              setVentas(dedupeOptimisticVentas(snapshotBefore));
+              reportError(venHist.error, {
+                action: "loadVentasHistoricas",
+                source: "ventas_historico",
+                code: venHist.error?.code,
+                desde,
+                hasta,
+              });
+              showToast?.("⚠️ Error al cargar histórico de ventas");
+              return;
+            }
+            if (venHist.truncated) {
+              hadTruncation = true;
+              reportError(new Error("Ventas históricas truncadas en chunk"), {
+                action: "loadVentasHistoricas",
+                source: "ventas_historico_truncated",
+                desde,
+                hasta,
+              });
+            }
+            const batch = venHist.data || [];
+            if (batch.length) allHistoric.push(...batch);
+          }
+
+          if (allHistoric.length) {
+            setVentas((prev) =>
+              dedupeOptimisticVentas(mergeVentasFromFetch(prev, allHistoric)),
+            );
+          }
+          if (hadTruncation) {
+            showToast?.("⚠️ Algunos meses históricos pueden estar incompletos");
+          }
+          setVentasHistoricasLoaded(true);
+          persistHistoricas(allHistoric, recentCutoff);
+        } finally {
+          setVentasSyncing(false);
+        }
+      };
+
+      if (!trusted || !Array.isArray(cachedHistoric)) {
+        await runFullLoad();
         return;
       }
-      if (venHist.data?.length) {
-        setVentas((prev) =>
-          dedupeOptimisticVentas(mergeVentasFromFetch(prev, venHist.data)),
-        );
-      }
+
       setVentasHistoricasLoaded(true);
-      onPersistCache?.({ ventasHistoricas: venHist.data || [] });
-    } finally {
-      setVentasSyncing(false);
-    }
-  }, [role, showToast, ventasHistoricasLoaded, onPersistCache]);
+
+      if (cachedCorte === recentCutoff) return;
+
+      setVentasSyncing(true);
+      try {
+        let nextHistoric = cachedHistoric;
+        if (cachedCorte && cachedCorte < recentCutoff) {
+          const delta = await loadVentasDesde(cachedCorte, recentCutoff);
+          if (delta.error) {
+            reportError(delta.error, {
+              action: "loadVentasHistoricas",
+              source: "ventas_historico_delta",
+              code: delta.error?.code,
+              desde: cachedCorte,
+              hasta: recentCutoff,
+            });
+            return;
+          }
+          const batch = delta.data || [];
+          if (batch.length) {
+            nextHistoric = mergeVentasFromFetch(cachedHistoric, batch);
+            setVentas((prev) =>
+              dedupeOptimisticVentas(mergeVentasFromFetch(prev, batch)),
+            );
+          }
+        }
+        persistHistoricas(nextHistoric, recentCutoff);
+      } finally {
+        setVentasSyncing(false);
+      }
+    };
+
+    const promise = run().finally(() => {
+      if (loadVentasHistoricasInFlightRef.current === promise) {
+        loadVentasHistoricasInFlightRef.current = null;
+      }
+    });
+    loadVentasHistoricasInFlightRef.current = promise;
+    return promise;
+  }, [role, showToast, onPersistCache]);
 
   const trimVentasToRecent = useCallback((dias = 30) => {
     const desde = fechaHaceDiasISO(hoyLocalISO(), dias - 1);
     setVentas((prev) =>
       asVentasArray(prev).filter((v) => {
-        const f = v?.fecha ? String(v.fecha).slice(0, 10) : null;
+        const f = ventaFechaISO(v);
         return f && f >= desde;
       }),
     );
-    setVentasHistoricasLoaded(false);
   }, []);
 
   const appendVentas = useCallback(
@@ -754,8 +898,18 @@ export function useAppData({ showToast, role, onCachePatch, onPersistCache } = {
     if (Array.isArray(snapshot.promociones)) {
       setPromociones(normalizarPromociones(snapshot.promociones));
     }
-    if (Array.isArray(snapshot.ventas)) {
-      setVentas(dedupeOptimisticVentas(snapshot.ventas));
+    const recentVentas = Array.isArray(snapshot.ventas) ? snapshot.ventas : [];
+    const historicVentas = Array.isArray(snapshot.ventasHistoricas)
+      ? snapshot.ventasHistoricas
+      : [];
+    if (recentVentas.length || historicVentas.length) {
+      const merged = historicVentas.length
+        ? mergeVentasFromFetch(historicVentas, recentVentas)
+        : recentVentas;
+      setVentas(dedupeOptimisticVentas(merged));
+    }
+    if (snapshot.ventasHistoricasLoaded) {
+      setVentasHistoricasLoaded(true);
     }
     setLoading(false);
   }, []);

@@ -19,7 +19,12 @@ const VENTAS_HISTORICAS_TTL_MS = 24 * 60 * 60 * 1000;
 const VENTAS_RECENT_MAX_ROWS = 2000;
 const VENTAS_RECENT_DAYS = 30;
 
-const APP_CACHE_VERSION = 1;
+export const APP_CACHE_VERSION = 2;
+
+/** Histórico en cache confiable solo si se guardó con la versión actual (chunks de 3 meses). */
+export function isVentasHistoricasCacheTrusted(meta) {
+  return (meta?.appCacheVersion ?? 0) >= APP_CACHE_VERSION;
+}
 
 function normalizeRoleKey(roleKey) {
   return roleKey ?? "__default__";
@@ -170,6 +175,7 @@ export async function persistAppCache(roleKey, data = {}) {
           roleKey: key,
           savedAt: now,
           ventas: data.ventasHistoricas,
+          corteReciente: data.ventasHistoricasCorte ?? null,
         })
       : Promise.resolve();
 
