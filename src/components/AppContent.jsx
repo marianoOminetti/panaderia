@@ -56,6 +56,7 @@ export default function AppContent({
   onOpenInsumosCompra,
   loading,
   ventasSyncing,
+  ventasHistoricasLoaded,
   dataSyncing,
   moreMenuItems,
   insumos,
@@ -165,6 +166,8 @@ export default function AppContent({
           recetaIngredientes={recetaIngredientes}
           insumos={insumos}
           gastosFijos={gastosFijos}
+          ventasSyncing={ventasSyncing}
+          ventasHistoricasLoaded={ventasHistoricasLoaded}
           onAbrirVentasPeriodo={onAbrirVentasPeriodo}
         />
         </LazyTab>

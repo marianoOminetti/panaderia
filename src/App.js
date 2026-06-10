@@ -17,6 +17,7 @@ import {
   persistAppCache,
   patchAppCache,
   clearAppCache,
+  isVentasHistoricasCacheTrusted,
 } from "./lib/sessionCache";
 import { reportError } from "./utils/errorReport";
 import { MORE_MENU_ITEMS, NAV_TABS } from "./config/nav";
@@ -344,10 +345,17 @@ export default function App() {
         cache?.catalog &&
         Array.isArray(cache.catalog.recetas) &&
         cache.catalog.recetas.length > 0;
+      const historicCacheTrusted = isVentasHistoricasCacheTrusted(cache?.meta);
+      const historicVentas = Array.isArray(cache?.ventasHistoricas?.ventas)
+        ? cache.ventasHistoricas.ventas
+        : null;
       const cacheSnapshot = hasCachedCatalog
         ? {
             ...cache.catalog,
             ventas: cache.ventasRecent?.ventas,
+            ventasHistoricas: historicCacheTrusted ? historicVentas : null,
+            ventasHistoricasLoaded:
+              historicCacheTrusted && historicVentas != null,
           }
         : null;
 
@@ -451,10 +459,10 @@ export default function App() {
   }, [session, roleReady, refreshData, normalizedRole, shouldSkipBackgroundRefresh]);
 
   useEffect(() => {
-    if (tab === "analytics" && !ventasHistoricasLoaded && normalizedRole !== "venta") {
+    if (tab === "analytics" && normalizedRole !== "venta") {
       loadVentasHistoricas();
     }
-  }, [tab, ventasHistoricasLoaded, loadVentasHistoricas, normalizedRole]);
+  }, [tab, loadVentasHistoricas, normalizedRole]);
 
   const prevTabRef = useRef(tab);
   useEffect(() => {
@@ -577,6 +585,7 @@ export default function App() {
         }}
         loading={loading}
         ventasSyncing={ventasSyncing}
+        ventasHistoricasLoaded={ventasHistoricasLoaded}
         dataSyncing={dataSyncing}
         moreMenuItems={moreMenuItems}
         insumos={insumos}
