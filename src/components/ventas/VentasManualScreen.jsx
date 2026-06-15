@@ -27,6 +27,9 @@ export default function VentasManualScreen({
   onCobrar,
   onRegistrarRapida,
   savingVenta = false,
+  cartPromos,
+  promosExcluidas = [],
+  setPromosExcluidas,
   // Editar venta
   editCartItems,
   editCartTotal,
@@ -70,20 +73,24 @@ export default function VentasManualScreen({
   const isEdit = mode === "edit";
   const items = isEdit ? editCartItems : cartItems;
   const totalLista = isEdit ? editCartTotal : cartTotal;
-  const totalConPromoEdit =
-    isEdit && (editCartPromos?.descuentoTotal ?? 0) > 0
-      ? editCartPromos.totalFinal
-      : totalLista;
+  const promosActivas = isEdit ? editCartPromos : isPedidoFlow ? null : cartPromos;
+  const promosExcluidasActuales = isEdit ? editPromosExcluidas : promosExcluidas;
+  const setPromosExcluidasActuales = isEdit ? setEditPromosExcluidas : setPromosExcluidas;
+  const descuentoPromo = promosActivas?.descuentoTotal ?? 0;
+  const totalConPromo =
+    descuentoPromo > 0 ? promosActivas.totalFinal : totalLista;
   const overrideNum =
     isEdit &&
     editTotalOverride !== "" &&
     !Number.isNaN(parseFloat(String(editTotalOverride).replace(",", ".")))
       ? parseFloat(String(editTotalOverride).replace(",", "."))
       : null;
-  const totalBase = isEdit ? totalConPromoEdit : totalLista;
+  const totalBase = totalConPromo;
   const total =
     isEdit && overrideNum != null && overrideNum >= 0 ? overrideNum : totalBase;
   const hasItems = (isEdit ? editCartItems : cartItems)?.length > 0;
+  const hayPromosEnCarrito =
+    !isPedidoFlow && (promosActivas?.promosEnCobro?.length ?? 0) > 0;
 
   return (
     <div className="screen-overlay">
@@ -146,7 +153,7 @@ export default function VentasManualScreen({
               label="Total final (editable)"
               value={editTotalOverride}
               onChange={(v) => setEditTotalOverride?.(v)}
-              placeholder={fmtMonedaDecimal(totalConPromoEdit).replace("$", "").trim()}
+              placeholder={fmtMonedaDecimal(totalConPromo).replace("$", "").trim()}
               style={{ marginTop: 12 }}
             />
             <p className="form-hint" style={{ marginTop: -8 }}>
@@ -179,11 +186,11 @@ export default function VentasManualScreen({
             quantityIntegerOnly={false}
             priceEditable
           />
-          {isEdit && (editCartPromos?.promosEnCobro?.length ?? 0) > 0 && (
+          {hayPromosEnCarrito && (
             <PromosEnVentaPanel
-              cartPromos={editCartPromos}
-              promosExcluidas={editPromosExcluidas}
-              setPromosExcluidas={setEditPromosExcluidas}
+              cartPromos={promosActivas}
+              promosExcluidas={promosExcluidasActuales}
+              setPromosExcluidas={setPromosExcluidasActuales}
             />
           )}
         </div>
@@ -281,6 +288,18 @@ export default function VentasManualScreen({
           }}
         >
           <div>
+            {descuentoPromo > 0 && !isEdit && !isPedidoFlow && (
+              <div
+                style={{
+                  fontSize: 11,
+                  color: "var(--text-muted)",
+                  marginBottom: 2,
+                  textDecoration: "line-through",
+                }}
+              >
+                {fmtMonedaDecimal(totalLista)}
+              </div>
+            )}
             <div
               style={{
                 fontSize: 11,
@@ -288,7 +307,9 @@ export default function VentasManualScreen({
                 marginBottom: 4,
               }}
             >
-              Total carrito
+              {descuentoPromo > 0 && !isEdit && !isPedidoFlow
+                ? `Total con promo (−${fmtMonedaDecimal(descuentoPromo)})`
+                : "Total carrito"}
             </div>
             <div
               style={{

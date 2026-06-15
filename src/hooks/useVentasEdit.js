@@ -81,23 +81,16 @@ export function useVentasEdit({
         };
       })
       .filter(Boolean);
-    const subtotalLista = tempCart.reduce((s, it) => {
-      const c = toCantidadNumber(it.cantidad) || 0;
-      return s + (Number(it.precio_unitario) || 0) * c;
-    }, 0);
-    const teniaDescuento = grupo.total < subtotalLista - 0.01;
     const preview = calcularPromosEnCarrito(tempCart, promociones);
     const promosGuardadas = new Set(
       grupo.rawItems.map((r) => r.promocion_id).filter(Boolean),
     );
-    let excluidas = [];
-    if (!teniaDescuento && preview.descuentoTotal > 0) {
-      excluidas = preview.aplicadas.map((a) => a.promocion_id);
-    } else if (promosGuardadas.size > 0) {
-      excluidas = preview.aplicadas
-        .filter((a) => !promosGuardadas.has(a.promocion_id))
-        .map((a) => a.promocion_id);
-    }
+    const excluidas =
+      promosGuardadas.size > 0
+        ? preview.aplicadas
+            .filter((a) => !promosGuardadas.has(a.promocion_id))
+            .map((a) => a.promocion_id)
+        : [];
     setEditPromosExcluidas(excluidas);
   };
 

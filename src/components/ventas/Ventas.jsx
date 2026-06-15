@@ -352,7 +352,6 @@ function Ventas({
   };
 
   const cerrarCobro = () => {
-    setPromosExcluidasCobro([]);
     closeChargeModal();
   };
 
@@ -719,7 +718,7 @@ function Ventas({
     const medioPagoEff = cobroPorDefecto ? "efectivo" : medioPago;
     const estadoPagoEff = cobroPorDefecto ? "pagado" : estadoPago;
     const chargeOverrideEff = cobroPorDefecto ? "" : chargeTotalOverride;
-    const promosExclEff = cobroPorDefecto ? [] : promosExcluidasCobro;
+    const promosExclEff = promosExcluidasCobro;
     const seniaEff = cobroPorDefecto ? "" : senia;
     const horaEntregaEff = cobroPorDefecto ? "" : horaEntrega;
     const notasEff = cobroPorDefecto ? "" : notas;
@@ -987,9 +986,11 @@ function Ventas({
         onCobrar={() => {
           if (cartItems.length === 0) return;
           perfMark("cobro:open");
-          setPromosExcluidasCobro([]);
           openChargeModal();
         }}
+        cartPromos={cartPromos}
+        promosExcluidas={promosExcluidasCobro}
+        setPromosExcluidas={setPromosExcluidasCobro}
         onRegistrarRapida={() => registrarVentaCarrito({ cobroPorDefecto: true })}
         savingVenta={registering}
         editCartItems={edit.editCartItems}
