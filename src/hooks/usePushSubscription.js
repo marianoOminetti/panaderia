@@ -9,13 +9,15 @@ import {
   getExistingPushSubscription,
   syncPushSubscription,
 } from "../lib/pushNotifications";
-
-const VAPID_PUBLIC_KEY = process.env.REACT_APP_VAPID_PUBLIC_KEY;
+import {
+  VAPID_PUBLIC_KEY,
+  getNotificationPermission,
+  isPushEnvironmentReady,
+  canUseServiceWorker,
+} from "./pushSubscriptionEnv";
 
 export function usePushSubscription(userId) {
-  const [permission, setPermission] = useState(
-    typeof Notification !== "undefined" ? Notification.permission : "default"
-  );
+  const [permission, setPermission] = useState(getNotificationPermission);
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -25,38 +27,33 @@ export function usePushSubscription(userId) {
   }, [userId]);
 
   const requestPermission = useCallback(() => {
-    if (typeof window === "undefined" || typeof Notification === "undefined") return Promise.resolve(Notification?.permission);
+    if (typeof window === "undefined" || typeof Notification === "undefined") {
+      return Promise.resolve(Notification?.permission);
+    }
     return Notification.requestPermission().then((p) => {
       setPermission(p);
       return p;
     });
   }, []);
 
-  // Registrar SW cuando hay usuario
   useEffect(() => {
-    if (!userId || typeof navigator === "undefined" || !navigator.serviceWorker) return;
+    if (!userId || !canUseServiceWorker()) return;
     registerServiceWorker().catch(() => {});
   }, [userId]);
 
-  // Comprobar si ya hay suscripción activa (SW registrado; evita InvalidStateError en iOS)
   useEffect(() => {
-    if (!userId || permission !== "granted" || !navigator.serviceWorker) return;
+    if (!userId || permission !== "granted" || !canUseServiceWorker()) return;
     let cancelled = false;
     getExistingPushSubscription().then((sub) => {
       if (!cancelled) setIsSubscribed(!!sub);
     });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [userId, permission]);
 
-  // Sincronizar SW + suscripción en Supabase cada vez que hay permiso (recupera 410 del servidor).
   useEffect(() => {
-    if (
-      !userId ||
-      permission !== "granted" ||
-      !VAPID_PUBLIC_KEY ||
-      typeof navigator === "undefined" ||
-      !navigator.serviceWorker
-    )
+    if (!userId || permission !== "granted" || !VAPID_PUBLIC_KEY || !canUseServiceWorker())
       return;
 
     let cancelled = false;
@@ -89,7 +86,7 @@ export function usePushSubscription(userId) {
   }, [userId]);
 
   const unsubscribe = useCallback(async () => {
-    if (typeof navigator === "undefined" || !navigator.serviceWorker) return;
+    if (!canUseServiceWorker()) return;
     setLoading(true);
     try {
       const sub = await getExistingPushSubscription();
@@ -114,10 +111,6 @@ export function usePushSubscription(userId) {
     requestPermission,
     loading,
     vapidConfigured: !!VAPID_PUBLIC_KEY,
-    isSupported:
-      typeof navigator !== "undefined" &&
-      "serviceWorker" in navigator &&
-      "PushManager" in window &&
-      !!VAPID_PUBLIC_KEY,
+    isSupported: isPushEnvironmentReady(),
   };
 }
