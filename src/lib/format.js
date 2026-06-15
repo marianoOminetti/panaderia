@@ -57,6 +57,12 @@ export function toCantidadNumber(value) {
   return Number.isFinite(num) ? num : 0;
 }
 
+/** True mientras el usuario escribe una cantidad decimal (ej. "2." antes de "2.5"). */
+export function isCantidadEnEdicion(value) {
+  const text = String(value ?? "").trim().replace(",", ".");
+  return text === "" || text === "." || text === "-" || text.endsWith(".");
+}
+
 /** Parseo robusto de decimales que acepta coma o punto. Devuelve null si no es número válido. Usado en recetas/formularios. */
 export function parseDecimal(value) {
   if (value == null) return null;
