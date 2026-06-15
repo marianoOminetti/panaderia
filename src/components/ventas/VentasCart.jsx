@@ -100,13 +100,19 @@ export default function VentasCart({
                       <QuantityControl
                         value={displayQty}
                         onChange={(v) => {
+                          const recetaId = item.receta?.id;
+                          if (recetaId == null) return;
                           if (setCartQuantity) {
-                            setCartQuantity(itemKey, v);
+                            setCartQuantity(recetaId, v);
                           } else {
-                            updateCartQuantity(itemKey, v - cantNum);
+                            updateCartQuantity(recetaId, v - cantNum);
                           }
                         }}
-                        onChangeRaw={setCartQuantity ? (v) => setCartQuantity(itemKey, v) : undefined}
+                        onChangeRaw={
+                          setCartQuantity
+                            ? (v) => setCartQuantity(item.receta?.id, v)
+                            : undefined
+                        }
                         min={quantityIntegerOnly ? 1 : 0.1}
                         step={quantityIntegerOnly ? 1 : "auto"}
                         size="sm"

@@ -36,6 +36,18 @@ describe("calcularPromosEnCarrito", () => {
     expect(r.aplicadas).toHaveLength(1);
   });
 
+  it("5 unidades mixtas con cantidad string (botón +) aplica promo", () => {
+    const recetaTarta = { id: "t", nombre: "Tarta", precio_venta: 5000 };
+    const cart = [
+      { receta: recetaB, cantidad: 2, precio_unitario: 300 },
+      { receta: recetaTarta, cantidad: 1, precio_unitario: 5000 },
+      { receta: recetaA, cantidad: "3", precio_unitario: 500 },
+    ];
+    const r = calcularPromosEnCarrito(cart, [promo5x4]);
+    expect(r.descuentoTotal).toBe(300);
+    expect(r.totalFinal).toBe(6800);
+  });
+
   it("10 unidades aplica dos gratis", () => {
     const cart = [{ receta: recetaA, cantidad: 10, precio_unitario: 100 }];
     const r = calcularPromosEnCarrito(cart, [promo5x4]);
