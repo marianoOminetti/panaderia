@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo } from "react";
-import { toCantidadNumber } from "../lib/format";
+import { isCantidadEnEdicion, toCantidadNumber } from "../lib/format";
 
 /**
  * Estado y handlers del carrito para una nueva venta (no edición).
@@ -52,7 +52,7 @@ export function useVentasCart() {
 
   const setCartQuantity = useCallback((recetaId, value) => {
     const text = String(value ?? "").trim().replace(",", ".");
-    if (text === "" || text === "." || text === "-") {
+    if (isCantidadEnEdicion(text)) {
       setCartItems((prev) =>
         prev.map((item) =>
           item.receta.id === recetaId ? { ...item, cantidad: text } : item,
