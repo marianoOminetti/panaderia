@@ -15,7 +15,12 @@ export function useVentasCart() {
       const idx = prev.findIndex((it) => it.receta.id === receta.id);
       if (idx >= 0) {
         const copy = [...prev];
-        copy[idx] = { ...copy[idx], cantidad: copy[idx].cantidad + cantidad };
+        const actual = toCantidadNumber(copy[idx].cantidad) || 0;
+        const next = actual + cantidad;
+        copy[idx] = {
+          ...copy[idx],
+          cantidad: Number.isInteger(next) ? next : Number(next.toFixed(2)),
+        };
         return copy;
       }
       return [...prev, { receta, cantidad, precio_unitario: receta.precio_venta || 0 }];
@@ -47,11 +52,20 @@ export function useVentasCart() {
 
   const setCartQuantity = useCallback((recetaId, value) => {
     const text = String(value ?? "").trim().replace(",", ".");
+    if (text === "" || text === "." || text === "-") {
+      setCartItems((prev) =>
+        prev.map((item) =>
+          item.receta.id === recetaId ? { ...item, cantidad: text } : item,
+        ),
+      );
+      return;
+    }
+    const num = parseFloat(text);
+    if (!Number.isFinite(num)) return;
+    const cantidad = num < 0.1 ? 0.1 : Number(num.toFixed(2));
     setCartItems((prev) =>
       prev.map((item) =>
-        item.receta.id === recetaId
-          ? { ...item, cantidad: text }
-          : item,
+        item.receta.id === recetaId ? { ...item, cantidad } : item,
       ),
     );
   }, []);

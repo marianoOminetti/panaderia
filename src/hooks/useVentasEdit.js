@@ -172,10 +172,14 @@ export function useVentasEdit({
 
   const editSetQuantity = (recetaId, value) => {
     const text = String(value ?? "").trim().replace(",", ".");
-    setEditCantidades((prev) => ({
-      ...prev,
-      [recetaId]: text === "" ? "" : text,
-    }));
+    if (text === "" || text === "." || text === "-") {
+      setEditCantidades((prev) => ({ ...prev, [recetaId]: text }));
+      return;
+    }
+    const num = parseFloat(text);
+    if (!Number.isFinite(num)) return;
+    const cantidad = num < 0.1 ? 0.1 : Number(num.toFixed(2));
+    setEditCantidades((prev) => ({ ...prev, [recetaId]: cantidad }));
   };
 
   const editRemoveItem = (recetaId) => {
