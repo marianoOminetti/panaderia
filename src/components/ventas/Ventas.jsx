@@ -982,6 +982,7 @@ function Ventas({
         recetas={recetas}
         ventas={ventas}
         stock={stock}
+        promociones={promociones}
         addToCart={edit.editGrupo ? edit.addToCartForEdit : addToCart}
         onCobrar={() => {
           if (cartItems.length === 0) return;

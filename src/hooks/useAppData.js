@@ -247,7 +247,7 @@ export function useAppData({ showToast, role, onCachePatch, onPersistCache } = {
 
       const promosPromise = supabase
         .from("promociones")
-        .select("*, promocion_recetas(receta_id)")
+        .select("*, promocion_recetas(receta_id, cantidad)")
         .order("nombre");
 
       const [

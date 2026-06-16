@@ -1,6 +1,6 @@
 # UI Patterns — Panadería SG
-Última actualización: 2026-06-06
-Versión: 1.1
+Última actualización: 2026-06-16
+Versión: 1.2
 
 ## Stack visual
 - Framework: React
@@ -85,5 +85,73 @@ Tres niveles según severidad y bloqueo:
 
 ---
 
+## PATRÓN — Pantalla de venta manual (`VentasManualScreen`)
+
+**Tipo:** pantalla de carrito (overlay `screen-overlay`, bottom nav oculta).
+
+### Estructura vertical (orden fijo)
+1. `screen-header` — ← Volver + título ("Nueva venta" / "Editar venta")
+2. Card **Carrito** — `VentasCart` + `PromosEnVentaPanel` (solo si hay promos calculadas)
+3. Card **Combos** _(en implementación)_ — atajos `combo_precio_fijo` activos; ver sección siguiente
+4. Card **Productos** — `ProductSearchInput` + lista `producto-row`
+5. Footer fijo — total (lista tachada si hay promo) + "Registrar venta" / "Ir a cobro"
+
+### Card Carrito
+- `card-header` + `card-title` "Carrito"
+- Ítems con patrón `insumo-item`: emoji, nombre, `QuantityControl`, precio editable, subtotal púrpura
+- Estado vacío: "Agregá productos" (texto muted)
+- `PromosEnVentaPanel`: panel **reactivo** debajo del carrito, borde superior punteado; checkboxes para activar/desactivar promos **ya detectadas** en el carrito (todos los tipos)
+
+### Card Productos — `producto-row`
+- Botón full width: emoji (20px) | nombre (ellipsis) | precio lista | stock (`fmtStock`)
+- Tap: `addToCart(receta, 1)` + limpiar búsqueda
+- Clase `.producto-row` con hover/active (`scale 0.98`)
+- Buscador **siempre antes** de la lista
+
+### Footer fijo
+- Total en Outfit 20px `--purple-dark`
+- Si hay descuento promo: lista tachada arriba + "Total con promo (−$…)"
+- Botón primario full width en columna con secundario "Ir a cobro"
+
+---
+
+## PATRÓN — Selector de combos en venta _(en implementación)_
+
+**Objetivo:** atajo de caja para promos `combo_precio_fijo` — **no** reemplaza `PromosEnVentaPanel`.
+
+### Ubicación aprobada
+- Card **Combos** entre Carrito y Productos (encima de Productos, debajo de Carrito).
+
+### Contenido del card
+- `card-title`: "Combos"
+- Subtítulo opcional 12px muted: "Un toque agrega todos los productos"
+- Lista vertical de filas tipo `producto-row` (misma interacción tap/active), una por combo activo.
+
+### Fila de combo (layout 2 líneas)
+- **Línea 1:** nombre del combo (bold 14px) | precio combo (`--purple-dark`, bold, ancho fijo, sin truncar)
+- **Línea 2:** chips emoji+cantidad (ej. `🥖×4 · 🍕×1`) | precio lista tachado 11px | badge ahorro verde opcional
+
+### Interacción
+- **Tap** → agrega al carrito todas las cantidades del `combo_items` (suma a lo existente, no reemplaza).
+- Tap repetido → otro combo completo si hay stock.
+- Sin stock en algún producto → fila deshabilitada (`data-sin-stock`, mismo patrón que productos).
+- Toast breve: "Combo agregado" (opcional).
+- **No** checkbox en el selector; el toggle queda en `PromosEnVentaPanel` dentro del carrito.
+
+### Relación con promos
+| Zona | Rol |
+|------|-----|
+| Card Combos | **Entrada rápida** — solo `combo_precio_fijo` activas |
+| `PromosEnVentaPanel` | **Revisión** — todas las promos que aplican (nxm, %, combo, etc.) con checkbox |
+
+El cliente puede armar el combo a mano producto por producto; el descuento aparece igual en el panel del carrito.
+
+### Alcance
+- Solo flujo **Nueva venta** (no pedido, no editar venta salvo decisión futura).
+- Ocultar card si no hay combos activos.
+
+---
+
 ## Deuda visual
-_(Ninguna registrada.)_
+- `UI_PATTERNS.md` v1.1 no documentaba venta manual ni carrito; corregido en v1.2.
+- Selector de combos: pendiente de implementación (patrón definido arriba).
