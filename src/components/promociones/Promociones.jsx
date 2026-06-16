@@ -4,8 +4,8 @@
 import { useState, useMemo, useRef } from "react";
 import { reportError } from "../../utils/errorReport";
 import { usePromociones } from "../../hooks/usePromociones";
-import { TIPOS_PROMO, etiquetaPromo, isPendingPromoId, promoUsaProductos } from "../../lib/promociones";
-import { FormInput, FormMoneyInput, FormCheckbox, SearchableSelect } from "../ui";
+import { TIPOS_PROMO, calcularPrecioListaCombo, etiquetaPromo, isPendingPromoId, promoUsaProductos, promoUsaCantidadesPorProducto } from "../../lib/promociones";
+import { FormInput, FormMoneyInput, FormCheckbox, SearchableSelect, QuantityControl } from "../ui";
 
 const TIPOS_OPCIONES = [
   { value: TIPOS_PROMO.NXM, label: "Llevá N / Pagá M (ej. 5×4)" },
@@ -14,6 +14,10 @@ const TIPOS_OPCIONES = [
   {
     value: TIPOS_PROMO.DESCUENTO_FIJO_UNIDAD,
     label: "Descuento fijo por unidad ($)",
+  },
+  {
+    value: TIPOS_PROMO.COMBO_PRECIO_FIJO,
+    label: "Combo a precio fijo",
   },
 ];
 
@@ -25,6 +29,9 @@ const emptyForm = () => ({
   porcentaje: "20",
   monto_minimo: "50000",
   descuento_fijo: "1000",
+  precio_combo: "",
+  precio_combo_manual: false,
+  combo_cantidades: {},
   activa: true,
   receta_ids: [],
 });
@@ -44,7 +51,19 @@ export default function Promociones({ promociones, recetas, onRefresh, upsertPro
   const saveInFlightRef = useRef(false);
 
   const usaProductos = promoUsaProductos(form.tipo);
+  const usaCantidades = promoUsaCantidadesPorProducto(form.tipo);
   const promoBloqueada = (p) => isPendingPromoId(p?.id) || saving;
+
+  const recalcPrecioCombo = (prev) => {
+    if (prev.tipo !== TIPOS_PROMO.COMBO_PRECIO_FIJO || prev.precio_combo_manual) return prev;
+    const total = calcularPrecioListaCombo(recetas, prev.receta_ids, prev.combo_cantidades);
+    return { ...prev, precio_combo: total > 0 ? String(total) : "" };
+  };
+
+  const precioListaCombo = useMemo(
+    () => calcularPrecioListaCombo(recetas, form.receta_ids, form.combo_cantidades),
+    [recetas, form.receta_ids, form.combo_cantidades],
+  );
 
   const abrirNueva = () => {
     setEditId(null);
@@ -59,6 +78,13 @@ export default function Promociones({ promociones, recetas, onRefresh, upsertPro
       return;
     }
     setEditId(p.id);
+    const comboCantidades = {};
+    for (const item of p.combo_items || []) {
+      if (item.receta_id) comboCantidades[item.receta_id] = String(item.cantidad ?? 1);
+    }
+    const recetaIds = [...(p.receta_ids || [])];
+    const precioListaEdit = calcularPrecioListaCombo(recetas, recetaIds, comboCantidades);
+    const precioGuardado = p.precio_combo != null ? Number(p.precio_combo) : null;
     setForm({
       nombre: p.nombre || "",
       tipo: p.tipo || TIPOS_PROMO.NXM,
@@ -67,6 +93,12 @@ export default function Promociones({ promociones, recetas, onRefresh, upsertPro
       porcentaje: String(p.porcentaje ?? 20),
       monto_minimo: String(p.monto_minimo ?? 50000),
       descuento_fijo: String(p.descuento_fijo ?? 1000),
+      precio_combo: p.precio_combo != null ? String(p.precio_combo) : "",
+      precio_combo_manual:
+        p.tipo === TIPOS_PROMO.COMBO_PRECIO_FIJO &&
+        precioGuardado != null &&
+        precioGuardado !== precioListaEdit,
+      combo_cantidades: comboCantidades,
       activa: p.activa !== false,
       receta_ids: [...(p.receta_ids || [])],
     });
@@ -81,31 +113,76 @@ export default function Promociones({ promociones, recetas, onRefresh, upsertPro
       .sort((a, b) => (a.nombre || "").localeCompare(b.nombre || "", "es"));
   }, [recetas, searchRecetas]);
 
-  const productosDePromo = (p) =>
-    (p.receta_ids || [])
+  const productosDePromo = (p) => {
+    if (p.tipo === TIPOS_PROMO.COMBO_PRECIO_FIJO && p.combo_items?.length) {
+      return p.combo_items
+        .map((item) => {
+          const receta = recetas.find((r) => r.id === item.receta_id);
+          return receta ? { ...receta, comboCantidad: item.cantidad } : null;
+        })
+        .filter(Boolean);
+    }
+    return (p.receta_ids || [])
       .map((rid) => recetas.find((r) => r.id === rid))
       .filter(Boolean);
+  };
 
   const seleccionarTodosVisibles = () => {
     const idsVisibles = recetasFiltradas.map((r) => r.id);
-    setForm((prev) => ({
-      ...prev,
-      receta_ids: [...new Set([...(prev.receta_ids || []), ...idsVisibles])],
-    }));
+    setForm((prev) => {
+      const nextCantidades = { ...(prev.combo_cantidades || {}) };
+      for (const id of idsVisibles) {
+        if (!nextCantidades[id]) nextCantidades[id] = "1";
+      }
+      return recalcPrecioCombo({
+        ...prev,
+        receta_ids: [...new Set([...(prev.receta_ids || []), ...idsVisibles])],
+        combo_cantidades: nextCantidades,
+      });
+    });
   };
 
   const limpiarSeleccionProductos = () => {
-    setForm((prev) => ({ ...prev, receta_ids: [] }));
+    setForm((prev) =>
+      recalcPrecioCombo({
+        ...prev,
+        receta_ids: [],
+        combo_cantidades: {},
+        precio_combo: prev.tipo === TIPOS_PROMO.COMBO_PRECIO_FIJO ? "" : prev.precio_combo,
+      }),
+    );
   };
 
   const toggleReceta = (recetaId) => {
     setForm((prev) => {
       const ids = prev.receta_ids || [];
       if (ids.includes(recetaId)) {
-        return { ...prev, receta_ids: ids.filter((id) => id !== recetaId) };
+        const nextCantidades = { ...(prev.combo_cantidades || {}) };
+        delete nextCantidades[recetaId];
+        return recalcPrecioCombo({
+          ...prev,
+          receta_ids: ids.filter((id) => id !== recetaId),
+          combo_cantidades: nextCantidades,
+        });
       }
-      return { ...prev, receta_ids: [...ids, recetaId] };
+      return recalcPrecioCombo({
+        ...prev,
+        receta_ids: [...ids, recetaId],
+        combo_cantidades: {
+          ...(prev.combo_cantidades || {}),
+          [recetaId]: prev.combo_cantidades?.[recetaId] || "1",
+        },
+      });
     });
+  };
+
+  const setComboCantidad = (recetaId, value) => {
+    setForm((prev) =>
+      recalcPrecioCombo({
+        ...prev,
+        combo_cantidades: { ...(prev.combo_cantidades || {}), [recetaId]: value },
+      }),
+    );
   };
 
   const guardar = async () => {
@@ -122,6 +199,8 @@ export default function Promociones({ promociones, recetas, onRefresh, upsertPro
     let porcentaje;
     let monto_minimo;
     let descuento_fijo;
+    let precio_combo;
+    let combo_items;
 
     if (tipo === TIPOS_PROMO.NXM) {
       llevar = parseInt(form.llevar, 10);
@@ -165,6 +244,27 @@ export default function Promociones({ promociones, recetas, onRefresh, upsertPro
         showToast("Elegí al menos un producto");
         return;
       }
+    } else if (tipo === TIPOS_PROMO.COMBO_PRECIO_FIJO) {
+      precio_combo = parseFloat(String(form.precio_combo).replace(",", "."));
+      if (!Number.isFinite(precio_combo) || precio_combo < 0) {
+        showToast("Ingresá un precio de combo válido");
+        return;
+      }
+      if (!form.receta_ids?.length || form.receta_ids.length < 2) {
+        showToast("Un combo necesita al menos 2 productos");
+        return;
+      }
+      combo_items = [];
+      for (const receta_id of form.receta_ids) {
+        const raw = String(form.combo_cantidades?.[receta_id] ?? "1").trim().replace(",", ".");
+        const cant = parseFloat(raw);
+        if (!Number.isFinite(cant) || cant < 0.1) {
+          const receta = recetas.find((r) => r.id === receta_id);
+          showToast(`Cantidad inválida para ${receta?.nombre || "un producto"}`);
+          return;
+        }
+        combo_items.push({ receta_id, cantidad: cant });
+      }
     }
 
     saveInFlightRef.current = true;
@@ -180,17 +280,19 @@ export default function Promociones({ promociones, recetas, onRefresh, upsertPro
         porcentaje,
         monto_minimo,
         descuento_fijo,
+        precio_combo,
         activa: form.activa,
         receta_ids: usaProductos ? form.receta_ids : [],
+        combo_items,
       });
     } catch (err) {
       if (err?.partialPromoId) setEditId(err.partialPromoId);
       reportError(err, { action: "savePromocion", id: editId || err?.partialPromoId });
       const msg = String(err?.message || "");
-      const faltaColumna = /descuento_fijo/i.test(msg);
+      const faltaColumna = /descuento_fijo|precio_combo|cantidad/i.test(msg);
       showToast(
         faltaColumna
-          ? "⚠️ Falta migración en Supabase (columna descuento_fijo). Ver scripts/aplicar_migracion_promociones_descuento_fijo.sql"
+          ? "⚠️ Falta migración en Supabase (combo). Ver scripts/aplicar_migracion_promociones_combo.sql"
           : msg
             ? `⚠️ ${msg.slice(0, 120)}`
             : "⚠️ Error al guardar promo",
@@ -232,7 +334,7 @@ export default function Promociones({ promociones, recetas, onRefresh, upsertPro
     <div className="content">
       <p className="page-title">Promociones</p>
       <p className="page-subtitle">
-        Reglas automáticas al cobrar: 5×4, % en productos, monto mínimo o $ fijo por unidad
+        Reglas automáticas al cobrar: 5×4, % en productos, monto mínimo, $ fijo por unidad o combos
       </p>
 
       <button type="button" className="btn-primary" style={{ marginBottom: 16 }} onClick={abrirNueva}>
@@ -288,6 +390,7 @@ export default function Promociones({ promociones, recetas, onRefresh, upsertPro
                     }}
                   >
                     {r.emoji || "🍞"} {r.nombre}
+                    {r.comboCantidad != null ? ` × ${r.comboCantidad}` : ""}
                   </span>
                 ))}
               </div>
@@ -359,7 +462,33 @@ export default function Promociones({ promociones, recetas, onRefresh, upsertPro
               <SearchableSelect
                 options={TIPOS_OPCIONES}
                 value={form.tipo}
-                onChange={(v) => setForm((f) => ({ ...f, tipo: v || TIPOS_PROMO.NXM }))}
+                onChange={(v) =>
+                  setForm((prev) => {
+                    const tipo = v || TIPOS_PROMO.NXM;
+                    const comboCantidades = { ...(prev.combo_cantidades || {}) };
+                    if (tipo === TIPOS_PROMO.COMBO_PRECIO_FIJO) {
+                      for (const recetaId of prev.receta_ids || []) {
+                        if (!comboCantidades[recetaId]) comboCantidades[recetaId] = "1";
+                      }
+                    }
+                    const next = {
+                      ...prev,
+                      tipo,
+                      combo_cantidades: comboCantidades,
+                      precio_combo_manual:
+                        tipo === TIPOS_PROMO.COMBO_PRECIO_FIJO ? prev.precio_combo_manual : false,
+                    };
+                    if (tipo === TIPOS_PROMO.COMBO_PRECIO_FIJO && !next.precio_combo_manual) {
+                      const total = calcularPrecioListaCombo(
+                        recetas,
+                        next.receta_ids,
+                        next.combo_cantidades,
+                      );
+                      next.precio_combo = total > 0 ? String(total) : "";
+                    }
+                    return next;
+                  })
+                }
                 placeholder="Elegí el tipo"
                 emptyMessage="Sin tipos"
                 style={{ marginBottom: 12 }}
@@ -433,8 +562,9 @@ export default function Promociones({ promociones, recetas, onRefresh, upsertPro
                   </span>
                 </div>
                 <p className="form-hint" style={{ marginBottom: 8 }}>
-                  Marcá todos los productos que entran en esta promo. Un mismo producto puede
-                  estar en varias promos activas.
+                  {usaCantidades
+                    ? "Elegí los productos del combo y la cantidad de cada uno (ej. 4 unidades de chipa 100g = 400g, o 0,4 si el producto se vende por kg)."
+                    : "Marcá todos los productos que entran en esta promo. Un mismo producto puede estar en varias promos activas."}
                 </p>
                 <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
                   <button
@@ -485,13 +615,62 @@ export default function Promociones({ promociones, recetas, onRefresh, upsertPro
                           checked={checked}
                           onChange={() => toggleReceta(r.id)}
                         />
-                        <span>
+                        <span style={{ flex: 1 }}>
                           {r.emoji || "🍞"} {r.nombre}
                         </span>
+                        {usaCantidades && checked && (
+                          <div
+                            onClick={(e) => e.stopPropagation()}
+                            onMouseDown={(e) => e.stopPropagation()}
+                          >
+                            <QuantityControl
+                              value={form.combo_cantidades?.[r.id] ?? "1"}
+                              onChange={(v) => setComboCantidad(r.id, String(v))}
+                              onChangeRaw={(v) => setComboCantidad(r.id, v)}
+                              min={0.1}
+                              step="auto"
+                              size="sm"
+                              allowDecimals
+                            />
+                          </div>
+                        )}
                       </label>
                     );
                   })}
                 </div>
+              </div>
+            )}
+
+            {form.tipo === TIPOS_PROMO.COMBO_PRECIO_FIJO && (
+              <div className="card" style={{ marginBottom: 16 }}>
+                <FormMoneyInput
+                  label="Precio del combo"
+                  value={form.precio_combo}
+                  onChange={(v) =>
+                    setForm((f) => ({ ...f, precio_combo: v, precio_combo_manual: true }))
+                  }
+                  placeholder={precioListaCombo > 0 ? String(precioListaCombo) : "0"}
+                />
+                <p className="form-hint" style={{ marginTop: -8, marginBottom: 8 }}>
+                  Se completa con la suma de los productos. Bajalo si querés aplicar descuento (ej.
+                  lista $24.500 → combo $22.000).
+                </p>
+                {form.precio_combo_manual && precioListaCombo > 0 && (
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    style={{ width: "auto", marginTop: 0, padding: "6px 12px", fontSize: 12 }}
+                    onClick={() =>
+                      setForm((prev) => ({
+                        ...prev,
+                        precio_combo_manual: false,
+                        precio_combo: String(precioListaCombo),
+                      }))
+                    }
+                  >
+                    Usar precio lista (${precioListaCombo.toLocaleString("es-AR")})
+                  </button>
+                )}
               </div>
             )}
 
