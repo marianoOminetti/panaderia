@@ -1,6 +1,9 @@
 import {
+  calcularPrecioListaCombo,
   calcularPromosEnCarrito,
   aplicarDescuentoPromoARows,
+  comboTieneStockSuficiente,
+  filtrarCombosActivos,
   TIPOS_PROMO,
 } from "./promociones";
 
@@ -160,6 +163,144 @@ describe("descuento fijo por unidad", () => {
     const cart = [{ receta: recetaB, cantidad: 1, precio_unitario: 8500 }];
     const r = calcularPromosEnCarrito(cart, [promoFijo]);
     expect(r.descuentoTotal).toBe(0);
+  });
+});
+
+describe("calcularPrecioListaCombo", () => {
+  const recetas = [
+    { id: "chipa", nombre: "Chipa 100g", precio_venta: 1500 },
+    { id: "pizza", nombre: "Pizza", precio_venta: 9500 },
+    { id: "emp", nombre: "Empanada", precio_venta: 1500 },
+  ];
+
+  it("suma precio × cantidad de cada producto", () => {
+    expect(
+      calcularPrecioListaCombo(recetas, ["chipa", "pizza", "emp"], {
+        chipa: 4,
+        pizza: 1,
+        emp: 6,
+      }),
+    ).toBe(24500);
+  });
+
+  it("usa cantidad 1 si falta en el mapa", () => {
+    expect(calcularPrecioListaCombo(recetas, ["pizza"], {})).toBe(9500);
+  });
+});
+
+describe("filtrarCombosActivos", () => {
+  const combo = {
+    id: "c1",
+    nombre: "Combo A",
+    tipo: TIPOS_PROMO.COMBO_PRECIO_FIJO,
+    activa: true,
+    combo_items: [{ receta_id: "a", cantidad: 1 }],
+  };
+
+  it("incluye solo combos activos", () => {
+    const list = filtrarCombosActivos([
+      combo,
+      { ...combo, id: "c2", activa: false },
+      { id: "p1", tipo: TIPOS_PROMO.NXM, activa: true, receta_ids: ["a"] },
+    ]);
+    expect(list).toHaveLength(1);
+    expect(list[0].id).toBe("c1");
+  });
+});
+
+describe("comboTieneStockSuficiente", () => {
+  it("true si hay stock para cada ítem", () => {
+    expect(
+      comboTieneStockSuficiente(
+        { a: 10, b: 6 },
+        [
+          { receta_id: "a", cantidad: 4 },
+          { receta_id: "b", cantidad: 6 },
+        ],
+      ),
+    ).toBe(true);
+  });
+
+  it("false si falta stock en algún ítem", () => {
+    expect(
+      comboTieneStockSuficiente({ a: 3, b: 6 }, [{ receta_id: "a", cantidad: 4 }]),
+    ).toBe(false);
+  });
+
+  it("descuenta lo que ya está en el carrito", () => {
+    const cart = [{ receta: { id: "a" }, cantidad: 4, precio_unitario: 100 }];
+    expect(
+      comboTieneStockSuficiente(
+        { a: 6, b: 6 },
+        [
+          { receta_id: "a", cantidad: 4 },
+          { receta_id: "b", cantidad: 1 },
+        ],
+        cart,
+      ),
+    ).toBe(false);
+  });
+});
+
+describe("combo precio fijo", () => {
+  const promoCombo = {
+    id: "p5",
+    nombre: "Combo chipa+pizza+emp",
+    tipo: TIPOS_PROMO.COMBO_PRECIO_FIJO,
+    precio_combo: 22000,
+    activa: true,
+    combo_items: [
+      { receta_id: "chipa", cantidad: 4 },
+      { receta_id: "pizza", cantidad: 1 },
+      { receta_id: "emp", cantidad: 6 },
+    ],
+    receta_ids: ["chipa", "pizza", "emp"],
+  };
+
+  const recetaChipa = { id: "chipa", nombre: "Chipa 100g", precio_venta: 1500 };
+  const recetaPizza = { id: "pizza", nombre: "Pizza", precio_venta: 9500 };
+  const recetaEmp = { id: "emp", nombre: "Empanada", precio_venta: 1500 };
+
+  it("aplica descuento cuando el carrito cumple el combo exacto", () => {
+    const cart = [
+      { receta: recetaChipa, cantidad: 4, precio_unitario: 1500 },
+      { receta: recetaPizza, cantidad: 1, precio_unitario: 9500 },
+      { receta: recetaEmp, cantidad: 6, precio_unitario: 1500 },
+    ];
+    const r = calcularPromosEnCarrito(cart, [promoCombo]);
+    expect(r.descuentoTotal).toBe(2500);
+    expect(r.totalFinal).toBe(22000);
+  });
+
+  it("no aplica si falta un producto del combo", () => {
+    const cart = [
+      { receta: recetaChipa, cantidad: 4, precio_unitario: 1500 },
+      { receta: recetaPizza, cantidad: 1, precio_unitario: 9500 },
+    ];
+    const r = calcularPromosEnCarrito(cart, [promoCombo]);
+    expect(r.descuentoTotal).toBe(0);
+  });
+
+  it("aplica un combo y cobra el resto a precio lista", () => {
+    const cart = [
+      { receta: recetaChipa, cantidad: 8, precio_unitario: 1500 },
+      { receta: recetaPizza, cantidad: 1, precio_unitario: 9500 },
+      { receta: recetaEmp, cantidad: 6, precio_unitario: 1500 },
+    ];
+    const r = calcularPromosEnCarrito(cart, [promoCombo]);
+    expect(r.descuentoTotal).toBe(2500);
+    expect(r.totalFinal).toBe(28000);
+  });
+
+  it("puede aplicar dos combos si hay cantidades suficientes", () => {
+    const cart = [
+      { receta: recetaChipa, cantidad: 8, precio_unitario: 1500 },
+      { receta: recetaPizza, cantidad: 2, precio_unitario: 9500 },
+      { receta: recetaEmp, cantidad: 12, precio_unitario: 1500 },
+    ];
+    const r = calcularPromosEnCarrito(cart, [promoCombo]);
+    expect(r.descuentoTotal).toBe(5000);
+    expect(r.totalFinal).toBe(44000);
   });
 });
 

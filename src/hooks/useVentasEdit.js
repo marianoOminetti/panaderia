@@ -3,7 +3,7 @@
  * Usado por Ventas.jsx.
  */
 import { useState, useMemo, useRef } from "react";
-import { toCantidadNumber, fmt } from "../lib/format";
+import { isCantidadEnEdicion, toCantidadNumber, fmt } from "../lib/format";
 import { generateTransaccionId, isPendingVentaId } from "../lib/ventas";
 import { enqueueVentaWrite } from "../lib/ventaWriteQueue";
 import { buildVentaRowsConPromos } from "../lib/buildVentaRowsConPromos";
@@ -172,7 +172,7 @@ export function useVentasEdit({
 
   const editSetQuantity = (recetaId, value) => {
     const text = String(value ?? "").trim().replace(",", ".");
-    if (text === "" || text === "." || text === "-") {
+    if (isCantidadEnEdicion(text)) {
       setEditCantidades((prev) => ({ ...prev, [recetaId]: text }));
       return;
     }

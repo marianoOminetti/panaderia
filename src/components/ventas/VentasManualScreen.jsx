@@ -6,6 +6,7 @@ import { SelectorCliente, SelectoresPago } from "./VentasSelectors";
 import { DatePicker, ProductSearchInput, FormMoneyInput } from "../ui";
 import { useFilterBySearch } from "../../hooks/useFilterBySearch";
 import PromosEnVentaPanel from "./PromosEnVentaPanel";
+import CombosEnVentaPanel from "./CombosEnVentaPanel";
 import AfipReceptorFields from "./AfipReceptorFields";
 
 export default function VentasManualScreen({
@@ -24,6 +25,7 @@ export default function VentasManualScreen({
   ventas = [],
   stock,
   addToCart,
+  promociones = [],
   onCobrar,
   onRegistrarRapida,
   savingVenta = false,
@@ -194,6 +196,14 @@ export default function VentasManualScreen({
             />
           )}
         </div>
+        {!isEdit && !isPedidoFlow && (
+          <CombosEnVentaPanel
+            promociones={promociones}
+            recetas={recetas}
+            addToCart={addToCart}
+            showToast={showToast}
+          />
+        )}
         <div className="card">
           <div className="card-header">
             <span className="card-title">Productos</span>
