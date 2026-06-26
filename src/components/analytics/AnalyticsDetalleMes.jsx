@@ -3,6 +3,7 @@
  */
 import { fmt } from "../../lib/format";
 import AnalyticsNavPeriodo from "./AnalyticsNavPeriodo";
+import AnalyticsResultadoPeriodo from "./AnalyticsResultadoPeriodo";
 
 function arrow(dir) {
   if (dir === "up") return "↑";
@@ -38,7 +39,18 @@ export default function AnalyticsDetalleMes({
         />
       </div>
 
-      {/* Proyección del mes - grid 2x2 */}
+      <AnalyticsResultadoPeriodo
+        titulo={data.proyeccionAplicable ? "Acumulado del mes" : "Resultado del mes"}
+        {...(data.economiaMes || {})}
+        trendIngreso={data.trendIngresoMes}
+        prorrateoLabel={
+          data.proyeccionAplicable
+            ? `Gastos prorrateados a ${data.diasTranscurridos} ${data.diasTranscurridos === 1 ? "día" : "días"}`
+            : undefined
+        }
+      />
+
+      {/* Proyección del mes */}
       {data.proyeccionAplicable && (
         <div className="card">
           <div className="card-header">
@@ -61,35 +73,6 @@ export default function AnalyticsDetalleMes({
               </div>
               <div className="analytics-kpi-sub">
                 Acumulado: {fmt(data.gananciaMesNeta ?? 0)}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Mes cerrado: mismo KPI que antes estaba solo como "acumulado" bajo proyección */}
-      {!data.proyeccionAplicable && (
-        <div className="card">
-          <div className="card-header">
-            <span className="card-title">Resultado del mes</span>
-          </div>
-          <div className="analytics-kpi-grid">
-            <div className="analytics-kpi-card">
-              <div className="analytics-kpi-label">Ingreso</div>
-              <div className="analytics-kpi-value">
-                {fmt(data.ingresoMes ?? 0)}
-              </div>
-            </div>
-            <div className="analytics-kpi-card">
-              <div className="analytics-kpi-label">Costo</div>
-              <div className="analytics-kpi-value">
-                {fmt(data.costoMes ?? 0)}
-              </div>
-            </div>
-            <div className="analytics-kpi-card">
-              <div className="analytics-kpi-label">Ganancia neta</div>
-              <div className="analytics-kpi-value">
-                {fmt(data.gananciaMesNeta ?? 0)}
               </div>
             </div>
           </div>
@@ -199,7 +182,7 @@ export default function AnalyticsDetalleMes({
         aria-label="Ver rentabilidad de todos los productos en el mes"
       >
         <div className="card-header">
-          <span className="card-title">TOP 5 productos más rentables (mes)</span>
+          <span className="card-title">TOP 5 productos más rentables (ganancia bruta)</span>
         </div>
         {(data.topMasRentablesMes || []).length === 0 ? (
           <div className="empty">
@@ -217,7 +200,7 @@ export default function AnalyticsDetalleMes({
                       {row.receta?.nombre || "Sin nombre"}
                     </div>
                     <div className="analytics-item-sub">
-                      Ganancia: {fmt(row.ganancia)} · Ingreso: {fmt(row.ingreso)}
+                      {fmt(row.ganancia)} bruta · sin gastos fijos del negocio
                     </div>
                   </div>
                 </div>

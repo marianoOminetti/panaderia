@@ -32,7 +32,9 @@ function IconOjo({ oculto, className }) {
 function DashboardMetrics({
   ingresoHoy,
   debeTotal,
-  margenHoy,
+  gananciaNetaHoy,
+  gananciaBrutaHoy,
+  gastosHoy,
 }) {
   const [datosOcultos, setDatosOcultos] = useState(() => readOcultarDatos());
 
@@ -55,7 +57,7 @@ function DashboardMetrics({
   const mask = datosOcultos ? "••••••" : null;
   const ventasVal = mask ?? fmt(ingresoHoy);
   const debeVal = mask ?? fmt(debeTotal);
-  const margenVal = mask ?? fmt(margenHoy);
+  const gananciaNetaVal = mask ?? fmt(gananciaNetaHoy);
 
   return (
     <>
@@ -88,10 +90,15 @@ function DashboardMetrics({
         )}
 
         <div className="dashboard-metric-margen">
-          <div className="dashboard-metric-label">Margen hoy</div>
+          <div className="dashboard-metric-label">Ganancia neta hoy</div>
           <div className="dashboard-metric-value dashboard-metric-value-sm">
-            {margenVal}
+            {gananciaNetaVal}
           </div>
+          {!datosOcultos && (gananciaBrutaHoy !== gananciaNetaHoy || gastosHoy > 0) && (
+            <div className="analytics-kpi-sub" style={{ marginTop: 4 }}>
+              Bruta {fmt(gananciaBrutaHoy)} · Gastos {fmt(gastosHoy)}
+            </div>
+          )}
         </div>
       </div>
     </>

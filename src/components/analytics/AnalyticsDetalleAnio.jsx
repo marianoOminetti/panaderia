@@ -1,8 +1,9 @@
 /**
  * Detalle del año calendario: KPIs, ingreso por mes, tops y drill.
  */
-import { fmt, pctFmt } from "../../lib/format";
+import { fmt } from "../../lib/format";
 import AnalyticsNavPeriodo from "./AnalyticsNavPeriodo";
+import AnalyticsResultadoPeriodo from "./AnalyticsResultadoPeriodo";
 
 function arrow(dir) {
   if (dir === "up") return "↑";
@@ -34,6 +35,24 @@ export default function AnalyticsDetalleAnio({
         />
       </div>
 
+      <AnalyticsResultadoPeriodo
+        titulo={data.proyeccionAnioAplicable ? "Acumulado del año" : "Resultado del año"}
+        {...(data.economiaAnio || {})}
+        trendIngreso={data.trendIngresoAnio}
+        trendGananciaNeta={data.trendGananciaAnio}
+        comparativoLabel={
+          data.proyeccionAnioAplicable
+            ? "Ganancia neta año anterior (mismo período)"
+            : "Ganancia neta año anterior"
+        }
+        comparativoGananciaNeta={data.economiaAnioAnterior?.gananciaNeta}
+        prorrateoLabel={
+          data.proyeccionAnioAplicable
+            ? `Gastos prorrateados a ${data.diasTranscurridosAnio} ${data.diasTranscurridosAnio === 1 ? "día" : "días"}`
+            : undefined
+        }
+      />
+
       {data.proyeccionAnioAplicable && (
         <div className="card">
           <div className="card-header">
@@ -62,104 +81,6 @@ export default function AnalyticsDetalleAnio({
             </div>
           </div>
         </div>
-      )}
-
-      {!data.proyeccionAnioAplicable && (
-        <div className="card">
-          <div className="card-header">
-            <span className="card-title">Resultado del año</span>
-          </div>
-          <div className="analytics-kpi-grid">
-            <div className="analytics-kpi-card">
-              <div className="analytics-kpi-label">Ingreso</div>
-              <div className="analytics-kpi-value">
-                {fmt(data.ingresoAnio ?? 0)}
-              </div>
-            </div>
-            <div className="analytics-kpi-card">
-              <div className="analytics-kpi-label">Costo</div>
-              <div className="analytics-kpi-value">
-                {fmt(data.costoAnio ?? 0)}
-              </div>
-            </div>
-            <div className="analytics-kpi-card">
-              <div className="analytics-kpi-label">Ganancia neta</div>
-              <div className="analytics-kpi-value">
-                {fmt(data.gananciaAnioNeta ?? 0)}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {!data.proyeccionAnioAplicable && (
-      <div className="card">
-        <div className="card-header">
-          <span className="card-title">Comparativo anual</span>
-        </div>
-        <div className="analytics-kpi-grid">
-          <div className="analytics-kpi-card">
-            <div className="analytics-kpi-label">Ingreso</div>
-            <div className="analytics-kpi-value">
-              {fmt(data.ingresoAnio ?? 0)}
-              <span
-                className={`analytics-trend analytics-trend-${data.trendIngresoAnio?.dir || "flat"}`}
-              >
-                {arrow(data.trendIngresoAnio?.dir)}{" "}
-                {data.trendIngresoAnio?.label || "—"}
-              </span>
-            </div>
-            <div className="analytics-kpi-sub">
-              Año anterior: {fmt(data.ingresoAnioAnterior ?? 0)}
-            </div>
-          </div>
-          <div className="analytics-kpi-card">
-            <div className="analytics-kpi-label">Costo</div>
-            <div className="analytics-kpi-value">
-              {fmt(data.costoAnio ?? 0)}
-              <span
-                className={`analytics-trend analytics-trend-${data.trendCostoAnio?.dir || "flat"}`}
-              >
-                {arrow(data.trendCostoAnio?.dir)}{" "}
-                {data.trendCostoAnio?.label || "—"}
-              </span>
-            </div>
-            <div className="analytics-kpi-sub">
-              Año anterior: {fmt(data.costoAnioAnterior ?? 0)}
-            </div>
-          </div>
-          <div className="analytics-kpi-card">
-            <div className="analytics-kpi-label">Ganancia</div>
-            <div className="analytics-kpi-value">
-              {fmt(data.gananciaAnioNeta ?? 0)}
-              <span
-                className={`analytics-trend analytics-trend-${data.trendGananciaAnio?.dir || "flat"}`}
-              >
-                {arrow(data.trendGananciaAnio?.dir)}{" "}
-                {data.trendGananciaAnio?.label || "—"}
-              </span>
-            </div>
-            <div className="analytics-kpi-sub">
-              Año anterior: {fmt(data.gananciaAnioNetaAnterior ?? 0)}
-            </div>
-          </div>
-          <div className="analytics-kpi-card">
-            <div className="analytics-kpi-label">Margen</div>
-            <div className="analytics-kpi-value">
-              {data.margenAnioActual != null
-                ? pctFmt(data.margenAnioActual)
-                : "—"}
-              <span
-                className={`analytics-trend analytics-trend-${data.trendMargenAnio?.dir || "flat"}`}
-              >
-                {arrow(data.trendMargenAnio?.dir)}{" "}
-                {data.trendMargenAnio?.label || "—"}
-              </span>
-            </div>
-            <div className="analytics-kpi-sub">Sobre ingreso anual (bruto)</div>
-          </div>
-        </div>
-      </div>
       )}
 
       <div className="card">
@@ -301,7 +222,7 @@ export default function AnalyticsDetalleAnio({
         aria-label="Ver rentabilidad de todos los productos en el año"
       >
         <div className="card-header">
-          <span className="card-title">TOP 5 productos más rentables (año)</span>
+          <span className="card-title">TOP 5 productos más rentables (ganancia bruta)</span>
         </div>
         {(data.topMasRentablesAnio || []).length === 0 ? (
           <div className="empty">
@@ -319,7 +240,7 @@ export default function AnalyticsDetalleAnio({
                       {row.receta?.nombre || "Sin nombre"}
                     </div>
                     <div className="analytics-item-sub">
-                      Ganancia: {fmt(row.ganancia)} · Ingreso: {fmt(row.ingreso)}
+                      {fmt(row.ganancia)} bruta · sin gastos fijos del negocio
                     </div>
                   </div>
                 </div>
