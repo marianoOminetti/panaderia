@@ -3,6 +3,7 @@
  */
 import { fmt, pctFmt } from "../../lib/format";
 import AnalyticsNavPeriodo from "./AnalyticsNavPeriodo";
+import AnalyticsResultadoPeriodo from "./AnalyticsResultadoPeriodo";
 
 const DIAS_SEMANA = ["L", "M", "X", "J", "V", "S", "D"];
 
@@ -44,70 +45,19 @@ export default function AnalyticsDetalleSemana({
         />
       </div>
 
-      {/* Comparativo semanal - grid 2x2 */}
-      <div className="card">
-        <div className="card-header">
-          <span className="card-title">Comparativo semanal</span>
-        </div>
-        <div className="analytics-kpi-grid">
-          <div className="analytics-kpi-card">
-            <div className="analytics-kpi-label">Ingreso</div>
-            <div className="analytics-kpi-value">
-              {fmt(data.ingresoSemanaActual ?? 0)}
-              <span
-                className={`analytics-trend analytics-trend-${data.trendIngreso?.dir || "flat"}`}
-              >
-                {arrow(data.trendIngreso?.dir)} {data.trendIngreso?.label || "—"}
-              </span>
-            </div>
-            <div className="analytics-kpi-sub">
-              Sem. anterior: {fmt(data.ingresoSemanaAnterior ?? 0)}
-            </div>
-          </div>
-          <div className="analytics-kpi-card">
-            <div className="analytics-kpi-label">Costo</div>
-            <div className="analytics-kpi-value">
-              {fmt(data.costoSemanaActual ?? 0)}
-              <span
-                className={`analytics-trend analytics-trend-${data.trendCosto?.dir || "flat"}`}
-              >
-                {arrow(data.trendCosto?.dir)} {data.trendCosto?.label || "—"}
-              </span>
-            </div>
-            <div className="analytics-kpi-sub">
-              Sem. anterior: {fmt(data.costoSemanaAnterior ?? 0)}
-            </div>
-          </div>
-          <div className="analytics-kpi-card">
-            <div className="analytics-kpi-label">Ganancia</div>
-            <div className="analytics-kpi-value">
-              {fmt(data.gananciaSemanaActual ?? 0)}
-              <span
-                className={`analytics-trend analytics-trend-${data.trendGanancia?.dir || "flat"}`}
-              >
-                {arrow(data.trendGanancia?.dir)} {data.trendGanancia?.label || "—"}
-              </span>
-            </div>
-            <div className="analytics-kpi-sub">
-              Sem. anterior: {fmt(data.gananciaSemanaAnterior ?? 0)}
-            </div>
-          </div>
-          <div className="analytics-kpi-card">
-            <div className="analytics-kpi-label">Margen</div>
-            <div className="analytics-kpi-value">
-              {data.margenSemanaActual != null
-                ? pctFmt(data.margenSemanaActual)
-                : "—"}
-              <span
-                className={`analytics-trend analytics-trend-${data.trendMargen?.dir || "flat"}`}
-              >
-                {arrow(data.trendMargen?.dir)} {data.trendMargen?.label || "—"}
-              </span>
-            </div>
-            <div className="analytics-kpi-sub">Sobre ingreso semanal</div>
-          </div>
-        </div>
-      </div>
+      <AnalyticsResultadoPeriodo
+        titulo="Resultado de la semana"
+        {...(data.economiaSemanaActual || {})}
+        trendIngreso={data.trendIngreso}
+        trendGananciaNeta={data.trendGanancia}
+        comparativoLabel="Ganancia neta sem. anterior"
+        comparativoGananciaNeta={data.economiaSemanaAnterior?.gananciaNeta}
+        prorrateoLabel={
+          offsetSemana === 0 && (data.diasTranscurridosSemana || 0) < 7
+            ? `Gastos prorrateados a ${data.diasTranscurridosSemana} ${data.diasTranscurridosSemana === 1 ? "día" : "días"}`
+            : undefined
+        }
+      />
 
       {/* Pico de ventas y ventas de la semana */}
       <div className="card">
@@ -253,7 +203,7 @@ export default function AnalyticsDetalleSemana({
         aria-label="Ver rentabilidad de todos los productos en la semana"
       >
         <div className="card-header">
-          <span className="card-title">TOP 5 productos más rentables (semana)</span>
+          <span className="card-title">TOP 5 productos más rentables (ganancia bruta)</span>
         </div>
         {(data.topMasRentables || []).length === 0 ? (
           <div className="empty">
@@ -271,7 +221,7 @@ export default function AnalyticsDetalleSemana({
                       {row.receta?.nombre || "Sin nombre"}
                     </div>
                     <div className="analytics-item-sub">
-                      Ganancia: {fmt(row.ganancia)} · Ingreso: {fmt(row.ingreso)}
+                      {fmt(row.ganancia)} bruta · sin gastos fijos del negocio
                     </div>
                   </div>
                 </div>

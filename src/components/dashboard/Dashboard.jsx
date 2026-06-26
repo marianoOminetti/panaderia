@@ -6,6 +6,7 @@ import { useMemo, memo } from "react";
 import { fmt } from "../../lib/format";
 import { hoyLocalISO } from "../../lib/dates";
 import { costoUnitarioPorRecetaMap } from "../../lib/costos";
+import { calcularGastosTotales } from "../../lib/gastosFijos";
 import { agruparVentas } from "../../lib/agrupadores";
 import { useDashboardAlerts } from "../../hooks/useDashboardAlerts";
 import DashboardMetrics from "./DashboardMetrics";
@@ -20,6 +21,7 @@ function Dashboard({
   clientes,
   stock,
   pedidos,
+  gastosFijos,
   onNavigate,
   onOpenCargarProduccion,
   onOpenGrupoDeuda,
@@ -62,7 +64,12 @@ function Dashboard({
       }, 0),
     [ventasHoy, costoUnitarioPorReceta],
   );
-  const margenHoy = ingresoHoy - costHoy;
+  const gastosHoy = useMemo(() => {
+    const { dia } = calcularGastosTotales(gastosFijos, new Date());
+    return dia || 0;
+  }, [gastosFijos]);
+  const gananciaNetaHoy = ingresoHoy - costHoy - gastosHoy;
+  const gananciaBrutaHoy = ingresoHoy - costHoy;
   const debeTotal = useMemo(
     () =>
       ventas
@@ -85,7 +92,9 @@ function Dashboard({
       <DashboardMetrics
         ingresoHoy={ingresoHoy}
         debeTotal={debeTotal}
-        margenHoy={margenHoy}
+        gananciaNetaHoy={gananciaNetaHoy}
+        gananciaBrutaHoy={gananciaBrutaHoy}
+        gastosHoy={gastosHoy}
       />
 
       <DashboardAlerts

@@ -3,17 +3,12 @@
  * Navegación ← → para ir a ayer, anteayer, etc.
  */
 import { useState, useMemo, useEffect } from "react";
-import { fmt, pctFmt } from "../../lib/format";
+import { fmt } from "../../lib/format";
 import AnalyticsNavPeriodo from "./AnalyticsNavPeriodo";
+import AnalyticsResultadoPeriodo from "./AnalyticsResultadoPeriodo";
 import Pagination from "../ui/Pagination";
 
 const PAGE_SIZE = 10;
-
-function arrow(dir) {
-  if (dir === "up") return "↑";
-  if (dir === "down") return "↓";
-  return "→";
-}
 
 export default function AnalyticsDetalleHoy({
   data,
@@ -81,51 +76,14 @@ export default function AnalyticsDetalleHoy({
         />
       </div>
 
-      {/* Comparativo diario - grid 2x2 */}
-      <div className="card">
-        <div className="card-header">
-          <span className="card-title">Comparativo diario</span>
-        </div>
-        <div className="analytics-kpi-grid">
-          <div className="analytics-kpi-card">
-            <div className="analytics-kpi-label">Ingreso</div>
-            <div className="analytics-kpi-value">
-              {fmt(data.ingresoHoy || 0)}
-              <span
-                className={`analytics-trend analytics-trend-${data.trendHoyVsAyer?.dir || "flat"}`}
-              >
-                {arrow(data.trendHoyVsAyer?.dir)} {data.trendHoyVsAyer?.label || "—"}
-              </span>
-            </div>
-            <div className="analytics-kpi-sub">
-              Día anterior: {fmt(data.ingresoAyer ?? 0)}
-            </div>
-          </div>
-          <div className="analytics-kpi-card">
-            <div className="analytics-kpi-label">Costo</div>
-            <div className="analytics-kpi-value">{fmt(data.costoHoy || 0)}</div>
-            <div className="analytics-kpi-sub">
-              Día anterior: {fmt(data.costoAyer ?? 0)}
-            </div>
-          </div>
-          <div className="analytics-kpi-card">
-            <div className="analytics-kpi-label">Ganancia</div>
-            <div className="analytics-kpi-value">{fmt(data.gananciaHoy || 0)}</div>
-            <div className="analytics-kpi-sub">
-              Día anterior: {fmt(data.gananciaAyer ?? 0)}
-            </div>
-          </div>
-          <div className="analytics-kpi-card">
-            <div className="analytics-kpi-label">Margen</div>
-            <div className="analytics-kpi-value">
-              {data.margenHoy != null ? pctFmt(data.margenHoy) : "—"}
-            </div>
-            <div className="analytics-kpi-sub">
-              Día anterior: {data.margenAyer != null ? pctFmt(data.margenAyer) : "—"}
-            </div>
-          </div>
-        </div>
-      </div>
+      <AnalyticsResultadoPeriodo
+        titulo="Resultado del día"
+        {...(data.economiaHoy || {})}
+        trendIngreso={data.trendHoyVsAyer}
+        trendGananciaNeta={data.trendGananciaNeta}
+        comparativoLabel="Ganancia neta ayer"
+        comparativoGananciaNeta={data.economiaAyer?.gananciaNeta}
+      />
 
       {/* Pico de ventas y clientes del día */}
       <div className="card">
@@ -221,7 +179,7 @@ export default function AnalyticsDetalleHoy({
       {(data.topRentablesHoy || []).length > 0 && (
         <div className="card">
           <div className="card-header">
-            <span className="card-title">Top 5 más rentables</span>
+            <span className="card-title">Top 5 más rentables (ganancia bruta)</span>
           </div>
           <div className="analytics-list">
             {(data.topRentablesHoy || []).map((row) => (
@@ -244,7 +202,7 @@ export default function AnalyticsDetalleHoy({
                     {row.receta?.nombre || "Sin nombre"}
                   </div>
                   <div className="analytics-item-sub">
-                    {fmt(row.ganancia)} ganancia · {pctFmt(row.margen)} margen
+                    {fmt(row.ganancia)} bruta · sin gastos fijos del negocio
                   </div>
                 </div>
               </div>
