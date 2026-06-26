@@ -112,6 +112,8 @@ export function calcularGastosTotales(gastos, fechaRef = new Date()) {
   let varPuntSemana = 0;
   let varPuntMes = 0;
   let varPuntAnio = 0;
+  let varPuntDia = 0;
+  const refDay = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate());
   for (const g of gastos || []) {
     const tipo = (g.tipo || "fijo").toLowerCase();
     if (tipo !== "variable" && tipo !== "puntual") continue;
@@ -119,6 +121,12 @@ export function calcularGastosTotales(gastos, fechaRef = new Date()) {
     if (!monto) continue;
     const fecha = parseFecha(g.fecha);
     if (!fecha) continue;
+    const fechaDay = new Date(
+      fecha.getFullYear(),
+      fecha.getMonth(),
+      fecha.getDate()
+    );
+    if (fechaDay.getTime() === refDay.getTime()) varPuntDia += monto;
     if (isBetween(fecha, weekStart, weekEnd)) varPuntSemana += monto;
     if (isBetween(fecha, monthStart, monthEnd)) varPuntMes += monto;
     if (isBetween(fecha, yearStart, yearEnd)) varPuntAnio += monto;
@@ -133,7 +141,7 @@ export function calcularGastosTotales(gastos, fechaRef = new Date()) {
   const anioFijos = (diaFijos || 0) * totalDiasAnio;
 
   return {
-    dia: diaFijos || 0,
+    dia: (diaFijos || 0) + varPuntDia,
     semana: (semanaFijos || 0) + varPuntSemana,
     mes: mesFijos + varPuntMes,
     anio: anioFijos + varPuntAnio,

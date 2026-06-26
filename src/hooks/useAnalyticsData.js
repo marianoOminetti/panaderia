@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { pctFmt } from "../lib/format";
 import { costoUnitarioPorRecetaMap } from "../lib/costos";
+import { buildPeriodoEconomico } from "../lib/analyticsEconomics";
 import { calcularGastosTotales } from "../lib/gastosFijos";
 import { CATEGORIAS, CAT_COLORS } from "../config/appConfig";
 
@@ -329,8 +330,22 @@ export function useAnalyticsData({
       gastosFijos,
       prevWeekStart
     );
+    const diasTranscurridosSemana =
+      offsetSemanas === 0
+        ? Math.min(
+            7,
+            Math.floor(
+              (endOfDay(hoy).getTime() - thisWeekStart.getTime()) /
+                (24 * 60 * 60 * 1000)
+            ) + 1
+          )
+        : 7;
+    const gastosSemanaEfectivos =
+      offsetSemanas === 0 && diasTranscurridosSemana < 7
+        ? (gastosSemanaActual || 0) * (diasTranscurridosSemana / 7)
+        : gastosSemanaActual || 0;
     const gananciaSemanaNetaActual =
-      gananciaSemanaBrutaActual - (gastosSemanaActual || 0);
+      gananciaSemanaBrutaActual - gastosSemanaEfectivos;
     const gananciaSemanaNetaAnterior =
       gananciaSemanaBrutaAnterior - (gastosSemanaAnterior || 0);
     const gananciaSemanaActual = gananciaSemanaNetaActual;
@@ -561,7 +576,15 @@ export function useAnalyticsData({
       (v) => v._fecha && isBetween(v._fecha, prevMonthStart, prevMonthEnd)
     );
     const ingresoMesAnterior = sumMetric(ventasMesAnterior);
+    const costoMesAnterior = sumMetric(ventasMesAnterior, getCostoLinea);
+    const { mes: gastosMesAnterior } = calcularGastosTotales(
+      gastosFijos,
+      prevMonthStart
+    );
+    const gananciaMesNetaAnterior =
+      ingresoMesAnterior - costoMesAnterior - (gastosMesAnterior || 0);
     const trendIngresoMes = trendInfo(ingresoMes, ingresoMesAnterior);
+    const trendGananciaMes = trendInfo(gananciaMesNeta, gananciaMesNetaAnterior);
     const mesAntPorReceta = topBy(ventasMesAnterior);
     const mapMesAnt = new Map(mesAntPorReceta.map((r) => [r.receta_id, r]));
 
@@ -629,15 +652,35 @@ export function useAnalyticsData({
     const ventasAnioAnterior = ventasConFecha.filter(
       (v) => v._fecha && isBetween(v._fecha, prevYearStart, prevYearEnd)
     );
-    const ingresoAnioAnterior = sumMetric(ventasAnioAnterior);
-    const costoAnioAnterior = sumMetric(ventasAnioAnterior, getCostoLinea);
-    const gananciaAnioBrutaAnterior = ingresoAnioAnterior - costoAnioAnterior;
-    const { anio: gastosAnioAnterior } = calcularGastosTotales(
+    let ingresoAnioAnterior = sumMetric(ventasAnioAnterior);
+    let costoAnioAnterior = sumMetric(ventasAnioAnterior, getCostoLinea);
+    const { anio: gastosAnioAnteriorFull } = calcularGastosTotales(
       gastosFijos,
       prevYearStart
     );
+    let gastosAnioAnteriorComparativo = gastosAnioAnteriorFull || 0;
+    if (proyeccionAnioAplicable && diasTranscurridosAnio > 0) {
+      const endYTDPrev = new Date(
+        targetYear - 1,
+        0,
+        diasTranscurridosAnio,
+        23,
+        59,
+        59,
+        999
+      );
+      const ventasAnioAnteriorYTD = ventasConFecha.filter(
+        (v) => v._fecha && isBetween(v._fecha, prevYearStart, endYTDPrev)
+      );
+      ingresoAnioAnterior = sumMetric(ventasAnioAnteriorYTD);
+      costoAnioAnterior = sumMetric(ventasAnioAnteriorYTD, getCostoLinea);
+      gastosAnioAnteriorComparativo =
+        (gastosAnioAnteriorFull || 0) *
+        (diasTranscurridosAnio / totalDiasAnio);
+    }
+    const gananciaAnioBrutaAnterior = ingresoAnioAnterior - costoAnioAnterior;
     const gananciaAnioNetaAnterior =
-      gananciaAnioBrutaAnterior - (gastosAnioAnterior || 0);
+      gananciaAnioBrutaAnterior - gastosAnioAnteriorComparativo;
     const trendIngresoAnio = trendInfo(ingresoAnio, ingresoAnioAnterior);
     const trendCostoAnio = trendInfo(costoAnio, costoAnioAnterior);
     const trendGananciaAnio = trendInfo(gananciaAnioNeta, gananciaAnioNetaAnterior);
@@ -801,13 +844,114 @@ export function useAnalyticsData({
       .map((s) => `${s.color} ${s.start}deg ${s.end}deg`)
       .join(", ");
 
+    const economiaHoy = buildPeriodoEconomico({
+      ingreso: ingresoHoy,
+      costoMateriaPrima: costoHoy,
+      gastosNegocio: gastosDia || 0,
+    });
+    const economiaAyer = buildPeriodoEconomico({
+      ingreso: ingresoAyer,
+      costoMateriaPrima: costoAyer,
+      gastosNegocio: gastosDiaAyer || 0,
+    });
+    const economiaSemanaActual = buildPeriodoEconomico({
+      ingreso: ingresoSemanaActual,
+      costoMateriaPrima: costoSemanaActual,
+      gastosNegocio: gastosSemanaEfectivos,
+    });
+    const economiaSemanaAnterior = buildPeriodoEconomico({
+      ingreso: ingresoSemanaAnterior,
+      costoMateriaPrima: costoSemanaAnterior,
+      gastosNegocio: gastosSemanaAnterior || 0,
+    });
+    const economiaMes = buildPeriodoEconomico({
+      ingreso: ingresoMes,
+      costoMateriaPrima: costoMes,
+      gastosNegocio: gastosProrrateados,
+    });
+    const economiaAnio = buildPeriodoEconomico({
+      ingreso: ingresoAnio,
+      costoMateriaPrima: costoAnio,
+      gastosNegocio: gastosProrrateadosAnio,
+    });
+    const economiaAnioAnterior = buildPeriodoEconomico({
+      ingreso: ingresoAnioAnterior,
+      costoMateriaPrima: costoAnioAnterior,
+      gastosNegocio: gastosAnioAnteriorComparativo,
+    });
+
+    const trendGananciaNeta = trendInfo(gananciaHoy, gananciaAyer);
+    const trendGananciaBruta = trendInfo(
+      ingresoHoy - costoHoy,
+      ingresoAyer - costoAyer
+    );
+    const trendGastosSemana = trendInfo(
+      gastosSemanaActual || 0,
+      gastosSemanaAnterior || 0
+    );
+    const trendCostoTotalSemana = trendInfo(
+      economiaSemanaActual.costoTotal,
+      economiaSemanaAnterior.costoTotal
+    );
+    const margenNetoSemanaActual =
+      ingresoSemanaActual > 0
+        ? gananciaSemanaNetaActual / ingresoSemanaActual
+        : null;
+    const margenNetoSemanaAnterior =
+      ingresoSemanaAnterior > 0
+        ? gananciaSemanaNetaAnterior / ingresoSemanaAnterior
+        : null;
+    const trendMargenNetoSemana = trendInfo(
+      margenNetoSemanaActual ?? 0,
+      margenNetoSemanaAnterior ?? 0,
+      true
+    );
+    const margenNetoAnioActual =
+      ingresoAnio > 0 ? gananciaAnioNeta / ingresoAnio : null;
+    const margenNetoAnioAnterior =
+      ingresoAnioAnterior > 0
+        ? gananciaAnioNetaAnterior / ingresoAnioAnterior
+        : null;
+    const trendMargenNetoAnio = trendInfo(
+      margenNetoAnioActual ?? 0,
+      margenNetoAnioAnterior ?? 0,
+      true
+    );
+
     return {
       ingresoHoy,
       gananciaHoy,
       costoHoy,
       costoAyer,
+      gastosDia,
+      gastosDiaAyer,
+      gastosSemanaActual,
+      gastosSemanaEfectivos,
+      diasTranscurridosSemana,
+      gastosSemanaAnterior,
+      gastosMes,
+      gastosProrrateados,
+      gastosAnio,
+      gastosProrrateadosAnio,
+      economiaHoy,
+      economiaAyer,
+      economiaSemanaActual,
+      economiaSemanaAnterior,
+      economiaMes,
+      economiaAnio,
+      economiaAnioAnterior,
       margenHoy,
       margenAyer,
+      margenNetoSemanaActual,
+      margenNetoSemanaAnterior,
+      margenNetoAnioActual,
+      margenNetoAnioAnterior,
+      trendGananciaNeta,
+      trendGananciaBruta,
+      trendGastosSemana,
+      trendCostoTotalSemana,
+      trendMargenNetoSemana,
+      trendMargenNetoAnio,
       diaLabel,
       ventasHoy: ventasHoy.length,
       ingresoAyer,
@@ -872,6 +1016,7 @@ export function useAnalyticsData({
       ventasMesCount,
       ingresoMesAnterior,
       trendIngresoMes,
+      trendGananciaMes,
       ventasSemanaCount,
       ingresoAnio,
       costoAnio,

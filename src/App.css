@@ -492,6 +492,214 @@ button.analytics-drill-card .analytics-drill-hint {
 .analytics-trend.down { color: var(--danger); }
 .analytics-trend.flat { color: var(--text-muted); }
 
+.analytics-resultado-card .card-header { margin-bottom: 4px; }
+.analytics-resultado { display: flex; flex-direction: column; gap: 16px; }
+
+.analytics-resultado-hero {
+  background: linear-gradient(135deg, rgba(74, 124, 89, 0.08) 0%, rgba(169, 142, 210, 0.06) 100%);
+  border: 1px solid rgba(74, 124, 89, 0.15);
+  border-radius: 14px;
+  padding: 16px;
+}
+.analytics-resultado-hero--loss {
+  background: linear-gradient(135deg, rgba(214, 69, 69, 0.08) 0%, rgba(214, 69, 69, 0.03) 100%);
+  border-color: rgba(214, 69, 69, 0.2);
+}
+.analytics-resultado-hero--neutral {
+  background: var(--cream);
+  border-color: var(--border);
+}
+.analytics-resultado-hero-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.analytics-resultado-hero-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.analytics-resultado-hero-value {
+  font-family: 'Outfit', sans-serif;
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--green);
+}
+.analytics-resultado-hero-value--loss { color: var(--danger); }
+.analytics-resultado-hero-value--neutral { color: var(--text); }
+.analytics-resultado-vs {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.analytics-resultado-vs strong { color: var(--text); font-weight: 600; }
+
+.analytics-resultado-trend-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.analytics-resultado-trend-pill.analytics-trend-up {
+  background: rgba(74, 124, 89, 0.12);
+  color: var(--green);
+}
+.analytics-resultado-trend-pill.analytics-trend-down {
+  background: rgba(214, 69, 69, 0.1);
+  color: var(--danger);
+}
+.analytics-resultado-trend-pill.analytics-trend-flat {
+  background: var(--cream);
+  color: var(--text-muted);
+}
+
+.analytics-resultado-visual { display: flex; flex-direction: column; gap: 8px; }
+.analytics-resultado-bar {
+  display: flex;
+  height: 10px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--cream);
+  border: 1px solid var(--border);
+}
+.analytics-resultado-bar-seg { min-width: 2px; height: 100%; }
+.analytics-resultado-bar-seg--mp { background: #D4A843; }
+.analytics-resultado-bar-seg--gastos { background: #D64545; }
+.analytics-resultado-bar-seg--neta { background: var(--green); }
+.analytics-resultado-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+}
+.analytics-resultado-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.analytics-resultado-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.analytics-resultado-dot--mp { background: #D4A843; }
+.analytics-resultado-dot--gastos { background: #D64545; }
+.analytics-resultado-dot--neta { background: var(--green); }
+
+.analytics-resultado-chips {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.analytics-resultado-chip {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 8px;
+  text-align: center;
+  min-width: 0;
+}
+.analytics-resultado-chip-label {
+  display: block;
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 4px;
+  line-height: 1.2;
+}
+.analytics-resultado-chip-value {
+  display: block;
+  font-family: 'Outfit', sans-serif;
+  font-size: clamp(12px, 3.2vw, 14px);
+  font-weight: 600;
+  color: var(--purple-dark);
+  line-height: 1.2;
+  word-break: break-word;
+}
+.analytics-resultado-chip-value--accent { color: var(--green); }
+.analytics-resultado-chip-value--loss { color: var(--danger); }
+
+.analytics-resultado-loss-note {
+  margin: 0;
+  font-size: 12px;
+  color: var(--danger);
+  background: rgba(214, 69, 69, 0.06);
+  border-radius: 10px;
+  padding: 10px 12px;
+  line-height: 1.4;
+}
+
+.analytics-resultado-breakdown {
+  background: var(--cream);
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.analytics-resultado-breakdown-title {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+.analytics-resultado-line {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+}
+.analytics-resultado-line:last-child { border-bottom: none; padding-bottom: 0; }
+.analytics-resultado-line-label {
+  font-size: 13px;
+  color: var(--text);
+}
+.analytics-resultado-line-label-block {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.analytics-resultado-line-value {
+  font-family: 'Outfit', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--purple-dark);
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+.analytics-resultado-line--cost .analytics-resultado-line-value { color: var(--text); font-weight: 500; }
+.analytics-resultado-line--total {
+  margin-top: 4px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border);
+  border-bottom: none;
+}
+.analytics-resultado-line--total .analytics-resultado-line-label { font-weight: 600; }
+.analytics-resultado-line--total .analytics-resultado-line-value { font-weight: 600; color: var(--text); }
+.analytics-resultado-hint { font-size: 11px; color: var(--text-muted); font-weight: 400; }
+
 .analytics-list { display: flex; flex-direction: column; gap: 8px; }
 .analytics-item { display: flex; align-items: center; gap: 10px; }
 .analytics-item-main { flex: 1; min-width: 0; }

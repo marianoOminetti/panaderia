@@ -14,14 +14,14 @@ function PeriodCard({
   ingreso,
   ventasCount,
   gananciaNeta,
+  costoMateriaPrima,
+  gastosNegocio,
   trend,
   trendVsLabel,
   extraLine,
   onVerDetalle,
   tipo,
-  /** true = el monto principal también depende del histórico (ej. año) */
   historicoPendiente = false,
-  /** true = mostrar monto del período actual; solo comparación/proyección esperan histórico (ej. mes) */
   historicoSoloComparacion = false,
 }) {
   const montoPendiente = historicoPendiente && !historicoSoloComparacion;
@@ -43,7 +43,7 @@ function PeriodCard({
       <div className="analytics-kpi-sub">
         {montoPendiente
           ? "Cargando histórico…"
-          : `${ventasCount ?? 0} ventas · Ganancia neta ${fmt(gananciaNeta ?? 0)}`}
+          : `${ventasCount ?? 0} ventas · Neta ${fmt(gananciaNeta ?? 0)} · MP ${fmt(costoMateriaPrima ?? 0)} · Gastos ${fmt(gastosNegocio ?? 0)}`}
       </div>
       <div className="analytics-kpi-sub">
         {comparacionPendiente ? (
@@ -79,7 +79,9 @@ export default function AnalyticsResumen({
           ingreso={data.ingresoHoy}
           ventasCount={data.ventasHoy}
           gananciaNeta={data.gananciaHoy}
-          trend={data.trendHoyVsAyer}
+          costoMateriaPrima={data.economiaHoy?.costoMateriaPrima}
+          gastosNegocio={data.economiaHoy?.gastosNegocio}
+          trend={data.trendGananciaNeta}
           trendVsLabel="Vs ayer"
           onVerDetalle={onVerDetalle}
           tipo="hoy"
@@ -90,7 +92,9 @@ export default function AnalyticsResumen({
           ingreso={data.ingresoSemanaActual}
           ventasCount={data.ventasSemanaCount}
           gananciaNeta={data.gananciaSemanaActual}
-          trend={data.trendIngreso}
+          costoMateriaPrima={data.economiaSemanaActual?.costoMateriaPrima}
+          gastosNegocio={data.economiaSemanaActual?.gastosNegocio}
+          trend={data.trendGanancia}
           trendVsLabel="Vs sem. anterior"
           onVerDetalle={onVerDetalle}
           tipo="semana"
@@ -101,7 +105,9 @@ export default function AnalyticsResumen({
           ingreso={data.ingresoMes}
           ventasCount={data.ventasMesCount}
           gananciaNeta={data.gananciaMesNeta}
-          trend={data.trendIngresoMes}
+          costoMateriaPrima={data.economiaMes?.costoMateriaPrima}
+          gastosNegocio={data.economiaMes?.gastosNegocio}
+          trend={data.trendGananciaMes}
           trendVsLabel="Vs mes anterior"
           onVerDetalle={onVerDetalle}
           tipo="mes"
@@ -121,7 +127,9 @@ export default function AnalyticsResumen({
           ingreso={data.ingresoAnio}
           ventasCount={data.ventasAnioCount}
           gananciaNeta={data.gananciaAnioNeta}
-          trend={data.trendIngresoAnio}
+          costoMateriaPrima={data.economiaAnio?.costoMateriaPrima}
+          gastosNegocio={data.economiaAnio?.gastosNegocio}
+          trend={data.trendGananciaAnio}
           trendVsLabel="Vs año anterior"
           onVerDetalle={onVerDetalle}
           tipo="anio"

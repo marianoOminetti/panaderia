@@ -142,6 +142,7 @@ export default function AppContent({
           clientes={clientes}
           stock={stock}
           pedidos={pedidos}
+          gastosFijos={gastosFijos}
           onNavigate={setTab}
           onOpenCargarProduccion={onOpenCargarProduccion}
           onOpenGrupoDeuda={onOpenGrupoDeuda}
