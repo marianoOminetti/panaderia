@@ -12,12 +12,16 @@ import { useVentas, releaseVentaTransaccionClaim } from "../../hooks/useVentas";
 import { enqueueVentaWrite } from "../../lib/ventaWriteQueue";
 import ClienteDetallePedidos from "./ClienteDetallePedidos";
 import ClienteDetalleVentas from "./ClienteDetalleVentas";
+import ClientePerfilCompra from "./ClientePerfilCompra";
+import ClienteWhatsAppButton from "./ClienteWhatsAppButton";
+import { deudaCliente } from "../../lib/clienteDeuda";
 
 function ClienteDetalle({
   cliente,
   ventas,
   recetas,
   pedidos,
+  perfil,
   onClose,
   actualizarStock,
   actualizarStockBatch,
@@ -41,6 +45,8 @@ function ClienteDetalle({
   const { insertVentas } = useVentas();
 
   if (!cliente) return null;
+
+  const deuda = deudaCliente(ventas, cliente.id);
 
   const getVentasDeCliente = (clienteId) =>
     ventas.filter((v) => v.cliente_id === clienteId);
@@ -194,15 +200,25 @@ function ClienteDetalle({
         <div className="card" style={{ marginBottom: 16 }}>
           <div className="card-header">
             <span className="card-title">Resumen</span>
-            <button
-              type="button"
-              className="edit-btn"
-              onClick={handleEliminarCliente}
-              style={{ fontSize: 13, fontWeight: 500, color: "var(--danger)" }}
-              aria-label="Dar de baja cliente"
-            >
-              Dar de baja
-            </button>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              {cliente.telefono?.trim() && perfil?.inactivo && (
+                <ClienteWhatsAppButton
+                  cliente={cliente}
+                  diasDesdeUltima={perfil?.diasDesdeUltima}
+                  favoritoNombre={perfil?.favoritos?.[0]?.receta?.nombre}
+                  showToast={showToast}
+                />
+              )}
+              <button
+                type="button"
+                className="edit-btn"
+                onClick={handleEliminarCliente}
+                style={{ fontSize: 13, fontWeight: 500, color: "var(--danger)" }}
+                aria-label="Dar de baja cliente"
+              >
+                Dar de baja
+              </button>
+            </div>
           </div>
           <p
             style={{
@@ -213,6 +229,11 @@ function ClienteDetalle({
           >
             <strong>Teléfono:</strong> {cliente.telefono || "—"}
           </p>
+          {deuda > 0 && (
+            <p className="clientes-deuda-resumen">
+              <strong>Deuda pendiente:</strong> {fmt(deuda)}
+            </p>
+          )}
           {(() => {
             const vs = getVentasDeCliente(cliente.id);
             const grupos = agruparVentas(vs);
@@ -246,6 +267,8 @@ function ClienteDetalle({
             );
           })()}
         </div>
+
+        <ClientePerfilCompra perfil={perfil} />
 
         <ClienteDetallePedidos
           pedidosClienteAgrupados={pedidosClienteAgrupados}

@@ -3,7 +3,7 @@
  */
 import PushNotificationsPanel from "./PushNotificationsPanel";
 
-export default function MoreMenuScreen({ items, onNavigate, userId = null }) {
+export default function MoreMenuScreen({ items, onNavigate, userId = null, sinStockCount = 0 }) {
 
   return (
     <div className="content">
@@ -22,6 +22,9 @@ export default function MoreMenuScreen({ items, onNavigate, userId = null }) {
               <span className="dashboard-quick-label">{label}</span>
               <span className="dashboard-quick-sub">{sub}</span>
             </div>
+            {id === "stock" && sinStockCount > 0 && (
+              <span className="dashboard-quick-badge">{sinStockCount} en 0</span>
+            )}
           </button>
         ))}
       </div>

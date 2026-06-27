@@ -1,5 +1,6 @@
 const ALL_TABS = [
   "dashboard",
+  "insights",
   "ventas",
   "stock",
   "more",
