@@ -12,6 +12,8 @@ import { useVentas } from "./hooks/useVentas";
 import { usePlanResumen } from "./hooks/usePlanResumen";
 import { useSyncVentasPendientes } from "./hooks/useSyncVentasPendientes";
 import { useScrollToHide } from "./hooks/useScrollToHide";
+import { useInsights } from "./hooks/useInsights";
+import { useStockQuickEdit } from "./hooks/useStockQuickEdit";
 import {
   getAppCache,
   persistAppCache,
@@ -24,6 +26,7 @@ import { MORE_MENU_ITEMS, NAV_TABS } from "./config/nav";
 import { canAccessTab, getAllowedTabs, getDefaultTabForRole, normalizeRole } from "./config/permissions";
 import Toast from "./components/ui/Toast";
 import ConfirmDialog from "./components/ui/ConfirmDialog";
+import StockQuickEditModal from "./components/stock/StockQuickEditModal";
 import ConfigMissing from "./components/auth/ConfigMissing";
 import AuthScreen from "./components/auth/AuthScreen";
 import { AppDataProvider } from "./context/AppDataContext";
@@ -257,7 +260,41 @@ export default function App() {
   const moreMenuItems = MORE_MENU_ITEMS.filter((m) => allowedTabs.includes(m.id));
   const defaultTab = getDefaultTabForRole(normalizedRole);
 
-  // Deep link: al cargar o al ganar foco, si la URL tiene ?tab=ventas&venta=KEY, abrir tab Ventas y esa venta
+  const insightsEnabled = canAccessTab(normalizedRole, "insights");
+  const insights = useInsights({
+    enabled: insightsEnabled,
+    ventas,
+    recetas,
+    clientes,
+    recetaIngredientes,
+    insumos,
+    stock,
+    precioHistorial,
+  });
+  const insightsUrgentCount = insightsEnabled
+    ? insights.all.filter((i) => i.severity === "urgent").length
+    : 0;
+
+  const { openQuickEdit: openStockQuickEdit, modalProps: stockQuickEditModalProps } =
+    useStockQuickEdit({
+      recetas,
+      recetaIngredientes,
+      insumos,
+      insumoComposicion,
+      insumoStock,
+      stock,
+      actualizarStock,
+      actualizarStockBatch,
+      consumirInsumosPorStock,
+      onRefresh: refreshData,
+      showToast,
+      onOpenInsumosCompra: (insumosEnCero) => {
+        setInsumosCompraPreload(insumosEnCero || null);
+        setTab("insumos");
+      },
+    });
+
+  // Deep link:
   const applyDeepLink = useCallback(() => {
     if (typeof window === "undefined" || !window.location.search) return;
     const params = new URLSearchParams(window.location.search);
@@ -459,7 +496,7 @@ export default function App() {
   }, [session, roleReady, refreshData, normalizedRole, shouldSkipBackgroundRefresh]);
 
   useEffect(() => {
-    if (tab === "analytics" && normalizedRole !== "venta") {
+    if ((tab === "analytics" || tab === "clientes") && normalizedRole !== "venta") {
       loadVentasHistoricas();
     }
   }, [tab, loadVentasHistoricas, normalizedRole]);
@@ -478,7 +515,8 @@ export default function App() {
     prevTabRef.current = tab;
   }, [tab, trimVentasToRecent, normalizedRole, ventasFiltroFecha]);
 
-  const isMoreSection = ["analytics", "plan", "clientes", "insumos", "recetas"].includes(tab);
+  const isMoreSection =
+    tab === "more" || MORE_MENU_ITEMS.some((m) => m.id === tab);
   const stockMap = stock && typeof stock === "object" && !Array.isArray(stock) ? stock : {};
   const sinStockCount = recetas.filter((r) => (stockMap[r.id] ?? 0) <= 0).length;
   const { headerVisible, navVisible } = useScrollToHide();
@@ -588,6 +626,7 @@ export default function App() {
         ventasHistoricasLoaded={ventasHistoricasLoaded}
         dataSyncing={dataSyncing}
         moreMenuItems={moreMenuItems}
+        sinStockCount={sinStockCount}
         insumos={insumos}
         recetas={recetas}
         ventas={ventas}
@@ -599,6 +638,8 @@ export default function App() {
         insumoMovimientos={insumoMovimientos}
         insumoComposicion={insumoComposicion}
         precioHistorial={precioHistorial}
+        insights={insights}
+        onStockQuickEdit={openStockQuickEdit}
         gastosFijos={gastosFijos}
         promociones={promociones}
         resumenPlanSemanal={resumenPlanSemanal}
@@ -650,6 +691,7 @@ export default function App() {
         setTab={setTab}
         isMoreSection={isMoreSection}
         sinStockCount={sinStockCount}
+        insightsUrgentCount={insightsUrgentCount}
         navTabs={navTabs}
       />
       {toast && <Toast msg={toast} onDone={() => setToast(null)} />}
@@ -661,6 +703,7 @@ export default function App() {
           onCancel={() => handleConfirm(false)}
         />
       )}
+      <StockQuickEditModal {...stockQuickEditModalProps} />
     </div>
   );
 }

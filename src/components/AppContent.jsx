@@ -8,6 +8,7 @@ import { canAccessTab } from "../config/permissions";
 import { SyncStatus } from "./ui";
 
 const Dashboard = lazy(() => import("./dashboard/Dashboard"));
+const Insights = lazy(() => import("./insights/Insights"));
 const MoreMenuScreen = lazy(() => import("./menu/MoreMenuScreen"));
 
 const Insumos = lazy(() => import("./insumos/Insumos"));
@@ -59,6 +60,7 @@ export default function AppContent({
   ventasHistoricasLoaded,
   dataSyncing,
   moreMenuItems,
+  sinStockCount = 0,
   insumos,
   recetas,
   ventas,
@@ -70,6 +72,8 @@ export default function AppContent({
   insumoMovimientos,
   insumoComposicion,
   precioHistorial,
+  insights,
+  onStockQuickEdit,
   gastosFijos,
   promociones,
   resumenPlanSemanal,
@@ -143,6 +147,7 @@ export default function AppContent({
           stock={stock}
           pedidos={pedidos}
           gastosFijos={gastosFijos}
+          insights={insights}
           onNavigate={setTab}
           onOpenCargarProduccion={onOpenCargarProduccion}
           onOpenGrupoDeuda={onOpenGrupoDeuda}
@@ -151,10 +156,24 @@ export default function AppContent({
         />
         </LazyTab>
       )}
+      {tab === "insights" && (
+        <LazyTab>
+        <Insights
+          insights={insights}
+          onNavigate={setTab}
+          onStockQuickEdit={onStockQuickEdit}
+        />
+        </LazyTab>
+      )}
       {/* --- More (menú) --- */}
       {tab === "more" && (
         <LazyTab>
-          <MoreMenuScreen items={moreMenuItems} onNavigate={setTab} userId={userId} />
+          <MoreMenuScreen
+            items={moreMenuItems}
+            onNavigate={setTab}
+            userId={userId}
+            sinStockCount={sinStockCount}
+          />
         </LazyTab>
       )}
       {/* --- Analytics --- */}
@@ -358,6 +377,8 @@ export default function AppContent({
           actualizarStock={actualizarStock}
           actualizarStockBatch={actualizarStockBatch}
           confirm={confirm}
+          ventasHistoricasLoaded={ventasHistoricasLoaded}
+          ventasSyncing={ventasSyncing}
         />
         </LazyTab>
       )}

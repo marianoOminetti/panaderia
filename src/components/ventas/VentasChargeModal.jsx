@@ -9,6 +9,7 @@ import VentasCart from "./VentasCart";
 import PromosEnVentaPanel from "./PromosEnVentaPanel";
 import { FormMoneyInput, FormInput, FormTextarea, DatePicker } from "../ui";
 import AfipReceptorFields from "./AfipReceptorFields";
+import VentasClienteMiniPerfil from "./VentasClienteMiniPerfil";
 
 export default function VentasChargeModal({
   open,
@@ -46,6 +47,8 @@ export default function VentasChargeModal({
   datosFiscalesAfip = { documento: "", razon_social: "" },
   setDatosFiscalesAfip,
   onClienteSelChange,
+  ventas,
+  recetas,
 }) {
   if (!open) return null;
 
@@ -118,6 +121,15 @@ export default function VentasChargeModal({
             showToast={showToast}
             required={esPedido}
           />
+
+          {clienteSel && !esPedido && (
+            <VentasClienteMiniPerfil
+              clienteId={clienteSel}
+              clientes={clientes}
+              ventas={ventas}
+              recetas={recetas}
+            />
+          )}
 
           {esPedido ? (
             <>

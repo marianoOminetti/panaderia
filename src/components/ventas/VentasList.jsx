@@ -36,39 +36,7 @@ function formatRelDia(d, hoyDate) {
 }
 
 /** Calcula clientes con deuda a partir de ventas con estado_pago === "debe" */
-export function computeClientesDeuda(ventas) {
-  const deudaPorCliente = new Map();
-  for (const v of (ventas || []).filter((x) => x.estado_pago === "debe")) {
-    const clienteId = v.cliente_id || "__sin_cliente__";
-    const prev =
-      deudaPorCliente.get(clienteId) || {
-        cliente_id: v.cliente_id,
-        total: 0,
-        ultimaFecha: null,
-      };
-    const monto =
-      v.total_final != null
-        ? v.total_final
-        : (v.precio_unitario || 0) * (v.cantidad || 0);
-    prev.total += monto;
-    const refFecha = v.fecha || v.created_at;
-    if (refFecha) {
-      const fechaNorm =
-        String(refFecha).length <= 10
-          ? `${String(refFecha).slice(0, 10)}T12:00:00`
-          : refFecha;
-      const d = new Date(fechaNorm);
-      if (!Number.isNaN(d.getTime()) && (!prev.ultimaFecha || d > prev.ultimaFecha))
-        prev.ultimaFecha = d;
-    }
-    deudaPorCliente.set(clienteId, prev);
-  }
-  const clientesDeuda = Array.from(deudaPorCliente.values())
-    .filter((c) => c.total > 0.01)
-    .sort((a, b) => b.total - a.total);
-  const totalDeuda = clientesDeuda.reduce((s, c) => s + c.total, 0);
-  return { clientesDeuda, totalDeuda };
-}
+export { computeClientesDeuda } from "../../lib/clienteDeuda";
 
 export default function VentasList({
   ventas,

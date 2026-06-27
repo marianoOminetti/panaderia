@@ -1,13 +1,23 @@
 /**
  * Pantalla Clientes: lista (ClientesList), detalle (ClienteDetalle) y modal ABM (ClienteFormModal).
- * useClientes para CRUD; estado local para búsqueda y cliente seleccionado.
+ * useClientes para CRUD; useClienteMetrics para frecuencia, favoritos y radar.
  */
-import { useState } from "react";
-import { agruparVentas } from "../../lib/agrupadores";
+import { useState, useMemo, useRef } from "react";
 import { useClientes } from "../../hooks/useClientes";
+import { useClienteMetrics } from "../../hooks/useClienteMetrics";
 import ClientesList from "./ClientesList";
 import ClienteDetalle from "./ClienteDetalle";
 import ClienteFormModal from "./ClienteFormModal";
+import ClientesInsights from "./ClientesInsights";
+
+const FILTROS = [
+  { id: "todos", label: "Todos" },
+  { id: "activos", label: "Esta semana" },
+  { id: "nuevos", label: "Nuevos" },
+  { id: "fieles", label: "Fieles" },
+  { id: "inactivos", label: "Inactivos" },
+  { id: "sin_compras", label: "Sin compras" },
+];
 
 export default function Clientes({
   ventas,
@@ -29,6 +39,8 @@ export default function Clientes({
   actualizarStock,
   actualizarStockBatch,
   confirm,
+  ventasHistoricasLoaded = true,
+  ventasSyncing = false,
 }) {
   useClientes({
     onRefresh,
@@ -43,7 +55,15 @@ export default function Clientes({
 
   const [modal, setModal] = useState(false);
   const [search, setSearch] = useState("");
+  const [filtro, setFiltro] = useState("todos");
   const [detalleCliente, setDetalleCliente] = useState(null);
+  const listaRef = useRef(null);
+
+  const { enriquecidos, resumen, getPerfil } = useClienteMetrics({
+    clientes,
+    ventas,
+    recetas,
+  });
 
   const getAvatarColor = (name) => {
     if (!name) return "#ccc";
@@ -55,68 +75,68 @@ export default function Clientes({
     return `hsl(${hue}, 70%, 60%)`;
   };
 
-  const getVentasDeCliente = (clienteId) =>
-    ventas.filter((v) => v.cliente_id === clienteId);
-
-  const clientesConGasto = clientes
-    .map((c) => {
-      const vs = getVentasDeCliente(c.id);
-      const grupos = agruparVentas(vs);
-      const total = vs.reduce((s, v) => {
-        const linea =
-          v.total_final != null
-            ? v.total_final
-            : (v.precio_unitario || 0) * (v.cantidad || 0);
-        return s + linea;
-      }, 0);
-      const unidades = vs.reduce((s, v) => s + v.cantidad, 0);
-      return { ...c, total, unidades, ventas: grupos.length };
-    })
-    .sort((a, b) => b.total - a.total);
-
   const searchValue = search.trim().toLowerCase();
 
-  const clientesFiltrados = clientesConGasto.filter((c) => {
-    if (!searchValue) return true;
-    const nombre = (c.nombre || "").toLowerCase();
-    const tel = (c.telefono || "").toLowerCase();
-    return nombre.includes(searchValue) || tel.includes(searchValue);
-  });
+  const clientesFiltrados = useMemo(() => {
+    let list = enriquecidos;
+    if (filtro === "activos") list = list.filter((c) => c.activoReciente);
+    else if (filtro === "nuevos") list = list.filter((c) => c.esNuevo);
+    else if (filtro === "fieles") list = list.filter((c) => c.ventas >= 3);
+    else if (filtro === "inactivos") list = list.filter((c) => c.inactivo);
+    else if (filtro === "sin_compras") list = list.filter((c) => c.ventas === 0);
 
-  const openNew = () => {
-    setModal(true);
-  };
+    if (!searchValue) return list;
+    return list.filter((c) => {
+      const nombre = (c.nombre || "").toLowerCase();
+      const tel = (c.telefono || "").toLowerCase();
+      return nombre.includes(searchValue) || tel.includes(searchValue);
+    });
+  }, [enriquecidos, filtro, searchValue]);
+
+  const openNew = () => setModal(true);
 
   return (
     <div className="content">
       <p className="page-title">Clientes</p>
-      <p className="page-subtitle">Mejores clientes por gasto total</p>
+      <p className="page-subtitle">
+        {resumen.conCompras} con compras
+        {resumen.inactivos.length > 0
+          ? ` · ${resumen.inactivos.length} sin venir hace +14 días`
+          : ""}
+      </p>
 
-      <div className="stats-stack">
-        <div className="stat-card">
-          <div className="stat-label">Clientes</div>
-          <div className="stat-value">{clientes.length}</div>
-          <div className="analytics-kpi-sub">Total registrados</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-label">Con compras</div>
-          <div className="stat-value accent">
-            {clientesConGasto.filter((c) => c.total > 0).length}
-          </div>
-          <div className="analytics-kpi-sub">Clientes con al menos una venta</div>
-        </div>
-      </div>
+      {!ventasHistoricasLoaded && ventasSyncing ? (
+        <p className="clientes-historico-aviso">
+          Cargando historial de compras…
+        </p>
+      ) : (
+        <ClientesInsights
+          resumen={resumen}
+          onSelectCliente={setDetalleCliente}
+          showToast={showToast}
+          onVerInactivos={() => {
+            setFiltro("inactivos");
+            listaRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+          }}
+        />
+      )}
 
+      <div ref={listaRef}>
       <ClientesList
         clientes={clientes}
-        clientesConGasto={clientesConGasto}
+        clientesConGasto={enriquecidos}
         clientesFiltrados={clientesFiltrados}
         search={search}
         setSearch={setSearch}
+        filtro={filtro}
+        setFiltro={setFiltro}
+        filtros={FILTROS}
         onOpenNew={openNew}
         onSelectCliente={setDetalleCliente}
         getAvatarColor={getAvatarColor}
+        showToast={showToast}
       />
+      </div>
 
       {detalleCliente && (
         <ClienteDetalle
@@ -124,6 +144,7 @@ export default function Clientes({
           ventas={ventas}
           recetas={recetas}
           pedidos={pedidos}
+          perfil={getPerfil(detalleCliente.id)}
           onClose={() => setDetalleCliente(null)}
           actualizarStock={actualizarStock}
           actualizarStockBatch={actualizarStockBatch}
@@ -150,4 +171,3 @@ export default function Clientes({
     </div>
   );
 }
-

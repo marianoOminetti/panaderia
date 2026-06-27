@@ -1,5 +1,5 @@
 /**
- * Barra de navegación inferior: pestañas (NAV_TABS). Muestra badge de stock en cero si aplica.
+ * Barra de navegación inferior: pestañas (NAV_TABS). Badge de stock en cero en "Más".
  * Usado por App.js. isMoreSection indica si el tab actual es uno del menú "Más".
  */
 import { NAV_TABS } from "../../config/nav";
@@ -10,6 +10,7 @@ export default function AppNav({
   setTab,
   isMoreSection,
   sinStockCount,
+  insightsUrgentCount = 0,
   navTabs = NAV_TABS,
 }) {
   return (
@@ -25,8 +26,11 @@ export default function AppNav({
             <span className="nav-icon">{t.icon}</span>
             <span className="nav-label">
               <span className="nav-label-copy">{t.label}</span>
-              {t.id === "stock" && sinStockCount > 0 && (
+              {t.id === "more" && sinStockCount > 0 && (
                 <span className="nav-badge-stock">{sinStockCount}</span>
+              )}
+              {t.id === "insights" && insightsUrgentCount > 0 && tab !== "insights" && (
+                <span className="nav-badge-stock">{insightsUrgentCount}</span>
               )}
             </span>
           </button>

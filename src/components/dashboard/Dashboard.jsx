@@ -10,6 +10,7 @@ import { calcularGastosTotales } from "../../lib/gastosFijos";
 import { agruparVentas } from "../../lib/agrupadores";
 import { useDashboardAlerts } from "../../hooks/useDashboardAlerts";
 import DashboardMetrics from "./DashboardMetrics";
+import DashboardInsightsTeaser from "./DashboardInsightsTeaser";
 import DashboardAlerts from "./DashboardAlerts";
 import DashboardQuickGrid from "./DashboardQuickGrid";
 
@@ -22,6 +23,7 @@ function Dashboard({
   stock,
   pedidos,
   gastosFijos,
+  insights,
   onNavigate,
   onOpenCargarProduccion,
   onOpenGrupoDeuda,
@@ -89,6 +91,11 @@ function Dashboard({
 
   return (
     <div className="content">
+      <DashboardInsightsTeaser
+        insights={insights}
+        onOpenInsights={() => onNavigate?.("insights")}
+      />
+
       <DashboardMetrics
         ingresoHoy={ingresoHoy}
         debeTotal={debeTotal}

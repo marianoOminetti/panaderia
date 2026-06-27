@@ -1075,6 +1075,8 @@ function Ventas({
           setClienteSel(id);
           if (registrarEnAfip) prefillDatosFiscalesAfip(id);
         }}
+        ventas={ventas}
+        recetas={recetas}
       />
       )}
     </div>
