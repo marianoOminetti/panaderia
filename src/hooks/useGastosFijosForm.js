@@ -16,7 +16,7 @@ const INITIAL_FORM = {
  * Soporta tipo fijo, variable y puntual.
  * Usado por GastosFijos.jsx. La persistencia (saveGastoFijo) se recibe desde el componente.
  * @param {{ showToast: Function, saveGastoFijo: Function }}
- * @returns {{ modal, setModal, editando, form, setForm, saving, openNew, openEdit, save, closeModal }}
+ * @returns {{ modal, setModal, editando, form, setForm, saving, openNew, openEdit, openDuplicate, save, closeModal }}
  */
 export function useGastosFijosForm({ showToast, saveGastoFijo }) {
   const [modal, setModal] = useState(false);
@@ -30,23 +30,38 @@ export function useGastosFijosForm({ showToast, saveGastoFijo }) {
     setModal(true);
   }, []);
 
+  const gastoToForm = useCallback((g) => ({
+    nombre: g.nombre,
+    monto: String(g.monto ?? ""),
+    tipo: g.tipo || "fijo",
+    frecuencia: g.frecuencia || "mensual",
+    fecha: g.fecha ? String(g.fecha).slice(0, 10) : "",
+    fechaInicioVigencia: g.fecha_inicio_vigencia
+      ? String(g.fecha_inicio_vigencia).slice(0, 10)
+      : "",
+    fechaFinVigencia: g.fecha_fin_vigencia
+      ? String(g.fecha_fin_vigencia).slice(0, 10)
+      : "",
+  }), []);
+
   const openEdit = useCallback((g) => {
     setEditando(g);
+    setForm(gastoToForm(g));
+    setModal(true);
+  }, [gastoToForm]);
+
+  const openDuplicate = useCallback((g) => {
+    const today = new Date().toISOString().slice(0, 10);
+    const tipo = (g.tipo || "fijo").toLowerCase();
+    setEditando(null);
     setForm({
-      nombre: g.nombre,
-      monto: String(g.monto ?? ""),
-      tipo: g.tipo || "fijo",
-      frecuencia: g.frecuencia || "mensual",
-      fecha: g.fecha ? String(g.fecha).slice(0, 10) : "",
-      fechaInicioVigencia: g.fecha_inicio_vigencia
-        ? String(g.fecha_inicio_vigencia).slice(0, 10)
-        : "",
-      fechaFinVigencia: g.fecha_fin_vigencia
-        ? String(g.fecha_fin_vigencia).slice(0, 10)
-        : "",
+      ...gastoToForm(g),
+      fecha: tipo === "variable" || tipo === "puntual" ? today : "",
+      fechaInicioVigencia: tipo === "fijo" ? today : "",
+      fechaFinVigencia: "",
     });
     setModal(true);
-  }, []);
+  }, [gastoToForm]);
 
   const closeModal = useCallback(() => {
     setModal(false);
@@ -151,6 +166,7 @@ export function useGastosFijosForm({ showToast, saveGastoFijo }) {
     saving,
     openNew,
     openEdit,
+    openDuplicate,
     save,
     closeModal,
   };

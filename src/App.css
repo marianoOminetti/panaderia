@@ -792,6 +792,64 @@ body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--cream); c
 .receta-stat-value.verde { color: var(--green); }
 .receta-stat-value.rojo { color: var(--danger); }
 
+/* Gastos — lista */
+.gasto-item { cursor: pointer; }
+.gasto-item--historico { opacity: 0.7; }
+.gasto-kpi-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: center;
+  flex: 1;
+}
+.gasto-kpi-btn:disabled { cursor: default; }
+.gasto-kpi-btn:not(:disabled):active { opacity: 0.85; }
+.gasto-toolbar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.gasto-grupo { margin-top: 4px; }
+.gasto-grupo-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 0 4px;
+}
+.gasto-grupo-subtotal {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.gasto-badge-vence {
+  margin-left: 8px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--danger);
+  background: rgba(214, 69, 69, 0.1);
+  padding: 2px 6px;
+  border-radius: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+.gasto-historicos { border-top: 1px solid var(--border); margin-top: 4px; }
+.gasto-checklist-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  font-size: 14px;
+  cursor: pointer;
+}
+.gasto-checklist-done {
+  text-decoration: line-through;
+  color: var(--text-muted);
+}
+
 /* Toast */
 .toast { position: fixed; top: 80px; left: 50%; transform: translateX(-50%); background: var(--purple-dark); color: white; padding: 10px 20px; border-radius: 20px; font-size: 13px; z-index: 300; animation: slideDown 0.3s ease; }
 @keyframes slideDown { from { opacity: 0; transform: translateX(-50%) translateY(-10px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
