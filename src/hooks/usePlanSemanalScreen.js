@@ -124,14 +124,6 @@ export function usePlanSemanalScreen({
     setCartPlanItems((prev) => prev.filter((item) => item.receta.id !== recetaId));
   }, []);
 
-  const mergeCartItems = useCallback((incoming) => {
-    setCartPlanItems((prev) => {
-      const map = new Map(prev.map((it) => [it.receta.id, { ...it }]));
-      for (const item of incoming) map.set(item.receta.id, item);
-      return [...map.values()];
-    });
-  }, []);
-
   const copiarPlanSemanaAnterior = useCallback(async () => {
     const requestedWeek = weekStart;
     const antInicio = getSemanaAnteriorInicioISO(requestedWeek);
@@ -287,7 +279,7 @@ export function usePlanSemanalScreen({
       const savedPorDia = parsePorDiaFromRow(existente);
       return (item.porDia || crearPorDiaVacios()).some((v, i) => v !== savedPorDia[i]);
     });
-  }, [cartPlanItems, planRows, weekStart, recetas]);
+  }, [cartPlanItems, planRows, weekStart]);
 
   const cambiarSemana = useCallback((delta) => {
     if (hasCambiosSinGuardar() && !window.confirm("Tenés cambios sin guardar. ¿Cambiar de semana igual?")) return;

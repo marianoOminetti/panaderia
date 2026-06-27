@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { sumPorDia, DIAS_INICIAL } from "../../lib/planSugerencias";
+import { DIAS_INICIAL } from "../../lib/planSugerencias";
 
 export default function PlanSemanalMasasResumen({ masasPlanificadas, masasCalculadas }) {
   const [abierto, setAbierto] = useState(false);
