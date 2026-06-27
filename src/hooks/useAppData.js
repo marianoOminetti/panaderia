@@ -200,13 +200,11 @@ export function useAppData({ showToast, role, onCachePatch, onPersistCache } = {
         .select("receta_id, cantidad")
         .then((r) => ({ ok: !r.error, data: r.data || [] }))
         .catch(() => ({ ok: false, data: [] }));
-      const insStPromise = isVenta
-        ? Promise.resolve({ ok: true, data: [] })
-        : supabase
-            .from("insumo_stock")
-            .select("insumo_id, cantidad")
-            .then((r) => ({ ok: !r.error, data: r.data || [] }))
-            .catch(() => ({ ok: false, data: [] }));
+      const insStPromise = supabase
+        .from("insumo_stock")
+        .select("insumo_id, cantidad")
+        .then((r) => ({ ok: !r.error, data: r.data || [] }))
+        .catch(() => ({ ok: false, data: [] }));
       const insMovPromise = isVenta
         ? Promise.resolve({ ok: true, data: [] })
         : supabase
@@ -216,13 +214,11 @@ export function useAppData({ showToast, role, onCachePatch, onPersistCache } = {
             .limit(100)
             .then((r) => ({ ok: !r.error, data: r.data || [] }))
             .catch(() => ({ ok: false, data: [] }));
-      const insCompPromise = isVenta
-        ? Promise.resolve({ ok: true, data: [] })
-        : supabase
-            .from("insumo_composicion")
-            .select("insumo_id, insumo_id_componente, factor")
-            .then((r) => ({ ok: !r.error, data: r.data || [] }))
-            .catch(() => ({ ok: false, data: [] }));
+      const insCompPromise = supabase
+        .from("insumo_composicion")
+        .select("insumo_id, insumo_id_componente, factor")
+        .then((r) => ({ ok: !r.error, data: r.data || [] }))
+        .catch(() => ({ ok: false, data: [] }));
       const precioHistPromise = isVenta
         ? Promise.resolve({ ok: true, data: [] })
         : supabase
@@ -265,12 +261,14 @@ export function useAppData({ showToast, role, onCachePatch, onPersistCache } = {
         precioHistRes,
       ] = await Promise.all([
         isVenta
-          ? Promise.resolve({ data: [], error: null })
+          ? supabase
+              .from("insumos")
+              .select("id, nombre, categoria, unidad")
+              .order("categoria")
+              .order("nombre")
           : supabase.from("insumos").select("*").order("categoria").order("nombre"),
         supabase.from("recetas").select("*").order("nombre"),
-        isVenta
-          ? Promise.resolve({ data: [], error: null })
-          : supabase.from("receta_ingredientes").select("*"),
+        supabase.from("receta_ingredientes").select("*"),
         supabase.from("clientes").select("*").order("nombre"),
         pedidosPromise,
         stPromise,
