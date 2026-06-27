@@ -315,6 +315,19 @@ body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--cream); c
   background: var(--cream);
 }
 
+.stock-list-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.stock-list-cargar {
+  font-size: 12px;
+  padding: 6px 10px;
+  white-space: nowrap;
+}
+
 /* Clientes — spotlight, filtros, perfil */
 .clientes-spotlight {
   display: flex;

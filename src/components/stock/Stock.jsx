@@ -7,11 +7,13 @@ import { DIAS_ALERTA_ROJA } from "../../config/appConfig";
 import { getInsumosEnCeroParaRecetas } from "../../lib/stockPlan";
 import { ejecutarCargaStock } from "../../lib/ejecutarCargaStock";
 import { useStockCart } from "../../hooks/useStockCart";
+import { useStockQuickEdit } from "../../hooks/useStockQuickEdit";
 import { useStockScreenMetrics } from "../../hooks/useStockScreenMetrics";
 import { useStockInsights } from "../../hooks/useStockInsights";
 import InsightsList from "../insights/InsightsList";
 import StockList from "./StockList";
 import StockProductionModal from "./StockProductionModal";
+import StockQuickEditModal from "./StockQuickEditModal";
 import StockAdjustModal from "./StockAdjustModal";
 
 function Stock({
@@ -34,7 +36,6 @@ function Stock({
   stockOpenManual,
   onConsumedStockOpenManual,
   showStockInsights = false,
-  onStockQuickEdit,
   allowInsumosCompraNav = true,
 }) {
   const [manualSaving, setManualSaving] = useState(false);
@@ -46,6 +47,24 @@ function Stock({
 
   const { stockCart, setStockCart, addToStockCart, totalCartUnidades } =
     useStockCart();
+
+  const { openQuickEdit, modalProps: stockQuickEditModalProps } =
+    useStockQuickEdit({
+      recetas,
+      recetaIngredientes,
+      insumos,
+      insumoComposicion,
+      insumoStock,
+      stock,
+      actualizarStock,
+      actualizarStockBatch,
+      consumirInsumosPorStock,
+      onRefresh,
+      showToast,
+      onOpenInsumosCompra: (insumosEnCero) => {
+        if (insumosEnCero?.length) setInsumosEnCeroAviso(insumosEnCero);
+      },
+    });
 
   const ejecutarCargaStockLocal = useCallback(
     async (items) => {
@@ -108,18 +127,11 @@ function Stock({
     stock,
   });
 
-  const handleInsightStockAction = useCallback(
-    (recetaId, { cantidad = 1 } = {}) => {
-      if (onStockQuickEdit) {
-        onStockQuickEdit(recetaId, { cantidad });
-        return;
-      }
-      const r = (recetas || []).find((x) => x.id === recetaId);
-      if (!r?.id) return;
-      addToStockCart(r, cantidad);
-      setManualScreenOpen(true);
+  const handleCargarStock = useCallback(
+    (recetaId, { cantidad = 1, hint = "" } = {}) => {
+      openQuickEdit(recetaId, { cantidad, hint });
     },
-    [recetas, addToStockCart, onStockQuickEdit],
+    [openQuickEdit],
   );
 
   const cargarStockCarrito = async () => {
@@ -196,7 +208,7 @@ function Stock({
           </p>
           <InsightsList
             items={stockInsights.all}
-            onStockQuickEdit={handleInsightStockAction}
+            onStockQuickEdit={handleCargarStock}
             grouped
           />
         </div>
@@ -215,10 +227,7 @@ function Stock({
                 <button
                   key={r.id}
                   type="button"
-                  onClick={() => {
-                    addToStockCart(r, 1);
-                    setManualScreenOpen(true);
-                  }}
+                  onClick={() => handleCargarStock(r.id, { cantidad: 1 })}
                   style={{
                     fontSize: 12,
                     padding: "4px 10px",
@@ -248,6 +257,7 @@ function Stock({
         stock={stock}
         metricasStock={metricasStock}
         pedidosPendientesSemana={pedidosPendientesSemana}
+        onCargarStock={handleCargarStock}
         onAjustarStock={(receta) => {
           const actual = (stock || {})[receta.id] ?? 0;
           if (actual <= 0) {
@@ -257,6 +267,8 @@ function Stock({
           setAjusteProductoSel(receta);
         }}
       />
+
+      <StockQuickEditModal {...stockQuickEditModalProps} />
 
       {manualScreenOpen && (
         <StockProductionModal

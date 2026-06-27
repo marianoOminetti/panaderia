@@ -1,6 +1,6 @@
 /**
  * Lista de stock por receta: prioridades de producción, métricas (días restantes), pedidos pendientes y botón cargar.
- * Recibe datos calculados desde Stock.jsx; al "Cargar" abre StockProductionModal (controlado por el padre).
+ * Recibe datos calculados desde Stock.jsx; carga rápida vía bottom sheet (como Insights).
  */
 import { useState } from "react";
 import {
@@ -10,12 +10,40 @@ import {
 import { fmtStock } from "../../lib/format";
 import { formatearDiasStock } from "../../lib/metrics";
 
+function sugerirCantidadCarga({ cant, metrica, bajo }) {
+  if (bajo) return 1;
+  if (metrica?.promedioDiario > 0) {
+    const sugerido = Math.max(
+      1,
+      Math.ceil(metrica.promedioDiario * 3),
+    );
+    const objetivo = Math.max(
+      0,
+      Math.ceil(metrica.promedioDiario * DIAS_OBJETIVO_PRODUCCION - cant),
+    );
+    return objetivo > 0 ? objetivo : sugerido;
+  }
+  return 1;
+}
+
+function hintCargaStock({ bajo, metrica, diasTexto, sugerido }) {
+  if (bajo) return "No quedan unidades disponibles para vender.";
+  const partes = [];
+  if (metrica?.promedioDiario > 0) {
+    partes.push(`Ritmo ${metrica.promedioDiario.toFixed(1)} u/día`);
+  }
+  if (diasTexto) partes.push(`≈ ${diasTexto} días restantes`);
+  if (sugerido > 1) partes.push(`sugerido: ${sugerido} u`);
+  return partes.length ? partes.join(" · ") : "";
+}
+
 function StockList({
   prioridadesProduccion,
   recetasOrdenadasPorStock,
   stock,
   metricasStock,
   pedidosPendientesSemana,
+  onCargarStock,
   onAjustarStock,
 }) {
   const [prioridadesAbierto, setPrioridadesAbierto] = useState(false);
@@ -87,6 +115,18 @@ function StockList({
                 Number.isFinite(diasRestantes)
                   ? formatearDiasStock(diasRestantes)
                   : null;
+              const bajo = stockActual <= 0;
+              const cantidad = sugerirCantidadCarga({
+                cant: stockActual,
+                metrica,
+                bajo,
+              });
+              const hint = hintCargaStock({
+                bajo,
+                metrica,
+                diasTexto,
+                sugerido: cantidad,
+              });
               return (
                 <div
                   key={r.id}
@@ -128,6 +168,17 @@ function StockList({
                       )}
                     </div>
                   </div>
+                  {onCargarStock && (
+                    <button
+                      type="button"
+                      className="insights-item-action insights-item-action--primary stock-list-cargar"
+                      onClick={() =>
+                        onCargarStock(r.id, { cantidad, hint })
+                      }
+                    >
+                      Cargar stock
+                    </button>
+                  )}
                 </div>
               );
             })}
@@ -162,6 +213,13 @@ function StockList({
                 )
               : null;
           const pedidosSemana = pedidosPendientesSemana[r.id] || 0;
+          const cantidadCarga = sugerirCantidadCarga({ cant, metrica, bajo });
+          const hintCarga = hintCargaStock({
+            bajo,
+            metrica,
+            diasTexto,
+            sugerido: cantidadCarga,
+          });
           return (
             <div key={r.id} className="insumo-item">
               <span style={{ fontSize: 22 }}>{r.emoji}</span>
@@ -217,12 +275,27 @@ function StockList({
                   </div>
                 )}
               </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <div className="stock-list-actions">
+                {onCargarStock && (
+                  <button
+                    type="button"
+                    className="insights-item-action insights-item-action--primary stock-list-cargar"
+                    onClick={() =>
+                      onCargarStock(r.id, {
+                        cantidad: cantidadCarga,
+                        hint: hintCarga,
+                      })
+                    }
+                  >
+                    Cargar stock
+                  </button>
+                )}
                 <button
                   type="button"
                   className="card-link"
                   onClick={() => onAjustarStock?.(r)}
                   title="Ajustar stock"
+                  disabled={bajo}
                 >
                   Ajustar stock
                 </button>
