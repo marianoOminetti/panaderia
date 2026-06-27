@@ -97,10 +97,21 @@ La service role key está en: Dashboard → Settings → API → `service_role` 
 
 ## Copiar prod → dev
 
-Para clonar todos los datos de producción a desarrollo:
+Para clonar datos de producción a desarrollo (solo datos, no estructura):
 
 ```bash
+# Con supabase login (lee service_role automáticamente)
+npm run copy:prod-to-dev
+
+# Solo lo necesario para probar plan semanal (recetas, masas, ventas, plan)
+npm run copy:prod-to-dev:plan
+
+# O con keys explícitas
 SUPABASE_PROD_SERVICE_KEY=xxx SUPABASE_DEV_SERVICE_KEY=yyy npm run copy:prod-to-dev
 ```
 
+Antes de copiar, asegurate de que dev tenga el mismo esquema: `npm run db:push:dev`.
+
 Obtener las keys: Dashboard de cada proyecto → Settings → API → `service_role`.
+
+**Nota:** no copia usuarios Auth ni `user_roles`; el login de dev sigue siendo independiente.

@@ -11,6 +11,16 @@ export function getSemanaInicioISO(fecha = new Date()) {
   return d.toISOString().split("T")[0];
 }
 
+/** Inicio de semana del plan semanal: sábado (sáb–vie). */
+export function getPlanSemanaInicioISO(fecha = new Date()) {
+  const d = new Date(fecha);
+  d.setHours(0, 0, 0, 0);
+  const day = d.getDay(); // 0 dom, 6 sáb
+  const diff = (day + 1) % 7; // días desde el sábado anterior (sáb = 0)
+  d.setDate(d.getDate() - diff);
+  return d.toISOString().split("T")[0];
+}
+
 export function hoyLocalISO() {
   const d = new Date();
   const y = d.getFullYear();

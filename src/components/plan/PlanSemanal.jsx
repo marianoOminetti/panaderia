@@ -1,119 +1,95 @@
-/**
- * Contenedor del Plan semanal: solo orquesta layout y paso de datos.
- * Toda la lógica (semana, carrito, guardado, producir, requerimientos) vive en usePlanSemanalScreen.
- */
-import { fmt } from "../../lib/format";
+import { useState } from "react";
+import { buildCompraWhatsAppText } from "../../lib/planShare";
 import { usePlanSemanalScreen } from "../../hooks/usePlanSemanalScreen";
 import PlanSemanalTable from "./PlanSemanalTable";
 import PlanSemanalActions from "./PlanSemanalActions";
+import PlanShareModal from "./PlanShareModal";
 
 function PlanSemanal({
-  recetas,
-  recetaIngredientes,
-  insumos,
-  insumoComposicion,
-  insumoStock,
-  actualizarStock,
-  consumirInsumosPorStock,
-  showToast,
-  onRefresh,
-  onPlanChanged,
+  recetas, recetaIngredientes, insumos, insumoComposicion, insumoStock, ventas,
+  actualizarStock, consumirInsumosPorStock, showToast, onRefresh, onPlanChanged,
 }) {
   const plan = usePlanSemanalScreen({
-    recetas,
-    recetaIngredientes,
-    insumos,
-    insumoComposicion,
-    insumoStock,
-    actualizarStock,
-    consumirInsumosPorStock,
-    showToast,
-    onRefresh,
-    onPlanChanged,
+    recetas, recetaIngredientes, insumos, insumoComposicion, insumoStock, ventas,
+    actualizarStock, consumirInsumosPorStock, showToast, onRefresh, onPlanChanged,
   });
+  const [shareTarget, setShareTarget] = useState(null);
+
+  const openShareWeek = () => {
+    if (!plan.cartPlanItems.length) {
+      showToast("No hay nada planificado para compartir.");
+      return;
+    }
+    setShareTarget({ mode: "week" });
+  };
+
+  const openShareDay = (diaIdx) => {
+    const hasItems = plan.cartPlanItems.some((it) => (it.porDia?.[diaIdx] || 0) > 0);
+    if (!hasItems) {
+      showToast("Este día no tiene ítems planificados.");
+      return;
+    }
+    setShareTarget({ mode: "day", diaIdx });
+  };
+
+  const openShareCompra = () => {
+    if (!plan.insumosCompra.length) {
+      showToast("No hay faltantes para compartir.");
+      return;
+    }
+    setShareTarget({ mode: "compra" });
+  };
+
+  const compraWaTextUrl = plan.insumosCompra.length
+    ? `https://wa.me/?text=${encodeURIComponent(
+        buildCompraWhatsAppText(plan.insumosCompra, plan.semanaTitulo()),
+      )}`
+    : null;
 
   return (
     <div className="content">
       <p className="page-title">Plan semanal</p>
-      <p className="page-subtitle">
-        Definí qué vas a producir y generá la lista de compras.
-      </p>
-
-      <div className="card" style={{ marginBottom: 16 }}>
-        <div className="card-header">
-          <span className="card-title">Semana</span>
-        </div>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-          }}
-        >
-          <button
-            type="button"
-            className="btn-secondary"
-            style={{ width: "auto", padding: "6px 10px" }}
-            onClick={() => plan.cambiarSemana(-1)}
-          >
-            ← Anterior
-          </button>
-          <div
-            style={{
-              flex: 1,
-              textAlign: "center",
-              fontSize: 13,
-              fontWeight: 500,
-            }}
-          >
-            {plan.semanaTitulo()}
-          </div>
-          <button
-            type="button"
-            className="btn-secondary"
-            style={{ width: "auto", padding: "6px 10px" }}
-            onClick={() => plan.cambiarSemana(1)}
-          >
-            Siguiente →
-          </button>
-        </div>
-      </div>
-
-      <div className="card" style={{ marginBottom: 16 }}>
-        <div className="card-header">
-          <span className="card-title">Resumen</span>
-        </div>
-        <p style={{ fontSize: 13, marginBottom: 4 }}>
-          Esta semana producís <strong>{plan.totalPlanificadas}</strong>{" "}
-          unidades.
-        </p>
-        <p style={{ fontSize: 13 }}>
-          Necesitás comprar aproximadamente{" "}
-          <strong>{fmt(plan.totalCompra || 0)}</strong>{" "}
-          en insumos.
-        </p>
-      </div>
+      <p className="page-subtitle">Planificá qué se produce cada día (sábado a viernes): masas, productos, lo que vaya.</p>
 
       <PlanSemanalTable
         recetas={recetas}
-        planRows={plan.planRows}
         weekStart={plan.weekStart}
+        semanaTitulo={plan.semanaTitulo()}
+        cambiarSemana={plan.cambiarSemana}
         cartPlanItems={plan.cartPlanItems}
+        masasCalculadas={plan.masasCalculadas}
+        masasPlanificadas={plan.masasPlanificadas}
+        recetasIncompletas={plan.recetasIncompletas}
+        comparacionVentas={plan.comparacionVentas}
         loading={plan.loading}
         saving={plan.saving}
-        addToPlanCart={plan.addToPlanCart}
-        updatePlanCartQuantity={plan.updatePlanCartQuantity}
-        removeFromPlanCart={plan.removeFromPlanCart}
-        handleProducir={plan.handleProducir}
+        addToPlanOnDay={plan.addToPlanOnDay}
+        updatePlanCartItem={plan.updatePlanCartItem}
         guardarPlan={plan.guardarPlan}
+        copiarPlanSemanaAnterior={plan.copiarPlanSemanaAnterior}
+        hasCambiosSinGuardar={plan.hasCambiosSinGuardar}
+        onShareWeek={openShareWeek}
+        onShareDay={openShareDay}
       />
 
       <PlanSemanalActions
         insumosCompra={plan.insumosCompra}
-        waUrl={`https://wa.me/?text=${encodeURIComponent(
-          plan.buildWhatsAppText()
-        )}`}
+        onShareCompra={openShareCompra}
+        waTextUrl={compraWaTextUrl}
       />
+
+      {shareTarget && (
+        <PlanShareModal
+          mode={shareTarget.mode}
+          diaIdx={shareTarget.diaIdx}
+          weekStart={plan.weekStart}
+          cartPlanItems={plan.cartPlanItems}
+          insumosCompra={plan.insumosCompra}
+          semanaTitulo={plan.semanaTitulo()}
+          onClose={() => setShareTarget(null)}
+          hasCambiosSinGuardar={plan.hasCambiosSinGuardar()}
+        />
+      )}
     </div>
   );
 }
