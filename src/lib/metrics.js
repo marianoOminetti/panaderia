@@ -6,6 +6,21 @@ import {
   METRICAS_VENTANA_DIAS,
 } from "../config/appConfig";
 
+const MS_POR_DIA = 24 * 60 * 60 * 1000;
+
+/** Ventas dentro de los últimos N días (para métricas de stock sin escanear histórico completo). */
+export function filterVentasUltimosDias(ventas, diasVentana = METRICAS_VENTANA_DIAS) {
+  if (!ventas?.length || diasVentana <= 0) return [];
+  const hoy = new Date();
+  return ventas.filter((v) => {
+    if (!v?.fecha) return false;
+    const fechaVenta = new Date(v.fecha);
+    if (Number.isNaN(fechaVenta.getTime())) return false;
+    const diffDias = (hoy - fechaVenta) / MS_POR_DIA;
+    return diffDias >= 0 && diffDias < diasVentana;
+  });
+}
+
 /** Calcula promedio diario de ventas y días de stock restante por receta usando una ventana de N días. */
 export function calcularMetricasVentasYStock(recetas, ventas, stock, diasVentana = METRICAS_VENTANA_DIAS) {
   if (!recetas?.length || !ventas?.length || diasVentana <= 0) return {};

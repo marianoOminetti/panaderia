@@ -9,6 +9,12 @@ export const NAV_TABS = [
   { id: "more", icon: "☰", label: "Más" },
 ];
 
+/** Barra inferior para rol venta: solo ventas y stock. */
+export const VENTA_NAV_TABS = [
+  { id: "ventas", icon: "💰", label: "Ventas" },
+  { id: "stock", icon: "📥", label: "Stock" },
+];
+
 export const MORE_MENU_ITEMS = [
   { id: "analytics", icon: "📈", label: "Analytics", sub: "Gráficos y proyecciones" },
   { id: "stock", icon: "📥", label: "Stock", sub: "Producción y existencias" },

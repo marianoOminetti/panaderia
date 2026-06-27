@@ -26,7 +26,7 @@ export default function AppNav({
             <span className="nav-icon">{t.icon}</span>
             <span className="nav-label">
               <span className="nav-label-copy">{t.label}</span>
-              {t.id === "more" && sinStockCount > 0 && (
+              {(t.id === "more" || t.id === "stock") && sinStockCount > 0 && (
                 <span className="nav-badge-stock">{sinStockCount}</span>
               )}
               {t.id === "insights" && insightsUrgentCount > 0 && tab !== "insights" && (

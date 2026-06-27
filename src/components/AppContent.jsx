@@ -4,7 +4,7 @@
  * Detalle de props: docs/APP_PROPS_Y_CONTEXT.md y docs/CONTEXTO_APP_PARA_AGENTES.md.
  */
 import { lazy, Suspense } from "react";
-import { canAccessTab } from "../config/permissions";
+import { canAccessTab, isVentaRole } from "../config/permissions";
 import { SyncStatus } from "./ui";
 
 const Dashboard = lazy(() => import("./dashboard/Dashboard"));
@@ -334,6 +334,9 @@ export default function AppContent({
           onConsumedPreloadReceta={onConsumedPreloadReceta}
           stockOpenManual={stockOpenManual}
           onConsumedStockOpenManual={onConsumedStockOpenManual}
+          showStockInsights={isVentaRole(role)}
+          onStockQuickEdit={isVentaRole(role) ? undefined : onStockQuickEdit}
+          allowInsumosCompraNav={!isVentaRole(role)}
         />
         </LazyTab>
       )}

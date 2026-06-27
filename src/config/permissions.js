@@ -16,7 +16,7 @@ const ALL_TABS = [
 
 const ROLE_ALLOWED_TABS = {
   admin: ALL_TABS,
-  venta: ["ventas"],
+  venta: ["ventas", "stock"],
 };
 
 export function normalizeRole(role) {

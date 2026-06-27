@@ -22,8 +22,8 @@ import {
   isVentasHistoricasCacheTrusted,
 } from "./lib/sessionCache";
 import { reportError } from "./utils/errorReport";
-import { MORE_MENU_ITEMS, NAV_TABS } from "./config/nav";
-import { canAccessTab, getAllowedTabs, getDefaultTabForRole, normalizeRole } from "./config/permissions";
+import { MORE_MENU_ITEMS, NAV_TABS, VENTA_NAV_TABS } from "./config/nav";
+import { canAccessTab, getAllowedTabs, getDefaultTabForRole, normalizeRole, isVentaRole } from "./config/permissions";
 import Toast from "./components/ui/Toast";
 import ConfirmDialog from "./components/ui/ConfirmDialog";
 import StockQuickEditModal from "./components/stock/StockQuickEditModal";
@@ -256,7 +256,10 @@ export default function App() {
 
   const roleReady = !session || !roleLoading;
   const allowedTabs = getAllowedTabs(normalizedRole);
-  const navTabs = NAV_TABS.filter((t) => allowedTabs.includes(t.id));
+  const ventaRole = isVentaRole(normalizedRole);
+  const navTabs = ventaRole
+    ? VENTA_NAV_TABS
+    : NAV_TABS.filter((t) => allowedTabs.includes(t.id));
   const moreMenuItems = MORE_MENU_ITEMS.filter((m) => allowedTabs.includes(m.id));
   const defaultTab = getDefaultTabForRole(normalizedRole);
 
@@ -500,6 +503,13 @@ export default function App() {
       loadVentasHistoricas();
     }
   }, [tab, loadVentasHistoricas, normalizedRole]);
+
+  useEffect(() => {
+    if (!roleReady || !session) return;
+    if (canAccessTab(normalizedRole, "stock")) {
+      import("./components/stock/Stock");
+    }
+  }, [roleReady, session, normalizedRole]);
 
   const prevTabRef = useRef(tab);
   useEffect(() => {
