@@ -335,7 +335,6 @@ export default function AppContent({
           stockOpenManual={stockOpenManual}
           onConsumedStockOpenManual={onConsumedStockOpenManual}
           showStockInsights={isVentaRole(role)}
-          onStockQuickEdit={isVentaRole(role) ? undefined : onStockQuickEdit}
           allowInsumosCompraNav={!isVentaRole(role)}
         />
         </LazyTab>
