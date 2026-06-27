@@ -2,7 +2,11 @@ import { useMemo } from "react";
 import { pctFmt } from "../lib/format";
 import { costoUnitarioPorRecetaMap } from "../lib/costos";
 import { buildPeriodoEconomico } from "../lib/analyticsEconomics";
-import { calcularGastosTotales } from "../lib/gastosFijos";
+import {
+  calcularGastosTotales,
+  calcularGastosEnPeriodo,
+  desglosarGastosEnPeriodo,
+} from "../lib/gastosFijos";
 import { CATEGORIAS, CAT_COLORS } from "../config/appConfig";
 
 /**
@@ -322,13 +326,15 @@ export function useAnalyticsData({
     const gananciaSemanaBrutaActual = ingresoSemanaActual - costoSemanaActual;
     const gananciaSemanaBrutaAnterior = ingresoSemanaAnterior - costoSemanaAnterior;
 
-    const { semana: gastosSemanaActual } = calcularGastosTotales(
+    const { total: gastosSemanaActual } = calcularGastosEnPeriodo(
       gastosFijos,
-      thisWeekStart
+      thisWeekStart,
+      thisWeekEnd
     );
-    const { semana: gastosSemanaAnterior } = calcularGastosTotales(
+    const { total: gastosSemanaAnterior } = calcularGastosEnPeriodo(
       gastosFijos,
-      prevWeekStart
+      prevWeekStart,
+      prevWeekEnd
     );
     const diasTranscurridosSemana =
       offsetSemanas === 0
@@ -341,8 +347,8 @@ export function useAnalyticsData({
           )
         : 7;
     const gastosSemanaEfectivos =
-      offsetSemanas === 0 && diasTranscurridosSemana < 7
-        ? (gastosSemanaActual || 0) * (diasTranscurridosSemana / 7)
+      offsetSemanas === 0
+        ? calcularGastosEnPeriodo(gastosFijos, thisWeekStart, endOfDay(hoy)).total
         : gastosSemanaActual || 0;
     const gananciaSemanaNetaActual =
       gananciaSemanaBrutaActual - gastosSemanaEfectivos;
@@ -521,14 +527,16 @@ export function useAnalyticsData({
     );
 
     const totalDiasMes = endOfMonth.getDate();
-    const { mes: gastosMes } = calcularGastosTotales(gastosFijos, startOfMonth);
+    const { total: gastosMes } = calcularGastosEnPeriodo(
+      gastosFijos,
+      startOfMonth,
+      endOfMonth
+    );
     const diasTranscurridos =
       offsetMeses === 0 ? hoy.getDate() : totalDiasMes;
-    // Gastos prorrateados al período transcurrido para que acumulado y proyección sean coherentes
-    const gastosProrrateados =
-      proyeccionAplicable && diasTranscurridos > 0
-        ? (gastosMes || 0) * (diasTranscurridos / totalDiasMes)
-        : (gastosMes || 0);
+    const gastosProrrateados = proyeccionAplicable
+      ? calcularGastosEnPeriodo(gastosFijos, startOfMonth, endOfDay(hoy)).total
+      : gastosMes || 0;
     const gananciaMesNeta = gananciaMesBruta - gastosProrrateados;
 
     const factorProy =
@@ -633,11 +641,14 @@ export function useAnalyticsData({
     const costoAnio = sumMetric(ventasAnio, getCostoLinea);
     const gananciaAnioBruta = ingresoAnio - costoAnio;
 
-    const { anio: gastosAnio } = calcularGastosTotales(gastosFijos, startOfYear);
-    const gastosProrrateadosAnio =
-      proyeccionAnioAplicable && diasTranscurridosAnio > 0
-        ? (gastosAnio || 0) * (diasTranscurridosAnio / totalDiasAnio)
-        : (gastosAnio || 0);
+    const { total: gastosAnio } = calcularGastosEnPeriodo(
+      gastosFijos,
+      startOfYear,
+      endOfYear
+    );
+    const gastosProrrateadosAnio = proyeccionAnioAplicable
+      ? calcularGastosEnPeriodo(gastosFijos, startOfYear, endOfDay(hoy)).total
+      : gastosAnio || 0;
     const gananciaAnioNeta = gananciaAnioBruta - gastosProrrateadosAnio;
 
     const factorProyAnio =
@@ -654,11 +665,11 @@ export function useAnalyticsData({
     );
     let ingresoAnioAnterior = sumMetric(ventasAnioAnterior);
     let costoAnioAnterior = sumMetric(ventasAnioAnterior, getCostoLinea);
-    const { anio: gastosAnioAnteriorFull } = calcularGastosTotales(
+    let gastosAnioAnteriorComparativo = calcularGastosEnPeriodo(
       gastosFijos,
-      prevYearStart
-    );
-    let gastosAnioAnteriorComparativo = gastosAnioAnteriorFull || 0;
+      prevYearStart,
+      prevYearEnd
+    ).total;
     if (proyeccionAnioAplicable && diasTranscurridosAnio > 0) {
       const endYTDPrev = new Date(
         targetYear - 1,
@@ -674,9 +685,11 @@ export function useAnalyticsData({
       );
       ingresoAnioAnterior = sumMetric(ventasAnioAnteriorYTD);
       costoAnioAnterior = sumMetric(ventasAnioAnteriorYTD, getCostoLinea);
-      gastosAnioAnteriorComparativo =
-        (gastosAnioAnteriorFull || 0) *
-        (diasTranscurridosAnio / totalDiasAnio);
+      gastosAnioAnteriorComparativo = calcularGastosEnPeriodo(
+        gastosFijos,
+        prevYearStart,
+        endYTDPrev
+      ).total;
     }
     const gananciaAnioBrutaAnterior = ingresoAnioAnterior - costoAnioAnterior;
     const gananciaAnioNetaAnterior =
@@ -918,6 +931,27 @@ export function useAnalyticsData({
       true
     );
 
+    const desgloseGastosDia = desglosarGastosEnPeriodo(
+      gastosFijos,
+      diaInicio,
+      diaFin
+    );
+    const desgloseGastosSemana = desglosarGastosEnPeriodo(
+      gastosFijos,
+      thisWeekStart,
+      offsetSemanas === 0 ? endOfDay(hoy) : thisWeekEnd
+    );
+    const desgloseGastosMes = desglosarGastosEnPeriodo(
+      gastosFijos,
+      startOfMonth,
+      proyeccionAplicable ? endOfDay(hoy) : endOfMonth
+    );
+    const desgloseGastosAnio = desglosarGastosEnPeriodo(
+      gastosFijos,
+      startOfYear,
+      proyeccionAnioAplicable ? endOfDay(hoy) : endOfYear
+    );
+
     return {
       ingresoHoy,
       gananciaHoy,
@@ -961,6 +995,10 @@ export function useAnalyticsData({
       topProductosHoy,
       topRentablesHoy,
       clientesDelDia,
+      desgloseGastosDia,
+      desgloseGastosSemana,
+      desgloseGastosMes,
+      desgloseGastosAnio,
       ingresoSemanaActual,
       ingresoSemanaAnterior,
       costoSemanaActual,

@@ -63,6 +63,8 @@ export default function App() {
   const [ventasPedidoFlag, setVentasPedidoFlag] = useState(false);
   /** Filtro de fechas en Ventas (p. ej. desde Analytics) */
   const [ventasFiltroFecha, setVentasFiltroFecha] = useState(null);
+  /** Vista inicial en Analytics al navegar desde otra pantalla */
+  const [analyticsPendingVista, setAnalyticsPendingVista] = useState(null);
   const [stockOpenManual, setStockOpenManual] = useState(false);
   const [insumosCompraPreload, setInsumosCompraPreload] = useState(null);
   const [toast, setToast] = useState(null);
@@ -99,6 +101,17 @@ export default function App() {
   }, []);
 
   const clearVentasFiltroFecha = useCallback(() => setVentasFiltroFecha(null), []);
+
+  const handleAbrirAnalytics = useCallback((vista) => {
+    if (!vista) return;
+    setAnalyticsPendingVista(vista);
+    setTab("analytics");
+  }, []);
+
+  const clearAnalyticsPendingVista = useCallback(
+    () => setAnalyticsPendingVista(null),
+    []
+  );
 
   const normalizedRole = normalizeRole(role);
   const roleKey = normalizedRole ?? "__default__";
@@ -693,6 +706,9 @@ export default function App() {
         ventasFiltroFecha={ventasFiltroFecha}
         onClearVentasFiltroFecha={clearVentasFiltroFecha}
         onAbrirVentasPeriodo={handleAbrirVentasPeriodo}
+        analyticsPendingVista={analyticsPendingVista}
+        onClearAnalyticsPendingVista={clearAnalyticsPendingVista}
+        onAbrirAnalytics={handleAbrirAnalytics}
       />
       </AppDataProvider>
       <AppNav

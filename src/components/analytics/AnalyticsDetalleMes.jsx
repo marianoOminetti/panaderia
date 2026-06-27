@@ -4,6 +4,7 @@
 import { fmt } from "../../lib/format";
 import AnalyticsNavPeriodo from "./AnalyticsNavPeriodo";
 import AnalyticsResultadoPeriodo from "./AnalyticsResultadoPeriodo";
+import AnalyticsDesgloseGastos from "./AnalyticsDesgloseGastos";
 
 function arrow(dir) {
   if (dir === "up") return "↑";
@@ -297,6 +298,19 @@ export default function AnalyticsDetalleMes({
           </>
         )}
       </div>
+
+      <AnalyticsDesgloseGastos
+        titulo="Gastos del mes"
+        items={data.desgloseGastosMes || []}
+        total={data.economiaMes?.gastosNegocio}
+        hint={
+          data.proyeccionAplicable
+            ? `Prorrateados a ${data.diasTranscurridos} ${
+                data.diasTranscurridos === 1 ? "día" : "días"
+              } del mes`
+            : undefined
+        }
+      />
     </div>
   );
 }

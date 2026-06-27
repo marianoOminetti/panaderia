@@ -81,9 +81,117 @@ const endOfWeek = (start) => {
 const isBetween = (date, from, to) =>
   date && date.getTime() >= from.getTime() && date.getTime() <= to.getTime();
 
+const startOfDay = (date) =>
+  new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0, 0);
+
+/**
+ * Suma el prorrateo diario de gastos fijos vigentes en cada día del rango [desde, hasta].
+ * Permite contar gastos que empiezan o terminan a mitad de semana/mes/año.
+ */
+export function calcularGastosFijosEnRango(gastos, desde, hasta) {
+  const from = startOfDay(desde);
+  const to = startOfDay(hasta);
+  if (from.getTime() > to.getTime()) return 0;
+
+  let total = 0;
+  for (let d = new Date(from); d.getTime() <= to.getTime(); d.setDate(d.getDate() + 1)) {
+    total += calcularGastosFijosNormalizados(gastos, d).dia;
+  }
+  return total;
+}
+
+function sumarGastosVariablePuntualEnRango(gastos, desde, hasta) {
+  let total = 0;
+  for (const g of gastos || []) {
+    const tipo = (g.tipo || "fijo").toLowerCase();
+    if (tipo !== "variable" && tipo !== "puntual") continue;
+    const monto = Number(g.monto) || 0;
+    if (!monto) continue;
+    const fecha = parseFecha(g.fecha);
+    if (!fecha) continue;
+    if (isBetween(fecha, desde, hasta)) total += monto;
+  }
+  return total;
+}
+
+/**
+ * Gastos (fijos prorrateados día a día + variable/puntual) en un rango de fechas.
+ */
+export function calcularGastosEnPeriodo(gastos, desde, hasta) {
+  const fijos = calcularGastosFijosEnRango(gastos, desde, hasta);
+  const varPunt = sumarGastosVariablePuntualEnRango(gastos, desde, hasta);
+  return { fijos, varPunt, total: fijos + varPunt };
+}
+
+const FREQ_LABEL = { diario: "Diario", semanal: "Semanal", mensual: "Mensual" };
+const TIPO_LABEL = { fijo: "Fijo", variable: "Variable", puntual: "Puntual" };
+
+const formatFechaCorta = (val) => {
+  const d = parseFecha(val);
+  if (!d) return "";
+  return d.toLocaleDateString("es-AR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+};
+
+/**
+ * Desglose por ítem de gasto en un período (solo ítems con importe > 0).
+ * @returns {Array<{ id, nombre, tipo, tipoLabel, importe, detalle }>}
+ */
+export function desglosarGastosEnPeriodo(gastos, desde, hasta) {
+  const from = startOfDay(desde);
+  const to = startOfDay(hasta);
+  if (from.getTime() > to.getTime()) return [];
+
+  const rows = [];
+  for (const g of gastos || []) {
+    const tipo = (g.tipo || "fijo").toLowerCase();
+    const monto = Number(g.monto) || 0;
+    if (!monto) continue;
+
+    if (tipo === "fijo") {
+      let importe = 0;
+      let diasActivos = 0;
+      for (let d = new Date(from); d.getTime() <= to.getTime(); d.setDate(d.getDate() + 1)) {
+        if (!vigenteEnFecha(g, d)) continue;
+        importe += calcularGastosFijosNormalizados([g], d).dia;
+        diasActivos += 1;
+      }
+      if (importe <= 0) continue;
+      const freq = (g.frecuencia || "mensual").toLowerCase();
+      rows.push({
+        id: g.id,
+        nombre: g.nombre,
+        tipo,
+        tipoLabel: TIPO_LABEL.fijo,
+        importe,
+        detalle: `${FREQ_LABEL[freq] || freq} · ${diasActivos} ${
+          diasActivos === 1 ? "día" : "días"
+        }`,
+      });
+    } else if (tipo === "variable" || tipo === "puntual") {
+      const fecha = parseFecha(g.fecha);
+      if (!fecha || !isBetween(fecha, desde, hasta)) continue;
+      rows.push({
+        id: g.id,
+        nombre: g.nombre,
+        tipo,
+        tipoLabel: TIPO_LABEL[tipo] || tipo,
+        importe: monto,
+        detalle: formatFechaCorta(g.fecha),
+      });
+    }
+  }
+
+  rows.sort((a, b) => b.importe - a.importe);
+  return rows;
+}
+
 /**
  * Calcula gastos totales (fijo + variable + puntual) para dia, semana y mes.
- * Fijo: prorrateado por frecuencia.
+ * Fijo: prorrateado por frecuencia, día a día en semana/mes/año según vigencia.
  * Variable/puntual: monto completo si la fecha cae en el período.
  * @param {Array} gastos - Lista de gastos
  * @param {Date} [fechaRef=new Date()] - Fecha de referencia para semana/mes
@@ -91,8 +199,7 @@ const isBetween = (date, from, to) =>
  */
 export function calcularGastosTotales(gastos, fechaRef = new Date()) {
   const ref = fechaRef instanceof Date ? fechaRef : new Date(fechaRef);
-  const { dia: diaFijos, semana: semanaFijos } =
-    calcularGastosFijosNormalizados(gastos, ref);
+  const { dia: diaFijos } = calcularGastosFijosNormalizados(gastos, ref);
 
   const weekStart = startOfWeek(ref);
   const weekEnd = endOfWeek(weekStart);
@@ -109,11 +216,8 @@ export function calcularGastosTotales(gastos, fechaRef = new Date()) {
   const yearStart = new Date(ref.getFullYear(), 0, 1, 0, 0, 0, 0);
   const yearEnd = new Date(ref.getFullYear(), 11, 31, 23, 59, 59, 999);
 
-  let varPuntSemana = 0;
-  let varPuntMes = 0;
-  let varPuntAnio = 0;
+  const refDay = startOfDay(ref);
   let varPuntDia = 0;
-  const refDay = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate());
   for (const g of gastos || []) {
     const tipo = (g.tipo || "fijo").toLowerCase();
     if (tipo !== "variable" && tipo !== "puntual") continue;
@@ -121,29 +225,55 @@ export function calcularGastosTotales(gastos, fechaRef = new Date()) {
     if (!monto) continue;
     const fecha = parseFecha(g.fecha);
     if (!fecha) continue;
-    const fechaDay = new Date(
-      fecha.getFullYear(),
-      fecha.getMonth(),
-      fecha.getDate()
-    );
+    const fechaDay = startOfDay(fecha);
     if (fechaDay.getTime() === refDay.getTime()) varPuntDia += monto;
-    if (isBetween(fecha, weekStart, weekEnd)) varPuntSemana += monto;
-    if (isBetween(fecha, monthStart, monthEnd)) varPuntMes += monto;
-    if (isBetween(fecha, yearStart, yearEnd)) varPuntAnio += monto;
   }
 
-  const totalDiasMes = monthEnd.getDate();
-  const mesFijos = (diaFijos || 0) * totalDiasMes;
-  const isLeap =
-    (ref.getFullYear() % 4 === 0 && ref.getFullYear() % 100 !== 0) ||
-    ref.getFullYear() % 400 === 0;
-  const totalDiasAnio = isLeap ? 366 : 365;
-  const anioFijos = (diaFijos || 0) * totalDiasAnio;
+  const semanaFijos = calcularGastosFijosEnRango(gastos, weekStart, weekEnd);
+  const mesFijos = calcularGastosFijosEnRango(gastos, monthStart, monthEnd);
+  const anioFijos = calcularGastosFijosEnRango(gastos, yearStart, yearEnd);
+
+  const varPuntSemana = sumarGastosVariablePuntualEnRango(gastos, weekStart, weekEnd);
+  const varPuntMes = sumarGastosVariablePuntualEnRango(gastos, monthStart, monthEnd);
+  const varPuntAnio = sumarGastosVariablePuntualEnRango(gastos, yearStart, yearEnd);
+
+  const semanaAnteriorStart = new Date(weekStart);
+  semanaAnteriorStart.setDate(semanaAnteriorStart.getDate() - 7);
+  const semanaAnteriorEnd = new Date(weekEnd);
+  semanaAnteriorEnd.setDate(semanaAnteriorEnd.getDate() - 7);
+  const semanaAnterior = calcularGastosEnPeriodo(
+    gastos,
+    semanaAnteriorStart,
+    semanaAnteriorEnd
+  ).total;
 
   return {
     dia: (diaFijos || 0) + varPuntDia,
-    semana: (semanaFijos || 0) + varPuntSemana,
+    semana: semanaFijos + varPuntSemana,
     mes: mesFijos + varPuntMes,
     anio: anioFijos + varPuntAnio,
+    desglose: {
+      semanaFijos,
+      semanaExtras: varPuntSemana,
+      mesFijos,
+      mesExtras: varPuntMes,
+      semanaAnterior,
+    },
   };
+}
+
+/** Límites lun–dom de la semana que contiene fechaRef. */
+export function getSemanaActualBounds(fechaRef = new Date()) {
+  const ref = fechaRef instanceof Date ? fechaRef : new Date(fechaRef);
+  const weekStart = startOfWeek(ref);
+  return { weekStart, weekEnd: endOfWeek(weekStart) };
+}
+
+/** true si la fecha del gasto variable/puntual cae en [weekStart, weekEnd]. */
+export function gastoEnSemana(g, weekStart, weekEnd) {
+  const tipo = (g.tipo || "fijo").toLowerCase();
+  if (tipo !== "variable" && tipo !== "puntual") return false;
+  const fecha = parseFecha(g.fecha);
+  if (!fecha) return false;
+  return isBetween(fecha, weekStart, weekEnd);
 }

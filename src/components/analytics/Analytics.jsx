@@ -20,6 +20,8 @@ function Analytics({
   ventasSyncing = false,
   ventasHistoricasLoaded = true,
   onAbrirVentasPeriodo,
+  analyticsPendingVista,
+  onClearAnalyticsPendingVista,
 }) {
   const cargandoHistorico = ventasSyncing && !ventasHistoricasLoaded;
   const [vista, setVista] = useState("resumen");
@@ -32,6 +34,21 @@ function Analytics({
   useEffect(() => {
     setDrill(null);
   }, [vista, offsetSemana, offsetMes, offsetAnio]);
+
+  useEffect(() => {
+    if (!analyticsPendingVista) return;
+    if (analyticsPendingVista === "detalle-semana") {
+      setOffsetSemana(0);
+      setVista("detalle-semana");
+    } else if (analyticsPendingVista === "detalle-mes") {
+      setOffsetMes(0);
+      setVista("detalle-mes");
+    } else if (analyticsPendingVista === "detalle-hoy") {
+      setOffsetDia(0);
+      setVista("detalle-hoy");
+    }
+    onClearAnalyticsPendingVista?.();
+  }, [analyticsPendingVista, onClearAnalyticsPendingVista]);
 
   const data = useAnalyticsData({
     ventas,
