@@ -309,7 +309,6 @@ export default function GastosFijos({
   const formState = useGastosFijosForm({ showToast, saveGastoFijo });
 
   const ahora = new Date();
-  const hoy = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate());
   const { weekStart, weekEnd } = getSemanaActualBounds(ahora);
   const weekKey = weekStart.toISOString().slice(0, 10);
 
@@ -321,16 +320,16 @@ export default function GastosFijos({
     [gastos, ordenMonto]
   );
 
-  const gastosVigentes = useMemo(
-    () =>
-      gastosOrdenados.filter((g) => {
-        if (!g.fecha_fin_vigencia) return true;
-        const fin = new Date(g.fecha_fin_vigencia);
-        if (Number.isNaN(fin.getTime())) return true;
-        return fin.getTime() > hoy.getTime();
-      }),
-    [gastosOrdenados, hoy]
-  );
+  const gastosVigentes = useMemo(() => {
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+    return gastosOrdenados.filter((g) => {
+      if (!g.fecha_fin_vigencia) return true;
+      const fin = new Date(g.fecha_fin_vigencia);
+      if (Number.isNaN(fin.getTime())) return true;
+      return fin.getTime() > hoy.getTime();
+    });
+  }, [gastosOrdenados]);
 
   const gastosHistoricos = useMemo(
     () => gastosOrdenados.filter((g) => !gastosVigentes.includes(g)),
