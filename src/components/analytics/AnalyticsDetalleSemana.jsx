@@ -4,6 +4,7 @@
 import { fmt, pctFmt } from "../../lib/format";
 import AnalyticsNavPeriodo from "./AnalyticsNavPeriodo";
 import AnalyticsResultadoPeriodo from "./AnalyticsResultadoPeriodo";
+import AnalyticsDesgloseGastos from "./AnalyticsDesgloseGastos";
 
 const DIAS_SEMANA = ["L", "M", "X", "J", "V", "S", "D"];
 
@@ -309,6 +310,19 @@ export default function AnalyticsDetalleSemana({
           </div>
         </div>
       )}
+
+      <AnalyticsDesgloseGastos
+        titulo="Gastos de la semana"
+        items={data.desgloseGastosSemana || []}
+        total={data.economiaSemanaActual?.gastosNegocio}
+        hint={
+          offsetSemana === 0 && (data.diasTranscurridosSemana || 0) < 7
+            ? `Prorrateados a ${data.diasTranscurridosSemana} ${
+                data.diasTranscurridosSemana === 1 ? "día" : "días"
+              } de la semana`
+            : undefined
+        }
+      />
     </div>
   );
 }

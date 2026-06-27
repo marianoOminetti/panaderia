@@ -342,6 +342,10 @@ export default function GastosFijos({ gastos, onRefresh, appendGasto, updateGast
                       formState.setForm((f) => ({ ...f, fechaFinVigencia: v }))
                     }
                   />
+                  <p className="analytics-kpi-sub" style={{ marginTop: 4 }}>
+                    Desde esa fecha deja de contarse en Gastos y Analytics (el
+                    último día que cuenta es el anterior).
+                  </p>
                 </div>
               </div>
             )}

@@ -4,6 +4,7 @@
 import { fmt } from "../../lib/format";
 import AnalyticsNavPeriodo from "./AnalyticsNavPeriodo";
 import AnalyticsResultadoPeriodo from "./AnalyticsResultadoPeriodo";
+import AnalyticsDesgloseGastos from "./AnalyticsDesgloseGastos";
 
 function arrow(dir) {
   if (dir === "up") return "↑";
@@ -332,6 +333,19 @@ export default function AnalyticsDetalleAnio({
           </>
         )}
       </div>
+
+      <AnalyticsDesgloseGastos
+        titulo="Gastos del año"
+        items={data.desgloseGastosAnio || []}
+        total={data.economiaAnio?.gastosNegocio}
+        hint={
+          data.proyeccionAnioAplicable
+            ? `Prorrateados a ${data.diasTranscurridosAnio} ${
+                data.diasTranscurridosAnio === 1 ? "día" : "días"
+              } del año`
+            : undefined
+        }
+      />
     </div>
   );
 }
