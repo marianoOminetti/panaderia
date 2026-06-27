@@ -119,6 +119,9 @@ export default function AppContent({
   ventasFiltroFecha,
   onClearVentasFiltroFecha,
   onAbrirVentasPeriodo,
+  analyticsPendingVista,
+  onClearAnalyticsPendingVista,
+  onAbrirAnalytics,
 }) {
   const hasCatalogData = Array.isArray(recetas) && recetas.length > 0;
   if (loading && !hasCatalogData) {
@@ -189,6 +192,8 @@ export default function AppContent({
           ventasSyncing={ventasSyncing}
           ventasHistoricasLoaded={ventasHistoricasLoaded}
           onAbrirVentasPeriodo={onAbrirVentasPeriodo}
+          analyticsPendingVista={analyticsPendingVista}
+          onClearAnalyticsPendingVista={onClearAnalyticsPendingVista}
         />
         </LazyTab>
       )}
@@ -395,6 +400,7 @@ export default function AppContent({
           updateGastoInState={updateGastoInState}
           removeGasto={removeGasto}
           showToast={showToast}
+          onAbrirAnalytics={onAbrirAnalytics}
         />
         </LazyTab>
       )}

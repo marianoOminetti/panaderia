@@ -152,6 +152,53 @@ El cliente puede armar el combo a mano producto por producto; el descuento apare
 
 ---
 
+## PATRÓN — Gastos (lista)
+
+**Archivo:** `src/components/gastos/GastosFijos.jsx`
+
+### Estructura vertical (orden fijo)
+1. `page-title` / `page-subtitle`
+2. Card **Resumen** — grid `receta-stats` (Diario · Esta semana · Este mes); tap en semana/mes → Analytics
+3. Card **Checklist de cierre** (opcional, persistido en localStorage por semana)
+4. `search-bar` — "Buscar gasto..."
+5. `cat-tabs` — Todos | Fijo | Variable | Puntual
+6. Toolbar — "Facturas de la semana" · toggle orden monto/tipo
+7. Card **Lista de gastos** — filas + acordeón históricos
+8. FAB `fab fab-receta` — "+ Nuevo gasto" (único CTA de alta)
+
+### Card Resumen
+- Una sola card con `receta-stats` (3 columnas), valores `--purple-dark` vía `receta-stat-value`
+- Subtítulo `analytics-kpi-sub`: desglose fijos vs extras de la semana
+- KPI semanal/mensual clickeable si hay `onAbrirAnalytics`
+
+### Filas de gasto — `insumo-item`
+- `insumo-dot` con `TIPO_COLORS`: fijo púrpura, variable ámbar, puntual verde-muted
+- Nombre + badge "Vence pronto" si fin vigencia ≤ 30 días
+- Detalle: `chip` tipo + frecuencia/fecha (sin monto en detalle)
+- `insumo-precio-value` a la derecha
+- Tap en fila → modal editar (`role="button"`, `tabIndex={0}`)
+- Históricos: clase `gasto-item--historico` (opacity 0.7)
+
+### Agrupación
+- Con filtro "Todos" y orden por tipo: secciones con `insights-section-title` + subtotal semanal
+- Orden: fijo → variable → puntual
+
+### Históricos
+- Acordeón al pie del mismo card (`analytics-drill-accordion-btn`), cerrado por defecto
+- Sin botón Eliminar en fila histórica
+
+### Modal editar
+- `btn-primary` Guardar · `btn-secondary` Duplicar (solo edición) · `btn-danger` Eliminar → overlay delete existente
+- Eliminar **no** usa `confirm()` simple — mantiene modos solo-futuro / histórico
+
+### Estados vacíos
+| Caso | Icono | Mensaje |
+|------|-------|---------|
+| Sin gastos | 💸 | "No configuraste gastos todavía." + hint FAB |
+| Filtro vacío | 🔍 | "Sin resultados" |
+
+---
+
 ## Deuda visual
 - `UI_PATTERNS.md` v1.1 no documentaba venta manual ni carrito; corregido en v1.2.
 - Selector de combos: pendiente de implementación (patrón definido arriba).

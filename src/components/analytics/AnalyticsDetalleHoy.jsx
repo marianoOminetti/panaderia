@@ -6,6 +6,7 @@ import { useState, useMemo, useEffect } from "react";
 import { fmt } from "../../lib/format";
 import AnalyticsNavPeriodo from "./AnalyticsNavPeriodo";
 import AnalyticsResultadoPeriodo from "./AnalyticsResultadoPeriodo";
+import AnalyticsDesgloseGastos from "./AnalyticsDesgloseGastos";
 import Pagination from "../ui/Pagination";
 
 const PAGE_SIZE = 10;
@@ -250,6 +251,12 @@ export default function AnalyticsDetalleHoy({
           </>
         )}
       </div>
+
+      <AnalyticsDesgloseGastos
+        titulo="Gastos del día"
+        items={data.desgloseGastosDia || []}
+        total={data.economiaHoy?.gastosNegocio}
+      />
     </div>
   );
 }
