@@ -398,6 +398,30 @@ function insightTodoNormal(ventas, hoy = new Date()) {
 }
 
 /**
+ * Solo insights de stock (sin stock, agotándose). Para rol venta en pantalla Stock.
+ * @returns {{ all: Array, hasUrgent: boolean }}
+ */
+export function buildStockInsights({
+  ventas,
+  recetas,
+  stock,
+  hoy = new Date(),
+}) {
+  const candidatos = [
+    ...insightSinStock(recetas, stock),
+    ...insightStockAgotandose(ventas, recetas, stock),
+  ];
+
+  const all = candidatos.slice().sort((a, b) => {
+    const sev = SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity];
+    if (sev !== 0) return sev;
+    return (b.score || 0) - (a.score || 0);
+  });
+
+  return { all, hasUrgent: all.some((i) => i.severity === "urgent") };
+}
+
+/**
  * @returns {{ all: Array, top: Array, hasUrgent: boolean }}
  */
 export function buildInsights({

@@ -3,18 +3,13 @@
  * Mantiene ejecutarCargaStock aquí; métricas y prioridades se calculan en el componente.
  */
 import { useState, useRef, useEffect, useCallback } from "react";
-import {
-  METRICAS_VENTANA_DIAS,
-  DIAS_ALERTA_ROJA,
-} from "../../config/appConfig";
-import { calcularMetricasVentasYStock } from "../../lib/metrics";
-import {
-  computePedidosPendientesSemana,
-  computePrioridadesProduccion,
-} from "../../lib/stockMetrics";
+import { DIAS_ALERTA_ROJA } from "../../config/appConfig";
 import { getInsumosEnCeroParaRecetas } from "../../lib/stockPlan";
 import { ejecutarCargaStock } from "../../lib/ejecutarCargaStock";
 import { useStockCart } from "../../hooks/useStockCart";
+import { useStockScreenMetrics } from "../../hooks/useStockScreenMetrics";
+import { useStockInsights } from "../../hooks/useStockInsights";
+import InsightsList from "../insights/InsightsList";
 import StockList from "./StockList";
 import StockProductionModal from "./StockProductionModal";
 import StockAdjustModal from "./StockAdjustModal";
@@ -38,6 +33,9 @@ function Stock({
   onConsumedPreloadReceta,
   stockOpenManual,
   onConsumedStockOpenManual,
+  showStockInsights = false,
+  onStockQuickEdit,
+  allowInsumosCompraNav = true,
 }) {
   const [manualSaving, setManualSaving] = useState(false);
   const [manualScreenOpen, setManualScreenOpen] = useState(false);
@@ -94,35 +92,35 @@ function Stock({
     onConsumedStockOpenManual?.();
   }, [stockOpenManual]); // eslint-disable-line react-hooks/exhaustive-deps -- onConsumedStockOpenManual estable desde App
 
-  const metricasStock = calcularMetricasVentasYStock(
-    recetas,
-    ventas || [],
-    stock,
-    METRICAS_VENTANA_DIAS
-  );
-  const pedidosPendientesSemana = computePedidosPendientesSemana(pedidos);
-  const recetasOrdenadasPorStock = [...recetas].slice().sort((a, b) => {
-    const sa = (stock || {})[a.id] ?? 0;
-    const sb = (stock || {})[b.id] ?? 0;
-    if (sa !== sb) return sa - sb;
-    return (a.nombre || "").localeCompare(b.nombre || "", "es", {
-      sensitivity: "base",
-    });
-  });
-  const prioridadesProduccion = computePrioridadesProduccion(
-    recetas,
-    stock,
+  const {
     metricasStock,
-    pedidosPendientesSemana
-  );
+    pedidosPendientesSemana,
+    recetasOrdenadasPorStock,
+    prioridadesProduccion,
+    sinStockCount,
+    bajo2Count,
+  } = useStockScreenMetrics({ recetas, stock, ventas, pedidos });
 
-  const sinStockCount = recetas.filter(
-    (r) => ((stock || {})[r.id] ?? 0) <= 0
-  ).length;
-  const bajo2Count = recetas.filter((r) => {
-    const m = metricasStock[r.id];
-    return m && m.diasRestantes != null && m.diasRestantes < DIAS_ALERTA_ROJA;
-  }).length;
+  const stockInsights = useStockInsights({
+    enabled: showStockInsights,
+    ventas,
+    recetas,
+    stock,
+  });
+
+  const handleInsightStockAction = useCallback(
+    (recetaId, { cantidad = 1 } = {}) => {
+      if (onStockQuickEdit) {
+        onStockQuickEdit(recetaId, { cantidad });
+        return;
+      }
+      const r = (recetas || []).find((x) => x.id === recetaId);
+      if (!r?.id) return;
+      addToStockCart(r, cantidad);
+      setManualScreenOpen(true);
+    },
+    [recetas, addToStockCart, onStockQuickEdit],
+  );
 
   const cargarStockCarrito = async () => {
     if (!stockCart.length) {
@@ -190,7 +188,21 @@ function Stock({
         </div>
       </div>
 
-      {sinStockCount > 0 && (
+      {showStockInsights && stockInsights.all.length > 0 && (
+        <div className="insights-panel" style={{ marginBottom: 12 }}>
+          <p className="page-subtitle" style={{ margin: "0 0 10px" }}>
+            Insights de stock · {stockInsights.all.length}{" "}
+            {stockInsights.all.length === 1 ? "alerta" : "alertas"}
+          </p>
+          <InsightsList
+            items={stockInsights.all}
+            onStockQuickEdit={handleInsightStockAction}
+            grouped
+          />
+        </div>
+      )}
+
+      {!showStockInsights && sinStockCount > 0 && (
         <div className="card dashboard-alert" style={{ marginBottom: 12 }}>
           <div className="card-header">
             <span className="card-title">⚠️ Stock bajo</span>
@@ -285,10 +297,17 @@ function Stock({
                   marginBottom: 8,
                 }}
               >
-                Al cargar esta producción, algunos insumos quedaron en 0. Si los
-                compraste, registralos en{" "}
-                <strong>Insumos → Registrar compra de stock</strong> para que
-                el stock y los costos queden al día.
+                Al cargar esta producción, algunos insumos quedaron en 0.
+                {allowInsumosCompraNav ? (
+                  <>
+                    {" "}
+                    Si los compraste, registralos en{" "}
+                    <strong>Insumos → Registrar compra de stock</strong> para que
+                    el stock y los costos queden al día.
+                  </>
+                ) : (
+                  " Avisá a quien administra insumos para que los registre."
+                )}
               </p>
             </div>
             <div className="card" style={{ marginBottom: 16 }}>
@@ -319,20 +338,22 @@ function Stock({
               ))}
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {allowInsumosCompraNav && (
+                <button
+                  className="btn-primary"
+                  onClick={() => {
+                    setInsumosEnCeroAviso(null);
+                    onOpenInsumosCompra?.(insumosEnCeroAviso);
+                  }}
+                >
+                  Cargar insumos
+                </button>
+              )}
               <button
-                className="btn-primary"
-                onClick={() => {
-                  setInsumosEnCeroAviso(null);
-                  onOpenInsumosCompra?.(insumosEnCeroAviso);
-                }}
-              >
-                Cargar insumos
-              </button>
-              <button
-                className="btn-secondary"
+                className={allowInsumosCompraNav ? "btn-secondary" : "btn-primary"}
                 onClick={() => setInsumosEnCeroAviso(null)}
               >
-                Lo veo después
+                {allowInsumosCompraNav ? "Lo veo después" : "Entendido"}
               </button>
             </div>
           </div>
