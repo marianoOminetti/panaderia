@@ -2,7 +2,11 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { fmt } from "../lib/format";
 import { getPlanSemanaInicioISO } from "../lib/dates";
 import { calcularRequerimientoInsumosParaItems, getItemsExplotados } from "../lib/stockPlan";
-import { calcularMasasDesdeProductos, evaluarCoberturaMasas } from "../lib/planMasa";
+import {
+  calcularMasasNecesarias,
+  clasificarMasasCalculadas,
+  evaluarCoberturaMasas,
+} from "../lib/planMasa";
 import {
   crearPorDiaVacios, parsePorDiaFromRow, porDiaToJson, sumPorDia,
   cartItemsDesdePlanRows, comparacionPlanVsVentas, getSemanaAnteriorInicioISO,
@@ -153,17 +157,56 @@ export function usePlanSemanalScreen({
   const masasCalculadas = useMemo(() => {
     const productos = cartPlanItems.filter((it) => !it.receta.es_precursora);
     if (!productos.length) return [];
-    return calcularMasasDesdeProductos(productos, recetaIngredientes, recetas);
+    return calcularMasasNecesarias(productos, recetaIngredientes, recetas);
   }, [cartPlanItems, recetaIngredientes, recetas]);
+
+  const masasCalculadasClasificadas = useMemo(
+    () => clasificarMasasCalculadas(masasCalculadas, recetaIngredientes),
+    [masasCalculadas, recetaIngredientes],
+  );
+
+  const coberturaMasas = useMemo(
+    () => evaluarCoberturaMasas(cartPlanItems, recetaIngredientes, recetas),
+    [cartPlanItems, recetaIngredientes, recetas],
+  );
+
+  const recetasIncompletas = useMemo(
+    () => coberturaMasas.recetasIncompletas,
+    [coberturaMasas],
+  );
+
+  const completarMasasFaltantes = useCallback(() => {
+    const { alertas } = coberturaMasas;
+    if (!alertas?.length) return;
+    setCartPlanItems((prev) => {
+      const copy = [...prev];
+      for (const a of alertas) {
+        const faltante = a.faltanteLotes ?? 0;
+        if (faltante <= 0) continue;
+        const idx = copy.findIndex((it) => it.receta.id === a.receta.id);
+        if (idx >= 0) {
+          const nextQty = copy[idx].cantidad + faltante;
+          copy[idx] = {
+            ...copy[idx],
+            cantidad: nextQty,
+            porDia: distribuirUniforme(nextQty),
+          };
+        } else {
+          copy.push({
+            receta: a.receta,
+            cantidad: faltante,
+            porDia: distribuirUniforme(faltante),
+          });
+        }
+      }
+      return copy;
+    });
+    showToast("Masas faltantes agregadas al plan. Revisá y guardá.");
+  }, [coberturaMasas, showToast]);
 
   const masasPlanificadas = useMemo(
     () => cartPlanItems.filter((it) => it.receta?.es_precursora),
     [cartPlanItems],
-  );
-
-  const recetasIncompletas = useMemo(
-    () => evaluarCoberturaMasas(cartPlanItems, recetaIngredientes, recetas).recetasIncompletas,
-    [cartPlanItems, recetaIngredientes, recetas],
   );
 
   const guardarPlan = useCallback(async () => {
@@ -329,7 +372,8 @@ export function usePlanSemanalScreen({
   return {
     weekStart, planRows, cartPlanItems, loading, saving,
     addToPlanCart, addToPlanOnDay, updatePlanCartItem, removeFromPlanCart, guardarPlan, handleProducir,
-    copiarPlanSemanaAnterior, masasCalculadas, masasPlanificadas, recetasIncompletas, comparacionVentas,
+    copiarPlanSemanaAnterior, masasCalculadas, masasCalculadasClasificadas, masasPlanificadas,
+    coberturaMasas, completarMasasFaltantes, recetasIncompletas, comparacionVentas,
     hasCambiosSinGuardar,
     semanaTitulo, cambiarSemana, totalPlanificadas, totalCompra, totalVentasSemanaAnterior,
     insumosCompra, buildWhatsAppText,
