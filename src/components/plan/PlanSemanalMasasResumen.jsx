@@ -1,11 +1,59 @@
 import { useState } from "react";
+import { etiquetaCantidadMasaPlan } from "../../lib/planMasa";
+import { getMasaBasePadreId } from "../../lib/recetaTipo";
 import { DIAS_INICIAL } from "../../lib/planSugerencias";
 
-export default function PlanSemanalMasasResumen({ masasPlanificadas, masasCalculadas }) {
+function MasasLista({ titulo, items, recetas, recetaIngredientes, className = "" }) {
+  if (!items?.length) return null;
+  return (
+    <>
+      <p className="plan-section-label" style={{ marginTop: titulo ? 8 : 0 }}>
+        {titulo}
+      </p>
+      {items.map(({ receta, cantidad, porDia }) => {
+        const padreId = getMasaBasePadreId(receta.id, recetaIngredientes);
+        const padre = padreId ? (recetas || []).find((r) => String(r.id) === String(padreId)) : null;
+        return (
+          <div key={receta.id} className={`plan-masas-resumen-item ${className}`.trim()}>
+            <span>
+              {receta.emoji} <strong>{receta.nombre}</strong>
+              {padre && (
+                <span className="plan-hint"> ← {padre.nombre}</span>
+              )}
+            </span>
+            <span className="plan-masas-resumen-qty">
+              {etiquetaCantidadMasaPlan(receta, cantidad)}
+              {porDia?.some((n) => n > 0) && (
+                <span className="plan-hint">
+                  {" "}
+                  ({porDia
+                    .map((n, i) => (n > 0 ? `${DIAS_INICIAL[i]}:${etiquetaCantidadMasaPlan(receta, n)}` : null))
+                    .filter(Boolean)
+                    .join(" · ")})
+                </span>
+              )}
+            </span>
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
+export default function PlanSemanalMasasResumen({
+  masasPlanificadas,
+  masasCalculadas,
+  masasCalculadasClasificadas,
+  recetas,
+  recetaIngredientes,
+}) {
   const [abierto, setAbierto] = useState(false);
   const hayPlan = masasPlanificadas?.length > 0;
   const hayCalc = masasCalculadas?.length > 0;
   if (!hayPlan && !hayCalc) return null;
+
+  const { base: calcBase, porcionadas: calcPorcionadas } =
+    masasCalculadasClasificadas || { base: masasCalculadas, porcionadas: [] };
 
   return (
     <div className="plan-masas-resumen">
@@ -28,10 +76,14 @@ export default function PlanSemanalMasasResumen({ masasPlanificadas, masasCalcul
                 <div key={receta.id} className="plan-masas-resumen-item">
                   <span>{receta.emoji} <strong>{receta.nombre}</strong></span>
                   <span className="plan-masas-resumen-qty">
-                    {cantidad} {receta.unidad_rinde || "u"} en la semana
+                    {etiquetaCantidadMasaPlan(receta, cantidad)} en la semana
                     {porDia?.some((n) => n > 0) && (
                       <span className="plan-hint">
-                        {" "}({porDia.map((n, i) => (n > 0 ? `${DIAS_INICIAL[i]}:${n}` : null)).filter(Boolean).join(" · ")})
+                        {" "}
+                        ({porDia
+                          .map((n, i) => (n > 0 ? `${DIAS_INICIAL[i]}:${etiquetaCantidadMasaPlan(receta, n)}` : null))
+                          .filter(Boolean)
+                          .join(" · ")})
                       </span>
                     )}
                   </span>
@@ -41,15 +93,20 @@ export default function PlanSemanalMasasResumen({ masasPlanificadas, masasCalcul
           )}
           {hayCalc && (
             <>
-              <p className="plan-section-label" style={{ marginTop: hayPlan ? 12 : 0 }}>
-                Necesarias según productos
-              </p>
-              {masasCalculadas.map(({ receta, cantidad }) => (
-                <div key={`calc-${receta.id}`} className="plan-masas-resumen-item plan-masas-resumen-item--calc">
-                  <span>{receta.emoji} {receta.nombre}</span>
-                  <span className="plan-masas-resumen-qty">{cantidad} {receta.unidad_rinde || "u"}</span>
-                </div>
-              ))}
+              <MasasLista
+                titulo="Necesarias · masas base"
+                items={calcBase}
+                recetas={recetas}
+                recetaIngredientes={recetaIngredientes}
+                className="plan-masas-resumen-item--calc"
+              />
+              <MasasLista
+                titulo="Necesarias · masas porcionadas"
+                items={calcPorcionadas}
+                recetas={recetas}
+                recetaIngredientes={recetaIngredientes}
+                className="plan-masas-resumen-item--calc"
+              />
             </>
           )}
         </div>

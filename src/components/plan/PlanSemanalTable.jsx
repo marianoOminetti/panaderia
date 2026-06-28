@@ -1,16 +1,21 @@
 import PlanSemanalVistaDia from "./PlanSemanalVistaDia";
 import PlanSemanalAlertasRecetas from "./PlanSemanalAlertasRecetas";
+import PlanSemanalAlertasMasas from "./PlanSemanalAlertasMasas";
 import PlanSemanalComparacionVentas from "./PlanSemanalComparacionVentas";
 import PlanSemanalMasasResumen from "./PlanSemanalMasasResumen";
 
 function PlanSemanalTable({
   recetas,
+  recetaIngredientes,
   weekStart,
   semanaTitulo,
   cambiarSemana,
   cartPlanItems,
   masasCalculadas,
+  masasCalculadasClasificadas,
   masasPlanificadas,
+  coberturaMasas,
+  completarMasasFaltantes,
   recetasIncompletas,
   comparacionVentas,
   loading,
@@ -82,12 +87,18 @@ function PlanSemanalTable({
       </div>
 
       <PlanSemanalAlertasRecetas recetasIncompletas={recetasIncompletas} />
+      <PlanSemanalAlertasMasas
+        coberturaMasas={coberturaMasas}
+        onCompletarMasas={completarMasasFaltantes}
+        saving={saving}
+      />
       <PlanSemanalComparacionVentas comparacionVentas={comparacionVentas} />
 
       <PlanSemanalVistaDia
         weekStart={weekStart}
         cartPlanItems={cartPlanItems}
         recetas={recetas}
+        recetaIngredientes={recetaIngredientes}
         saving={saving}
         addToPlanOnDay={addToPlanOnDay}
         updatePlanCartItem={updatePlanCartItem}
@@ -97,6 +108,9 @@ function PlanSemanalTable({
       <PlanSemanalMasasResumen
         masasPlanificadas={masasPlanificadas}
         masasCalculadas={masasCalculadas}
+        masasCalculadasClasificadas={masasCalculadasClasificadas}
+        recetas={recetas}
+        recetaIngredientes={recetaIngredientes}
       />
 
       <div className="plan-footer">

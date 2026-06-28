@@ -1,5 +1,6 @@
 import { DIAS_LARGO, fechaDiaSemanaLabel } from "./planSugerencias";
 import { fmt } from "./format";
+import { formatCantidadMasaPlan } from "./planMasa";
 
 function sortPlanItems(items) {
   return [...items].sort((a, b) => {
@@ -13,13 +14,17 @@ function sortPlanItems(items) {
 export function planItemsForDay(cartPlanItems, diaIdx) {
   return sortPlanItems(
     (cartPlanItems || []).filter((it) => (it.porDia?.[diaIdx] || 0) > 0),
-  ).map((it) => ({
-    emoji: it.receta.emoji || "🍞",
-    nombre: it.receta.nombre,
-    qty: it.porDia[diaIdx] || 0,
-    unidad: it.receta.unidad_rinde || "u",
-    tipo: it.receta.es_precursora ? "Masa" : "Producto",
-  }));
+  ).map((it) => {
+    const qtyLotes = it.porDia[diaIdx] || 0;
+    const fmt = formatCantidadMasaPlan(it.receta, qtyLotes);
+    return {
+      emoji: it.receta.emoji || "🍞",
+      nombre: it.receta.nombre,
+      qty: fmt.valor,
+      unidad: fmt.unidad,
+      tipo: it.receta.es_precursora ? "Masa" : "Producto",
+    };
+  });
 }
 
 export function planDaysForWeek(cartPlanItems, weekStart) {
