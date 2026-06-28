@@ -1,33 +1,12 @@
-const parseFecha = (val) => {
-  if (!val) return null;
-  if (val instanceof Date && !Number.isNaN(val.getTime())) return val;
-  const str = String(val);
-  const parts = str.split("T")[0].split("-");
-  if (parts.length === 3) {
-    const [y, m, day] = parts.map((x) => parseInt(x, 10));
-    if (!Number.isNaN(y) && !Number.isNaN(m) && !Number.isNaN(day)) {
-      return new Date(y, m - 1, day);
-    }
-  }
-  const dt = new Date(str);
-  return Number.isNaN(dt.getTime()) ? null : dt;
-};
-
-/**
- * Indica si un gasto fijo estaba vigente en la fecha dada (para cálculos por período).
- * Usa fecha_inicio_vigencia y fecha_fin_vigencia. Si no existen, se considera vigente.
- * Fin de vigencia es exclusivo: si fin = dia, el gasto ya no cuenta ese día (alineado con "Lista de gastos pasados").
- */
-function vigenteEnFecha(g, fechaRef) {
-  const d =
-    fechaRef instanceof Date ? fechaRef : new Date(fechaRef);
-  const dia = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
-  const inicio = parseFecha(g.fecha_inicio_vigencia);
-  const fin = parseFecha(g.fecha_fin_vigencia);
-  if (inicio && inicio.getTime() > dia.getTime()) return false;
-  if (fin && fin.getTime() <= dia.getTime()) return false;
-  return true;
-}
+import {
+  endOfWeek,
+  formatFechaCorta,
+  isBetween,
+  parseFecha,
+  startOfDay,
+  startOfWeek,
+  vigenteEnFecha,
+} from "./gastosFijosDates";
 
 /**
  * Normaliza gastos fijos a valores diarios y semanales.
@@ -61,28 +40,6 @@ export function calcularGastosFijosNormalizados(gastos, fechaRef) {
   }
   return { dia, semana };
 }
-
-const startOfWeek = (date) => {
-  const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  const day = d.getDay();
-  const diff = (day === 0 ? -6 : 1) - day;
-  d.setDate(d.getDate() + diff);
-  d.setHours(0, 0, 0, 0);
-  return d;
-};
-
-const endOfWeek = (start) => {
-  const d = new Date(start);
-  d.setDate(d.getDate() + 6);
-  d.setHours(23, 59, 59, 999);
-  return d;
-};
-
-const isBetween = (date, from, to) =>
-  date && date.getTime() >= from.getTime() && date.getTime() <= to.getTime();
-
-const startOfDay = (date) =>
-  new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0, 0);
 
 /**
  * Suma el prorrateo diario de gastos fijos vigentes en cada día del rango [desde, hasta].
@@ -125,16 +82,6 @@ export function calcularGastosEnPeriodo(gastos, desde, hasta) {
 
 const FREQ_LABEL = { diario: "Diario", semanal: "Semanal", mensual: "Mensual" };
 const TIPO_LABEL = { fijo: "Fijo", variable: "Variable", puntual: "Puntual" };
-
-const formatFechaCorta = (val) => {
-  const d = parseFecha(val);
-  if (!d) return "";
-  return d.toLocaleDateString("es-AR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
-};
 
 /**
  * Desglose por ítem de gasto en un período (solo ítems con importe > 0).
