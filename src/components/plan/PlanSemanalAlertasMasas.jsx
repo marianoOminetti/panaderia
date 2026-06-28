@@ -24,11 +24,11 @@ export default function PlanSemanalAlertasMasas({
                 </span>
                 <span className="plan-masas-alerta-numeros">
                   {a.sinPlanificar ? (
-                    <>Necesitás {a.necesarioLabel} · no planificada</>
+                    <>Necesitás {a.necesarioTotal} {a.unidad} · no planificada</>
                   ) : (
                     <>
-                      Planificaste {a.planificadoLabel}, necesitás {a.necesarioLabel}{" "}
-                      → <strong>faltan {a.faltanteLabel}</strong>
+                      Planificaste {a.planificadoTotal} {a.unidad}, necesitás {a.necesarioTotal}{" "}
+                      {a.unidad} → <strong>faltan {a.faltanteTotal} {a.unidad}</strong>
                     </>
                   )}
                 </span>
