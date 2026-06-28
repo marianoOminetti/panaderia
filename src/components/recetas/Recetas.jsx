@@ -1,27 +1,13 @@
 /**
- * Pantalla Recetas: tabs Masas/Productos, familias, búsqueda y asistentes de masa.
+ * Pantalla Recetas: lista filtrable, modal nueva/editar (useRecetasForm + RecetaModal).
+ * useRecetas para persistencia; filterRecetasIds para deep link desde Insumos (recetas afectadas).
  */
-import { useState, useMemo, useCallback } from "react";
-import { pctFmt, parseDecimal } from "../../lib/format";
+import { fmt, pctFmt, parseDecimal } from "../../lib/format";
 import { costoReceta, costoDesdeIngredientes } from "../../lib/costos";
-import { costosParaRecetaYCadena } from "../../lib/recetaCostoCascade";
 import { runOptimisticAction } from "../../lib/runOptimisticAction";
 import { useRecetas } from "../../hooks/useRecetas";
 import { useRecetasForm } from "../../hooks/useRecetasForm";
-import { useFilterBySearch } from "../../hooks/useFilterBySearch";
-import {
-  getTipoReceta,
-  TIPO_RECETA,
-  collectFamilias,
-  groupProductosPorFamilia,
-} from "../../lib/recetaTipo";
-import ProductSearchInput from "../ui/ProductSearchInput";
 import RecetaModal from "./RecetaModal";
-import RecetasCard from "./RecetasCard";
-
-const TAB_TODAS = "todas";
-const TAB_MASAS = "masas";
-const TAB_PRODUCTOS = "productos";
 
 export default function Recetas({
   recetas,
@@ -36,28 +22,11 @@ export default function Recetas({
   confirm,
   filterRecetasIds,
   onClearFilter,
-  patchRecetasCosts,
 }) {
-  const recetaIngredientesSafe = useMemo(
-    () => (Array.isArray(recetaIngredientes) ? recetaIngredientes : []),
-    [recetaIngredientes],
-  );
-  const insumosSafe = useMemo(
-    () => (Array.isArray(insumos) ? insumos : []),
-    [insumos],
-  );
-  const recetasSafe = useMemo(
-    () => (Array.isArray(recetas) ? recetas : []),
-    [recetas],
-  );
-  const filterSet =
-    Array.isArray(filterRecetasIds) && filterRecetasIds.length > 0
-      ? new Set(filterRecetasIds.map((id) => String(id)))
-      : null;
-
-  const [tab, setTab] = useState(TAB_TODAS);
-  const [masaSeccion, setMasaSeccion] = useState("todas");
-  const [pendingExtraerMasa, setPendingExtraerMasa] = useState(null);
+  const recetaIngredientesSafe = Array.isArray(recetaIngredientes) ? recetaIngredientes : [];
+  const insumosSafe = Array.isArray(insumos) ? insumos : [];
+  const recetasSafe = Array.isArray(recetas) ? recetas : [];
+  const filterSet = Array.isArray(filterRecetasIds) && filterRecetasIds.length > 0 ? new Set(filterRecetasIds.map((id) => String(id))) : null;
 
   const {
     updateReceta,
@@ -69,10 +38,10 @@ export default function Recetas({
 
   const {
     modal,
+    setModal,
     editando,
     setEditando,
     saving,
-    setSaving,
     form,
     setForm,
     ingredientes,
@@ -83,7 +52,6 @@ export default function Recetas({
     removeIng,
     updateIng,
     closeModal,
-    setTipoReceta,
   } = useRecetasForm({ recetaIngredientes: recetaIngredientesSafe });
 
   const aplicaFiltro = Array.isArray(filterRecetasIds) && filterRecetasIds.length > 0;
@@ -91,65 +59,25 @@ export default function Recetas({
     ? recetasSafe.filter((r) => filterSet.has(String(r.id)))
     : recetasSafe;
 
-  const recetasOrdenadas = useMemo(
-    () =>
-      [...recetasFuente].sort((a, b) =>
-        (a.nombre || "").localeCompare(b.nombre || "", "es", { sensitivity: "base" }),
-      ),
-    [recetasFuente],
+  const recetasOrdenadas = [...recetasFuente].slice().sort((a, b) =>
+    (a.nombre || "").localeCompare(b.nombre || "", "es", { sensitivity: "base" })
   );
-
-  const insumosOrdenados = useMemo(
-    () =>
-      [...insumosSafe].sort((a, b) =>
-        (a.nombre || "").localeCompare(b.nombre || "", "es", { sensitivity: "base" }),
-      ),
-    [insumosSafe],
-  );
-
-  const familiasExistentes = useMemo(() => collectFamilias(recetasSafe), [recetasSafe]);
-
-  const tabFiltered = useMemo(() => {
-    if (tab === TAB_MASAS) return recetasOrdenadas.filter((r) => r.es_precursora);
-    if (tab === TAB_PRODUCTOS) return recetasOrdenadas.filter((r) => !r.es_precursora);
-    return recetasOrdenadas;
-  }, [recetasOrdenadas, tab]);
-
-  const { search, setSearch, filteredItems } = useFilterBySearch(tabFiltered, "nombre");
-
-  const masasFiltradas = useMemo(() => {
-    const masas = filteredItems.filter((r) => r.es_precursora);
-    if (masaSeccion === "base") {
-      return masas.filter((r) => getTipoReceta(r, recetaIngredientesSafe) === TIPO_RECETA.MASA_BASE);
-    }
-    if (masaSeccion === "porcionadas") {
-      return masas.filter((r) => getTipoReceta(r, recetaIngredientesSafe) === TIPO_RECETA.MASA_PORCIONADA);
-    }
-    return masas;
-  }, [filteredItems, masaSeccion, recetaIngredientesSafe]);
-
-  const productosFiltrados = useMemo(
-    () => filteredItems.filter((r) => !r.es_precursora),
-    [filteredItems],
-  );
-
-  const gruposProductos = useMemo(
-    () => groupProductosPorFamilia(productosFiltrados),
-    [productosFiltrados],
+  const insumosOrdenados = [...insumosSafe].slice().sort((a, b) =>
+    (a.nombre || "").localeCompare(b.nombre || "", "es", { sensitivity: "base" })
   );
 
   const recetasMargenBajo = recetasFuente.filter((r) => {
-    if (r.es_precursora) return false;
     const rindeNum = parseDecimal(r.rinde) ?? 1;
     const costoLoteCalc = costoReceta(r.id, recetaIngredientesSafe, insumosSafe, recetasSafe);
     const costoUnitarioCalc = rindeNum > 0 ? costoLoteCalc / rindeNum : null;
     const tieneIngredientes = recetaIngredientesSafe.some((i) => String(i.receta_id) === String(r.id));
     if (!tieneIngredientes) return false;
+    const costoUnitario = costoUnitarioCalc;
     const precio = parseDecimal(r.precio_venta) ?? 0;
-    if (precio <= 0 || costoUnitarioCalc == null || !isFinite(costoUnitarioCalc) || costoUnitarioCalc <= 0) {
-      return false;
-    }
-    return (precio - costoUnitarioCalc) / precio < 0.5;
+    // Alinear criterio con las cards: margin/costo solo si `precio_venta > 0` y hay costo > 0.
+    if (precio <= 0 || costoUnitario == null || !isFinite(costoUnitario) || costoUnitario <= 0) return false;
+    const margenVal = (precio - costoUnitario) / precio;
+    return margenVal < 0.5;
   });
 
   const buildIngredientRows = (recId, ingsSource) =>
@@ -171,37 +99,6 @@ export default function Recetas({
         })(),
       }));
 
-  const buildPayload = useCallback(
-    (ingsOverride, recetasOverride, recetaIngredientesOverride) => {
-      const ings = ingsOverride ?? ingredientes;
-      const recetasList = recetasOverride ?? recetasSafe;
-      const riList = recetaIngredientesOverride ?? recetaIngredientesSafe;
-      const rindeNum = (() => {
-        const v = parseDecimal(form.rinde);
-        return v == null || v <= 0 ? 1 : v;
-      })();
-      const costoLote = costoDesdeIngredientes(ings, insumosSafe, recetasList, riList);
-      const costoUnitario = rindeNum > 0 ? costoLote / rindeNum : 0;
-      return {
-        nombre: (form.nombre || "").trim().toUpperCase(),
-        emoji: form.emoji,
-        rinde: rindeNum,
-        unidad_rinde: form.unidad_rinde,
-        precio_venta: parseDecimal(form.precio_venta) ?? 0,
-        costo_lote: costoLote,
-        costo_unitario: costoUnitario,
-        es_precursora: !!form.es_precursora,
-        gramos_por_unidad: (() => {
-          const g = parseDecimal(form.gramos_por_unidad);
-          return g != null && g > 0 ? g : null;
-        })(),
-        oculto_en_venta: !!form.oculto_en_venta,
-        familia: (form.familia || "").trim() || null,
-      };
-    },
-    [form, ingredientes, insumosSafe, recetasSafe, recetaIngredientesSafe],
-  );
-
   const copyReceta = async (r) => {
     const payload = {
       nombre: `Copia de ${(r.nombre || "").trim()}`.toUpperCase(),
@@ -217,7 +114,6 @@ export default function Recetas({
           ? parseDecimal(r.gramos_por_unidad)
           : null,
       oculto_en_venta: !!r.oculto_en_venta,
-      familia: r.familia || null,
     };
     const ingsOrig = recetaIngredientesSafe.filter((i) => String(i.receta_id) === String(r.id));
     const pendingId = `pending-receta-${Date.now()}`;
@@ -271,7 +167,30 @@ export default function Recetas({
         errorMessage: "⚠️ Error al copiar la receta",
       }).then((newReceta) => {
         if (!newReceta) return;
-        openEdit(newReceta);
+        setForm({
+          nombre: newReceta.nombre,
+          emoji: newReceta.emoji || "🍞",
+          rinde: newReceta.rinde != null ? String(newReceta.rinde) : "",
+          unidad_rinde: newReceta.unidad_rinde || "u",
+          precio_venta: newReceta.precio_venta != null ? String(newReceta.precio_venta) : "",
+          es_precursora: !!newReceta.es_precursora,
+          gramos_por_unidad:
+            newReceta.gramos_por_unidad != null ? String(newReceta.gramos_por_unidad) : "",
+          oculto_en_venta: !!newReceta.oculto_en_venta,
+        });
+        const ingsForm =
+          ingsOrig.length > 0
+            ? ingsOrig.map((i) => ({
+                insumo_id: i.insumo_id || "",
+                receta_id_precursora: i.receta_id_precursora || "",
+                cantidad: i.cantidad != null ? String(i.cantidad) : "",
+                unidad: i.unidad || "g",
+                costo_fijo: i.costo_fijo != null ? String(i.costo_fijo) : "",
+              }))
+            : [{ insumo_id: "", receta_id_precursora: "", cantidad: "", unidad: "g", costo_fijo: "" }];
+        setIngredientes(ingsForm);
+        setEditando(newReceta);
+        setModal(true);
         showToast("✅ Copia creada. Cambiá el nombre y lo que necesites, luego Guardar.");
       });
     } catch {
@@ -280,76 +199,46 @@ export default function Recetas({
   };
 
   const save = async () => {
+    const rindeNum = (() => {
+      const v = parseDecimal(form.rinde);
+      return (v == null || v <= 0) ? 1 : v;
+    })();
+    const costoLote = costoDesdeIngredientes(ingredientes, insumos, recetas, recetaIngredientes);
+    const costoUnitario = rindeNum > 0 ? costoLote / rindeNum : 0;
+    const payload = {
+      nombre: (form.nombre || "").trim().toUpperCase(),
+      emoji: form.emoji,
+      rinde: rindeNum,
+      unidad_rinde: form.unidad_rinde,
+      precio_venta: parseDecimal(form.precio_venta) ?? 0,
+      costo_lote: costoLote,
+      costo_unitario: costoUnitario,
+      es_precursora: !!form.es_precursora,
+      gramos_por_unidad: (() => {
+        const g = parseDecimal(form.gramos_por_unidad);
+        return g != null && g > 0 ? g : null;
+      })(),
+      oculto_en_venta: !!form.oculto_en_venta,
+    };
     let recId = editando?.id;
     const isUpdate = Boolean(editando?.id);
     const pendingId = isUpdate ? recId : `pending-receta-${Date.now()}`;
-    let ingsToSave = ingredientes;
-    let pendingMasaPayload = null;
-
-    if (pendingExtraerMasa) {
-      pendingMasaPayload = pendingExtraerMasa;
-      ingsToSave = pendingExtraerMasa.productoIngredientes.map((i) =>
-        i.receta_id_precursora === "__PENDING_MASA__"
-          ? {
-              ...i,
-              cantidad: String(
-                pendingExtraerMasa.gramosMasaPorUnidadProducto || i.cantidad,
-              ),
-            }
-          : i,
-      );
-    }
+    const ingsRows = buildIngredientRows(pendingId, ingredientes);
+    const optimisticReceta = { ...payload, id: pendingId };
 
     closeModal();
-    setPendingExtraerMasa(null);
     try {
       await runOptimisticAction({
         optimistic: () => {
-          const payloadPreview = buildPayload(ingsToSave);
-          const optimisticReceta = { ...payloadPreview, id: pendingId };
-          if (isUpdate) updateRecetaInState?.(optimisticReceta);
-          else appendReceta?.(optimisticReceta);
-          replaceRecetaIngredientes?.(pendingId, buildIngredientRows(pendingId, ingsToSave));
+          if (isUpdate) {
+            updateRecetaInState?.(optimisticReceta);
+          } else {
+            appendReceta?.(optimisticReceta);
+          }
+          replaceRecetaIngredientes?.(pendingId, ingsRows);
         },
         persist: async () => {
           let finalId = recId;
-          let recetasPersist = [...recetasSafe];
-          let riPersist = [...recetaIngredientesSafe];
-          let masaRec = null;
-
-          if (pendingMasaPayload) {
-            const { masaPayload, masaIngredientes, gramosMasaPorUnidadProducto } = pendingMasaPayload;
-            const costoLoteMasa = costoDesdeIngredientes(
-              masaIngredientes,
-              insumosSafe,
-              recetasPersist,
-              riPersist,
-            );
-            masaRec = await insertReceta({
-              ...masaPayload,
-              costo_lote: costoLoteMasa,
-              costo_unitario: costoLoteMasa,
-            });
-            if (!masaRec?.id) throw new Error("No se pudo crear la masa");
-            const masaRows = buildIngredientRows(masaRec.id, masaIngredientes);
-            if (masaRows.length) await insertRecetaIngredientes(masaRows);
-            appendReceta?.(masaRec);
-            replaceRecetaIngredientes?.(masaRec.id, masaRows);
-            recetasPersist = [...recetasPersist, masaRec];
-            riPersist = [...riPersist, ...masaRows];
-            ingsToSave = ingsToSave.map((i) =>
-              i.receta_id_precursora === "__PENDING_MASA__"
-                ? {
-                    ...i,
-                    receta_id_precursora: masaRec.id,
-                    cantidad: String(gramosMasaPorUnidadProducto || i.cantidad),
-                  }
-                : i,
-            );
-          }
-
-          const payload = buildPayload(ingsToSave, recetasPersist, riPersist);
-
           if (isUpdate) {
             await updateReceta(editando.id, payload);
             await deleteRecetaIngredientes(editando.id);
@@ -361,37 +250,12 @@ export default function Recetas({
             removeReceta?.(pendingId);
             appendReceta?.({ ...payload, id: finalId });
           }
-
           if (finalId) {
-            const ings = buildIngredientRows(finalId, ingsToSave);
-            if (ings.length > 0) await insertRecetaIngredientes(ings);
+            const ings = buildIngredientRows(finalId, ingredientes);
+            if (ings.length > 0) {
+              await insertRecetaIngredientes(ings);
+            }
             replaceRecetaIngredientes?.(finalId, ings);
-            riPersist = [
-              ...riPersist.filter((ri) => String(ri.receta_id) !== String(finalId)),
-              ...ings,
-            ];
-            const idxRec = recetasPersist.findIndex((r) => String(r.id) === String(finalId));
-            const recetaGuardada = { ...payload, id: finalId };
-            if (idxRec >= 0) recetasPersist[idxRec] = recetaGuardada;
-            else recetasPersist.push(recetaGuardada);
-
-            const cascadeId = pendingMasaPayload ? masaRec?.id : finalId;
-            const costUpdates = costosParaRecetaYCadena(
-              cascadeId,
-              recetasPersist,
-              riPersist,
-              insumosSafe,
-            );
-            for (const cu of costUpdates) {
-              if (String(cu.id) === String(finalId) && !pendingMasaPayload) continue;
-              await updateReceta(cu.id, {
-                costo_lote: cu.costo_lote,
-                costo_unitario: cu.costo_unitario,
-              });
-            }
-            if (costUpdates.length > 0) {
-              patchRecetasCosts?.(costUpdates);
-            }
           }
         },
         rollback: () => onRefresh?.(),
@@ -401,8 +265,11 @@ export default function Recetas({
         errorMessage: "⚠️ Error al guardar",
         onError: (err) => {
           const msg = err?.message || String(err);
-          if (/column|does not exist|no existe/i.test(msg)) {
-            showToast("⚠️ Falta migración en la base de datos. Ejecutá las migraciones (familia, es_precursora).");
+          const esColumna = /column|does not exist|no existe/i.test(msg);
+          if (esColumna) {
+            showToast(
+              "⚠️ Falta migración en la base de datos. Ejecutá las migraciones (es_precursora, receta_ingredientes).",
+            );
           }
         },
       });
@@ -434,81 +301,6 @@ export default function Recetas({
     }
   };
 
-  const handleExtraerMasa = (result) => {
-    const prodIngs = result.productoIngredientes.map((i) =>
-      i.receta_id_precursora === "__PENDING_MASA__"
-        ? {
-            ...i,
-            cantidad: String(result.gramosMasaPorUnidadProducto || i.cantidad),
-          }
-        : i,
-    );
-    setPendingExtraerMasa(result);
-    setIngredientes(prodIngs);
-    setForm((prev) => ({
-      ...prev,
-      familia: result.masaPayload.familia || prev.familia,
-      tipo_receta: TIPO_RECETA.PRODUCTO,
-      es_precursora: false,
-    }));
-    showToast("Masa lista para crear al guardar el producto.");
-  };
-
-  const handleCreatePorciones = async (payloads) => {
-    if (!payloads?.length) return;
-    setSaving(true);
-    let creadas = 0;
-    try {
-      for (const p of payloads) {
-        const { ingredientes: ings, ...payload } = p;
-        const costoLote = costoDesdeIngredientes(ings, insumosSafe, recetasSafe, recetaIngredientesSafe);
-        const rec = await insertReceta({ ...payload, costo_lote: costoLote, costo_unitario: costoLote });
-        if (!rec?.id) throw new Error(`No se pudo crear ${payload.nombre}`);
-        const rows = buildIngredientRows(rec.id, ings);
-        if (rows.length) await insertRecetaIngredientes(rows);
-        appendReceta?.(rec);
-        replaceRecetaIngredientes?.(rec.id, rows);
-        creadas += 1;
-      }
-      showToast(`✅ ${creadas} porción(es) creada(s)`);
-      onRefresh?.();
-    } catch {
-      showToast(
-        creadas > 0
-          ? `⚠️ Solo se crearon ${creadas} de ${payloads.length} porciones`
-          : "⚠️ Error al crear porciones",
-      );
-      if (creadas > 0) onRefresh?.();
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleNuevaVariante = ({ form: varianteForm, ingredientes: varianteIngs }) => {
-    setEditando(null);
-    setForm({
-      ...varianteForm,
-      nombre: varianteForm.nombre.toUpperCase(),
-      tipo_receta: TIPO_RECETA.PRODUCTO,
-    });
-    setIngredientes(varianteIngs.length ? varianteIngs : [{ insumo_id: "", receta_id_precursora: "", cantidad: "", unidad: "g", costo_fijo: "" }]);
-    showToast("Variante lista en el formulario. Revisá nombre y precio, luego Guardar.");
-  };
-
-  const renderCards = (list) =>
-    list.map((r) => (
-      <RecetasCard
-        key={r.id}
-        receta={r}
-        recetaIngredientes={recetaIngredientesSafe}
-        insumos={insumosSafe}
-        recetas={recetasSafe}
-        onEdit={openEdit}
-        onCopy={copyReceta}
-        saving={saving}
-      />
-    ));
-
   return (
     <div className="content">
       <p className="page-title">Recetas</p>
@@ -516,29 +308,19 @@ export default function Recetas({
         {recetasFuente.length} recetas cargadas
         {aplicaFiltro && " · filtradas por últimas actualizaciones"}
       </p>
-
       {aplicaFiltro && onClearFilter && (
-        <button type="button" className="btn-secondary" onClick={onClearFilter} style={{ marginBottom: 12 }}>
+        <button
+          type="button"
+          className="btn-secondary"
+          onClick={onClearFilter}
+          style={{ marginBottom: 12 }}
+        >
           Ver todas las recetas
         </button>
       )}
 
-      <div className="plan-picker-tabs recetas-tabs">
-        <button type="button" className={`plan-picker-tab ${tab === TAB_TODAS ? "active" : ""}`} onClick={() => setTab(TAB_TODAS)}>
-          Todas
-        </button>
-        <button type="button" className={`plan-picker-tab ${tab === TAB_MASAS ? "active" : ""}`} onClick={() => setTab(TAB_MASAS)}>
-          Masas
-        </button>
-        <button type="button" className={`plan-picker-tab ${tab === TAB_PRODUCTOS ? "active" : ""}`} onClick={() => setTab(TAB_PRODUCTOS)}>
-          Productos
-        </button>
-      </div>
-
-      <ProductSearchInput value={search} onChange={setSearch} placeholder="Buscar receta…" />
-
       {recetasMargenBajo.length > 0 && (
-        <div className="card dashboard-alert" style={{ marginTop: 12, marginBottom: 12 }}>
+        <div className="card dashboard-alert" style={{ marginBottom: 12 }}>
           <div className="card-header">
             <span className="card-title">⚠️ Margen bajo</span>
           </div>
@@ -547,74 +329,94 @@ export default function Recetas({
               const rindeNum = parseDecimal(r.rinde) ?? 1;
               const costoLoteCalc = costoReceta(r.id, recetaIngredientesSafe, insumosSafe, recetasSafe);
               const costoUnitarioCalc = rindeNum > 0 ? costoLoteCalc / rindeNum : null;
+              const tieneIngredientes = recetaIngredientesSafe.some((i) => String(i.receta_id) === String(r.id));
+              const costoUnitario = tieneIngredientes ? costoUnitarioCalc : null;
               const precio = parseDecimal(r.precio_venta) ?? 0;
               const margenVal =
-                precio > 0 && costoUnitarioCalc != null && costoUnitarioCalc > 0
-                  ? (precio - costoUnitarioCalc) / precio
+                precio > 0 && costoUnitario != null && costoUnitario > 0
+                  ? (precio - costoUnitario) / precio
                   : null;
+              const margenTxt = margenVal != null ? pctFmt(margenVal) : "—";
               return (
                 <button
                   key={r.id}
                   type="button"
                   onClick={() => openEdit(r)}
-                  className="receta-margen-chip"
+                  style={{
+                    fontSize: 12,
+                    padding: "4px 10px",
+                    background: "var(--surface)",
+                    borderRadius: 20,
+                    border: "1px solid var(--border)",
+                    cursor: "pointer",
+                    font: "inherit",
+                    color: "inherit",
+                  }}
                 >
-                  {r.emoji || "🍞"} {r.nombre} · {margenVal != null ? pctFmt(margenVal) : "—"}
+                  {r.emoji || "🍞"} {r.nombre} · {margenTxt}
                 </button>
               );
             })}
+            {recetasMargenBajo.length > 6 && (
+              <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                +{recetasMargenBajo.length - 6} más
+              </span>
+            )}
           </div>
         </div>
       )}
 
       {recetasFuente.length === 0 ? (
-        <div className="empty">
-          <div className="empty-icon">📋</div>
-          <p>
-            No hay recetas todavía.
-            <br />
-            Tocá + para agregar.
-          </p>
-        </div>
-      ) : filteredItems.length === 0 ? (
-        <p className="plan-dia-card-empty" style={{ marginTop: 16 }}>
-          Sin resultados para «{search}»
-        </p>
-      ) : (
-        <>
-          {(tab === TAB_MASAS || tab === TAB_TODAS) && masasFiltradas.length > 0 && (
-            <div className="recetas-grupo">
-              {tab === TAB_MASAS && (
-                <div className="plan-picker-tabs recetas-masa-subtabs">
-                  <button type="button" className={`plan-picker-tab ${masaSeccion === "todas" ? "active" : ""}`} onClick={() => setMasaSeccion("todas")}>
-                    Todas
-                  </button>
-                  <button type="button" className={`plan-picker-tab ${masaSeccion === "base" ? "active" : ""}`} onClick={() => setMasaSeccion("base")}>
-                    Base
-                  </button>
-                  <button type="button" className={`plan-picker-tab ${masaSeccion === "porcionadas" ? "active" : ""}`} onClick={() => setMasaSeccion("porcionadas")}>
-                    Porcionadas
-                  </button>
+        <div className="empty"><div className="empty-icon">📋</div><p>No hay recetas todavía.<br />Tocá + para agregar.</p></div>
+      ) : recetasOrdenadas.map(r => {
+        const rindeNum = parseDecimal(r.rinde) ?? 1;
+        const costoLoteCalc = costoReceta(r.id, recetaIngredientesSafe, insumosSafe, recetasSafe);
+        const costoUnitarioCalc = rindeNum > 0 ? costoLoteCalc / rindeNum : null;
+        const tieneIngredientes = recetaIngredientesSafe.some((i) => String(i.receta_id) === String(r.id));
+        const costoUnitario = tieneIngredientes ? costoUnitarioCalc : null;
+        const margenVal =
+          rindeNum > 0 &&
+          (parseDecimal(r.precio_venta) ?? 0) > 0 &&
+          costoUnitario != null &&
+          costoUnitario > 0
+            ? ((parseDecimal(r.precio_venta) ?? 0) - costoUnitario) / (parseDecimal(r.precio_venta) ?? 0)
+            : null;
+        const margen = margenVal != null ? pctFmt(margenVal) : "—";
+        const margenNegativo = margenVal != null && margenVal < 0;
+        return (
+          <div key={r.id} className="receta-card" onClick={() => openEdit(r)} role="button" tabIndex={0} onKeyDown={e => e.key === "Enter" && openEdit(r)}>
+            <div className="receta-top">
+              <span className="receta-emoji">{r.emoji}</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="receta-nombre">{r.nombre}</div>
+                <div className="receta-rinde">
+                  Rinde {r.rinde} {r.unidad_rinde}
+                  {r.oculto_en_venta ? (
+                    <span style={{ marginLeft: 8, color: "var(--text-muted)", fontSize: 12 }}>
+                      · Oculto en venta
+                    </span>
+                  ) : null}
                 </div>
-              )}
-              {tab === TAB_TODAS && <p className="recetas-grupo-title">Masas</p>}
-              {renderCards(masasFiltradas)}
+              </div>
+              <button type="button" className="receta-copy-btn" onClick={(e) => { e.stopPropagation(); copyReceta(r); }} title="Copiar receta" disabled={saving}>📋 Copiar</button>
             </div>
-          )}
-
-          {(tab === TAB_PRODUCTOS || tab === TAB_TODAS) &&
-            gruposProductos.map(({ familia, items }) =>
-              items.length ? (
-                <div key={familia || "__sin__"} className="recetas-grupo">
-                  <p className="recetas-grupo-title">
-                    {tab === TAB_TODAS ? `Productos · ${familia || "Sin familia"}` : familia || "Sin familia"}
-                  </p>
-                  {renderCards(items)}
-                </div>
-              ) : null,
-            )}
-        </>
-      )}
+            <div className="receta-stats">
+              <div className="receta-stat">
+                <div className="receta-stat-label">Precio venta</div>
+                <div className="receta-stat-value">{fmt(r.precio_venta || 0)}/{(r.unidad_rinde || "u").replace("porción", "porc.")}</div>
+              </div>
+              <div className="receta-stat">
+                <div className="receta-stat-label">Costo/u</div>
+                <div className="receta-stat-value">{costoUnitario != null ? fmt(costoUnitario) : "—"}</div>
+              </div>
+              <div className="receta-stat">
+                <div className="receta-stat-label">Margen</div>
+                <div className={`receta-stat-value ${margenNegativo ? "rojo" : margenVal != null ? "verde" : ""}`}>{margen}</div>
+              </div>
+            </div>
+          </div>
+        );
+      })}
 
       <button className="fab fab-receta" onClick={openNew} title="Nueva receta">
         <span>+</span>
@@ -632,22 +434,14 @@ export default function Recetas({
           removeIng={removeIng}
           updateIng={updateIng}
           saving={saving}
-          closeModal={() => {
-            setPendingExtraerMasa(null);
-            closeModal();
-          }}
+          closeModal={closeModal}
           onSave={save}
           onEliminar={eliminar}
-          setTipoReceta={setTipoReceta}
           recetasOrdenadas={recetasOrdenadas}
           insumosOrdenados={insumosOrdenados}
           recetas={recetasSafe}
           insumos={insumosSafe}
           recetaIngredientes={recetaIngredientesSafe}
-          familiasExistentes={familiasExistentes}
-          onExtraerMasa={handleExtraerMasa}
-          onCreatePorciones={handleCreatePorciones}
-          onNuevaVariante={handleNuevaVariante}
         />
       )}
     </div>

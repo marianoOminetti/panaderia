@@ -54,7 +54,7 @@ export function costoDesdeIngredientes(
     if (!Number.isFinite(cantidadPresentacion) || cantidadPresentacion <= 0) continue;
     const cant = parseDecimal(ing.cantidad) ?? 0;
     if (cant <= 0) continue;
-    const cantConvertida = convertirAUnidadInsumo(cant, ing.unidad || "g", insumo.unidad, insumo);
+    const cantConvertida = convertirAUnidadInsumo(cant, ing.unidad || "g", insumo.unidad);
     const precio = parseDecimal(insumo?.precio) ?? 0;
     const precioUnitario = precio / cantidadPresentacion;
     total += precioUnitario * cantConvertida;
@@ -122,8 +122,7 @@ export function costoReceta(recetaId, recetaIngredientes, insumos, recetas = [],
     const cantConvertida = convertirAUnidadInsumo(
       cantRaw,
       ing.unidad,
-      insumo.unidad,
-      insumo,
+      insumo.unidad
     );
     const precio = parseDecimal(insumo?.precio) ?? 0;
     const precioUnitario = precio / cantidadPresentacion;
@@ -141,7 +140,7 @@ export function costoUnitarioPorRecetaMap(recetas = [], recetaIngredientes = [],
     const costoLoteCalc = costoReceta(r.id, recetaIngredientes, insumos, recetas);
     const costoUnitarioCalc = rindeNum > 0 ? costoLoteCalc / rindeNum : null;
     const costoUnitario =
-      typeof r.costo_unitario === "number" && r.costo_unitario > 0
+      typeof r.costo_unitario === "number" && r.costo_unitario >= 0
         ? r.costo_unitario
         : costoUnitarioCalc;
     if (costoUnitario != null && !Number.isNaN(costoUnitario)) {

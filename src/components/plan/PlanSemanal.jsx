@@ -53,16 +53,12 @@ function PlanSemanal({
 
       <PlanSemanalTable
         recetas={recetas}
-        recetaIngredientes={recetaIngredientes}
         weekStart={plan.weekStart}
         semanaTitulo={plan.semanaTitulo()}
         cambiarSemana={plan.cambiarSemana}
         cartPlanItems={plan.cartPlanItems}
         masasCalculadas={plan.masasCalculadas}
-        masasCalculadasClasificadas={plan.masasCalculadasClasificadas}
         masasPlanificadas={plan.masasPlanificadas}
-        coberturaMasas={plan.coberturaMasas}
-        completarMasasFaltantes={plan.completarMasasFaltantes}
         recetasIncompletas={plan.recetasIncompletas}
         comparacionVentas={plan.comparacionVentas}
         loading={plan.loading}
