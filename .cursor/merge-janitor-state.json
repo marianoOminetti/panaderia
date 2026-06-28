@@ -1,6 +1,11 @@
 {
   "mergesSinceLastRun": 0,
+<<<<<<< HEAD
   "janitorDue": false,
   "lastJanitorRunAt": "2026-06-28T12:00:00.000Z",
+=======
+  "janitorDue": true,
+  "lastJanitorRunAt": "2026-06-15T12:00:00.000Z",
+>>>>>>> origin/master
   "threshold": 5
 }
