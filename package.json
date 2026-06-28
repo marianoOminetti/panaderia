@@ -30,6 +30,7 @@
     "import-recetas:clear": "env-cmd -f .env.development.local node scripts/import-recetas.js --clear",
     "import-recetas:upsert": "env-cmd -f .env.development.local node scripts/import-recetas.js --upsert",
     "copy:prod-to-dev": "node scripts/copy-prod-to-dev.js",
+    "copy:prod-to-dev:plan": "node scripts/copy-prod-to-dev.js --preset=plan",
     "supabase:link": "supabase link --project-ref xdiggsdjmmylkvephyod",
     "supabase:link:prod": "supabase link --project-ref clgxrxlccjjqxzvapfav",
     "db:push": "supabase db push --yes",

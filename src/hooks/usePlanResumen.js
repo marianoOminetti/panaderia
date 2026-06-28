@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
-import { getSemanaInicioISO } from "../lib/dates";
+import { getPlanSemanaInicioISO } from "../lib/dates";
 import { calcularRequerimientoInsumosParaItems } from "../lib/stockPlan";
 
 /**
@@ -28,7 +28,7 @@ export function usePlanResumen({
         if (!cancelled) setResumenPlanSemanal(null);
         return;
       }
-      const semanaInicio = getSemanaInicioISO();
+      const semanaInicio = getPlanSemanaInicioISO();
       try {
         const { data, error } = await supabase
           .from("plan_semanal")
@@ -46,7 +46,7 @@ export function usePlanResumen({
           if (!receta) continue;
           const plan = Number(row.cantidad_planificada || 0);
           const realizado = Number(row.cantidad_realizada || 0);
-          if (plan > 0) totalPlanificadas += plan;
+          if (plan > 0 && !receta.es_precursora) totalPlanificadas += plan;
           const pendiente = Math.max(plan - realizado, 0);
           if (pendiente > 0) {
             itemsPendientes.push({ receta, cantidad: pendiente });
@@ -59,8 +59,16 @@ export function usePlanResumen({
           return;
         }
 
+        const itemsParaInsumos = itemsPendientes.filter((it) => !it.receta.es_precursora);
+
+        if (!itemsParaInsumos.length) {
+          if (!cancelled)
+            setResumenPlanSemanal({ totalUnidades: totalPlanificadas, totalCompra: 0 });
+          return;
+        }
+
         const requerimientos = calcularRequerimientoInsumosParaItems(
-          itemsPendientes,
+          itemsParaInsumos,
           recetaIngredientes,
           insumos,
           insumoComposicion,

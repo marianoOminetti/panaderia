@@ -353,6 +353,7 @@ export default function AppContent({
           insumos={insumos}
           insumoComposicion={insumoComposicion}
           insumoStock={insumoStock}
+          ventas={ventas}
           actualizarStock={actualizarStock}
           consumirInsumosPorStock={consumirInsumosPorStock}
           showToast={showToast}
