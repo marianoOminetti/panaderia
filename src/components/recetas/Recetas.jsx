@@ -4,7 +4,7 @@
 import { useState, useMemo, useCallback } from "react";
 import { pctFmt, parseDecimal } from "../../lib/format";
 import { costoReceta, costoDesdeIngredientes } from "../../lib/costos";
-import { costosParaRecetaYCadena, advertenciasCosteoIngredientes } from "../../lib/recetaCostoCascade";
+import { costosParaRecetaYCadena } from "../../lib/recetaCostoCascade";
 import { runOptimisticAction } from "../../lib/runOptimisticAction";
 import { useRecetas } from "../../hooks/useRecetas";
 import { useRecetasForm } from "../../hooks/useRecetasForm";
@@ -38,9 +38,18 @@ export default function Recetas({
   onClearFilter,
   patchRecetasCosts,
 }) {
-  const recetaIngredientesSafe = Array.isArray(recetaIngredientes) ? recetaIngredientes : [];
-  const insumosSafe = Array.isArray(insumos) ? insumos : [];
-  const recetasSafe = Array.isArray(recetas) ? recetas : [];
+  const recetaIngredientesSafe = useMemo(
+    () => (Array.isArray(recetaIngredientes) ? recetaIngredientes : []),
+    [recetaIngredientes],
+  );
+  const insumosSafe = useMemo(
+    () => (Array.isArray(insumos) ? insumos : []),
+    [insumos],
+  );
+  const recetasSafe = useMemo(
+    () => (Array.isArray(recetas) ? recetas : []),
+    [recetas],
+  );
   const filterSet =
     Array.isArray(filterRecetasIds) && filterRecetasIds.length > 0
       ? new Set(filterRecetasIds.map((id) => String(id)))
@@ -60,7 +69,6 @@ export default function Recetas({
 
   const {
     modal,
-    setModal,
     editando,
     setEditando,
     saving,
