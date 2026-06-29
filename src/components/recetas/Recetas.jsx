@@ -1,7 +1,7 @@
 /**
  * Pantalla Recetas: lista filtrable, modal nueva/editar (useRecetasForm + RecetaModal).
  */
-import { useMemo, useState } from "react";
+import { useMemo, useState, useCallback } from "react";
 import { parseDecimal } from "../../lib/format";
 import { costoReceta, costoDesdeIngredientes } from "../../lib/costos";
 import { runOptimisticAction } from "../../lib/runOptimisticAction";
@@ -14,7 +14,7 @@ import {
   FILTRO_OCULTAS,
   FILTRO_TIPO,
   filtrarRecetas,
-  recetasConIngredientesIncompletos,
+  recetasParaRevisar,
 } from "../../lib/recetaLista";
 import RecetaModal from "./RecetaModal";
 import RecetaCard from "./RecetaCard";
@@ -49,6 +49,16 @@ export default function Recetas({
   const [filtroAlerta, setFiltroAlerta] = useState(null);
   const [togglingOcultoId, setTogglingOcultoId] = useState(null);
   const [togglingPrecursoraId, setTogglingPrecursoraId] = useState(null);
+  const [familiasSesion, setFamiliasSesion] = useState([]);
+
+  const registrarFamilia = useCallback((f) => {
+    const n = normalizeNombreUpper(f);
+    if (!n) return;
+    setFamiliasSesion((prev) => {
+      if (prev.includes(n)) return prev;
+      return [...prev, n].sort((a, b) => a.localeCompare(b, "es", { sensitivity: "base" }));
+    });
+  }, []);
 
   const {
     updateReceta,
@@ -83,7 +93,7 @@ export default function Recetas({
 
   const recetasConProblemas = useMemo(
     () =>
-      recetasConIngredientesIncompletos(
+      recetasParaRevisar(
         recetasBase,
         recetaIngredientesSafe,
         insumosSafe,
@@ -132,7 +142,10 @@ export default function Recetas({
     return list;
   }, [recetasBase, busqueda, filtroTipo, filtroOcultas, filtroAlerta, problemasPorRecetaId, margenBajoIds]);
 
-  const familiasExistentes = useMemo(() => collectFamilias(recetasSafe), [recetasSafe]);
+  const familiasExistentes = useMemo(() => {
+    const set = new Set([...collectFamilias(recetasSafe), ...familiasSesion]);
+    return [...set].sort((a, b) => a.localeCompare(b, "es", { sensitivity: "base" }));
+  }, [recetasSafe, familiasSesion]);
 
   const recetasOrdenadas = useMemo(
     () =>
@@ -474,8 +487,10 @@ export default function Recetas({
             finalId = rec?.id;
             if (!finalId) throw new Error("No se pudo crear la receta");
             removeReceta?.(pendingId);
-            appendReceta?.({ ...payload, id: finalId });
+            appendReceta?.({ ...payload, ...rec, id: finalId });
           }
+
+          if (payload.familia) registrarFamilia(payload.familia);
 
           if (finalId) {
             const ings = buildIngredientRows(finalId, ingredientes);
@@ -559,7 +574,7 @@ export default function Recetas({
       recetaIngredientes={recetaIngredientesSafe}
       insumos={insumosSafe}
       recetas={recetasSafe}
-      tieneProblemaIngredientes={problemasPorRecetaId.has(String(r.id))}
+      problemas={problemasPorRecetaId.get(String(r.id)) || []}
       onEdit={openEdit}
       onCopy={copyReceta}
       onTogglePrecursora={togglePrecursora}
@@ -680,7 +695,7 @@ export default function Recetas({
 
       {filtroAlerta === "problemas" && recetasFiltradas.length > 0 && (
         <p className="recetas-filtro-hint">
-          Mostrando recetas con costo fijo sin insumo/masa o referencias rotas. Tocá una para corregirla.
+          Mostrando recetas con ingredientes incompletos, nombre duplicado o sin renombrar (Copia de…). Tocá una para corregirla.
         </p>
       )}
 
@@ -711,6 +726,7 @@ export default function Recetas({
           insumos={insumosSafe}
           recetaIngredientes={recetaIngredientesSafe}
           familiasExistentes={familiasExistentes}
+          onFamiliaCreada={registrarFamilia}
         />
       )}
     </div>

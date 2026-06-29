@@ -3,7 +3,9 @@ import {
   FILTRO_TIPO,
   filtrarRecetas,
   ingredienteConProblema,
-  recetasConIngredientesIncompletos,
+  mensajeProblemaIngrediente,
+  nombreEsCopiaDe,
+  recetasParaRevisar,
 } from "./recetaLista";
 
 describe("recetaLista", () => {
@@ -33,10 +35,48 @@ describe("recetaLista", () => {
     expect(ingredienteConProblema({ insumo_id: "x", cantidad: 1 }, [{ id: "x" }], [])).toBe(null);
   });
 
+  test("detecta ingrediente huérfano tras borrar insumo/masa", () => {
+    expect(ingredienteConProblema({ cantidad: 45, unidad: "g" }, [], [])).toBe("sin_asignar");
+    expect(mensajeProblemaIngrediente({ cantidad: 45, unidad: "g" }, [], [])).toBe(
+      "Ingrediente 45 g sin insumo/masa asignada",
+    );
+  });
+
+  test("mensaje detalla monto de costo fijo", () => {
+    expect(mensajeProblemaIngrediente({ costo_fijo: 600 }, [], [])).toMatch(/\$.*600/);
+    expect(mensajeProblemaIngrediente({ costo_fijo: 600 }, [], [])).toMatch(/sin insumo\/masa/);
+  });
+
   test("lista recetas con ingredientes incompletos", () => {
+    const solo = [{ id: "2", nombre: "Empanada", es_precursora: false }];
     const ings = [{ receta_id: "2", costo_fijo: 100 }];
-    const out = recetasConIngredientesIncompletos(recetas, ings, [], recetas);
+    const out = recetasParaRevisar(solo, ings, [], solo);
     expect(out).toHaveLength(1);
     expect(out[0].receta.id).toBe("2");
+    expect(out[0].problemas[0]).toMatch(/\$.*100/);
+  });
+
+  test("detecta sin ingredientes", () => {
+    const out = recetasParaRevisar([{ id: "9", nombre: "VACIA" }], [], [], []);
+    expect(out).toHaveLength(1);
+    expect(out[0].problemas).toContain("Sin ingredientes cargados");
+  });
+
+  test("detecta nombre duplicado exacto", () => {
+    const dup = [
+      { id: "a", nombre: "EMPANADA" },
+      { id: "b", nombre: "EMPANADA" },
+    ];
+    const out = recetasParaRevisar(dup, [], [], dup);
+    expect(out).toHaveLength(2);
+    expect(out[0].problemas.some((p) => p.includes("Nombre duplicado"))).toBe(true);
+    expect(out[1].problemas.some((p) => p.includes("Nombre duplicado"))).toBe(true);
+  });
+
+  test("detecta copia de sin renombrar", () => {
+    expect(nombreEsCopiaDe("Copia de Brownie")).toBe(true);
+    expect(nombreEsCopiaDe("COPIA DE BROWNIE")).toBe(true);
+    const out = recetasParaRevisar([{ id: "c", nombre: "COPIA DE BROWNIE" }], [], [], []);
+    expect(out[0].problemas).toContain("Nombre sin renombrar (Copia de…)");
   });
 });

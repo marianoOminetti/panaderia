@@ -5,7 +5,7 @@
 import { fmt, pctFmt, parseDecimal } from "../../lib/format";
 import { costoReceta, costoDesdeIngredientes } from "../../lib/costos";
 import { aGramos, convertirAUnidadInsumo } from "../../lib/units";
-import { SearchableSelect, FormInput, FormMoneyInput, FormCheckbox } from "../ui";
+import { SearchableSelect, SearchableCategoria, FormInput, FormMoneyInput, FormCheckbox } from "../ui";
 import { defaultsAlElegirPrecursora } from "../../lib/recetaPrecursora";
 import { advertenciasCosteoIngredientes } from "../../lib/recetaCostoCascade";
 
@@ -30,6 +30,7 @@ export default function RecetaModal({
   insumos,
   recetaIngredientes,
   familiasExistentes = [],
+  onFamiliaCreada,
 }) {
   const costoTotal = costoDesdeIngredientes(ingredientes, insumos, recetas, recetaIngredientes);
   const rindeNum = parseDecimal(form.rinde) ?? 0;
@@ -162,21 +163,21 @@ export default function RecetaModal({
           required
         />
 
-        <FormInput
-          label="Familia (opcional)"
-          value={form.familia}
-          onChange={(v) => setForm({ ...form, familia: v.toUpperCase() })}
-          placeholder="Ej: Brownie, Empanada"
-          inputClassName="text-uppercase"
-          list="receta-familias-list"
-        />
-        {familiasExistentes.length > 0 && (
-          <datalist id="receta-familias-list">
-            {familiasExistentes.map((f) => (
-              <option key={f} value={f} />
-            ))}
-          </datalist>
-        )}
+        <div className="form-group">
+          <label className="form-label">Familia (opcional)</label>
+          <SearchableCategoria
+            categorias={familiasExistentes}
+            value={form.familia}
+            onChange={(familia) =>
+              setForm({ ...form, familia: familia ? familia.toUpperCase() : "" })
+            }
+            onCreate={(familia) => onFamiliaCreada?.(familia.toUpperCase())}
+            placeholder="Elegir o crear familia…"
+            allowEmpty
+            emptyLabel="Sin familia"
+          />
+          <p className="form-hint">Agrupa variantes en la lista (ej. Brownie, Empanada). No cambia precios ni ventas.</p>
+        </div>
 
         <div className="form-row">
           <FormInput

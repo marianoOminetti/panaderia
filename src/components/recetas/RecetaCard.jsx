@@ -6,7 +6,7 @@ export default function RecetaCard({
   recetaIngredientes,
   insumos,
   recetas,
-  tieneProblemaIngredientes,
+  problemas = [],
   onEdit,
   onCopy,
   onTogglePrecursora,
@@ -34,7 +34,7 @@ export default function RecetaCard({
 
   return (
     <div
-      className={`receta-card ${r.oculto_en_venta ? "receta-card--oculta" : ""} ${tieneProblemaIngredientes ? "receta-card--warn" : ""}`}
+      className={`receta-card ${r.oculto_en_venta ? "receta-card--oculta" : ""} ${problemas.length ? "receta-card--warn" : ""}`}
       onClick={() => onEdit(r)}
       role="button"
       tabIndex={0}
@@ -75,6 +75,14 @@ export default function RecetaCard({
           </div>
         </div>
       </div>
+
+      {problemas.length > 0 && (
+        <ul className="receta-problemas" aria-label="Problemas a corregir">
+          {problemas.map((msg, i) => (
+            <li key={`${i}-${msg}`}>{msg}</li>
+          ))}
+        </ul>
+      )}
 
       <div className="receta-card-actions" onClick={(e) => e.stopPropagation()}>
         <button

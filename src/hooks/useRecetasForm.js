@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { normalizeNombreUpper } from "../lib/normalizeNombre";
 
 const INITIAL_FORM = {
   nombre: "",
@@ -49,7 +50,7 @@ export function useRecetasForm({ recetaIngredientes = [] }) {
       es_precursora: !!r.es_precursora,
       gramos_por_unidad: r.gramos_por_unidad != null ? String(r.gramos_por_unidad) : "",
       oculto_en_venta: !!r.oculto_en_venta,
-      familia: r.familia || "",
+      familia: r.familia ? normalizeNombreUpper(r.familia) : "",
     });
     const ings = recetaIngredientes
       .filter((i) => String(i.receta_id) === String(r.id))

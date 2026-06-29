@@ -19,13 +19,18 @@ export default function SearchableCategoria({
   value,
   onChange,
   placeholder = "Seleccionar categoría",
+  allowEmpty = false,
+  emptyLabel = "Sin categoría",
+  onCreate,
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const containerRef = useRef(null);
   const inputRef = useRef(null);
 
-  const uniqueCategorias = Array.from(new Set(categorias.filter(Boolean)));
+  const uniqueCategorias = Array.from(
+    new Set([...categorias.filter(Boolean), ...(value ? [String(value).trim()] : [])].filter(Boolean)),
+  ).sort((a, b) => a.localeCompare(b, "es", { sensitivity: "base" }));
 
   const searchNorm = normalizeForSearch(search);
   const filtered =
@@ -45,7 +50,10 @@ export default function SearchableCategoria({
   useEffect(() => {
     if (!open) return;
     setSearch("");
-    const t = setTimeout(() => inputRef.current?.focus(), 50);
+    const t = setTimeout(() => {
+      inputRef.current?.focus();
+      inputRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }, 50);
     return () => clearTimeout(t);
   }, [open]);
 
@@ -76,10 +84,11 @@ export default function SearchableCategoria({
     const nombre = search.trim();
     if (!nombre) return;
     onChange(nombre);
+    onCreate?.(nombre);
     setOpen(false);
   };
 
-  const displayLabel = value || placeholder;
+  const displayLabel = value || (allowEmpty ? emptyLabel : placeholder);
 
   return (
     <div ref={containerRef} style={{ position: "relative" }}>
@@ -110,7 +119,7 @@ export default function SearchableCategoria({
             border: "1px solid var(--border)",
             borderRadius: 12,
             boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
-            zIndex: 150,
+            zIndex: 250,
             overflow: "hidden",
           }}
         >
@@ -138,6 +147,27 @@ export default function SearchableCategoria({
               padding: "4px 0 8px",
             }}
           >
+            {allowEmpty && (
+              <button
+                type="button"
+                className="searchable-select-option"
+                onClick={() => handleSelect("")}
+                style={{
+                  display: "block",
+                  width: "100%",
+                  padding: "10px 16px",
+                  border: "none",
+                  background: !value ? "var(--cream)" : "transparent",
+                  fontFamily: "inherit",
+                  fontSize: 14,
+                  textAlign: "left",
+                  cursor: "pointer",
+                  color: "var(--text-muted)",
+                }}
+              >
+                {emptyLabel}
+              </button>
+            )}
             {filtered.map((c) => (
               <button
                 key={c}
@@ -168,7 +198,9 @@ export default function SearchableCategoria({
                   color: "var(--text-muted)",
                 }}
               >
-                Sin resultados
+                {uniqueCategorias.length === 0
+                  ? "Escribí abajo para crear la primera"
+                  : "Sin resultados"}
               </div>
             )}
             {showCrear && (

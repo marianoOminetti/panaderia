@@ -1,4 +1,5 @@
-import { parseDecimal } from "./format";
+import { fmt, parseDecimal } from "./format";
+import { normalizeNombreUpper } from "./normalizeNombre";
 
 export const FILTRO_TIPO = {
   TODAS: "todas",
@@ -58,28 +59,103 @@ export function ingredienteConProblema(ing, insumos, recetas) {
   }
 
   if (tieneCostoFijo) return "costo_fijo_sin_nombre";
+
+  const cantidad = parseDecimal(ing.cantidad);
+  if (cantidad != null && cantidad > 0) return "sin_asignar";
+
   return null;
 }
 
-/** Recetas con al menos un ingrediente mal configurado. */
-export function recetasConIngredientesIncompletos(recetas, recetaIngredientes, insumos, recetasCatalogo) {
-  const out = [];
+/** Texto legible del problema en un ingrediente (para la card en modo Revisar). */
+export function mensajeProblemaIngrediente(ing, insumos, recetas) {
+  const tipo = ingredienteConProblema(ing, insumos, recetas);
+  if (!tipo) return null;
+
+  if (tipo === "costo_fijo_sin_nombre") {
+    const monto = parseDecimal(ing.costo_fijo);
+    return monto != null && monto > 0
+      ? `${fmt(monto)} de costo fijo sin insumo/masa asignada`
+      : "Costo fijo sin insumo/masa asignada";
+  }
+
+  if (tipo === "insumo_inexistente") {
+    return "Insumo eliminado o inexistente";
+  }
+
+  if (tipo === "precursora_inexistente") {
+    const prec = (recetas || []).find((x) => String(x.id) === String(ing.receta_id_precursora));
+    const nombre = (prec?.nombre || "").trim();
+    return nombre
+      ? `Masa «${nombre}» inexistente o eliminada`
+      : "Masa precursora inexistente o eliminada";
+  }
+
+  if (tipo === "sin_asignar") {
+    const cantidad = parseDecimal(ing.cantidad);
+    const unidad = (ing.unidad || "g").trim();
+    return cantidad != null && cantidad > 0
+      ? `Ingrediente ${cantidad} ${unidad} sin insumo/masa asignada`
+      : "Ingrediente sin insumo/masa asignada";
+  }
+
+  return null;
+}
+
+/** Cuenta recetas por nombre exacto (normalizado). */
+export function contarRecetasPorNombre(recetas) {
+  const counts = new Map();
   for (const r of recetas || []) {
-    const ings = (recetaIngredientes || []).filter((i) => String(i.receta_id) === String(r.id));
-    const problemas = [];
+    const nombre = normalizeNombreUpper(r.nombre);
+    if (!nombre) continue;
+    counts.set(nombre, (counts.get(nombre) || 0) + 1);
+  }
+  return counts;
+}
+
+export function nombreEsCopiaDe(nombre) {
+  return normalizeNombreUpper(nombre).startsWith("COPIA DE");
+}
+
+/** Problemas de la receta (ingredientes, nombre, etc.) para modo Revisar. */
+export function problemasReceta(r, recetaIngredientes, insumos, recetasCatalogo, duplicadosPorNombre) {
+  const problemas = [];
+  const ings = (recetaIngredientes || []).filter((i) => String(i.receta_id) === String(r.id));
+
+  if (ings.length === 0) {
+    problemas.push("Sin ingredientes cargados");
+  } else {
     for (const ing of ings) {
-      const tipo = ingredienteConProblema(ing, insumos, recetasCatalogo);
-      if (tipo === "costo_fijo_sin_nombre") {
-        problemas.push("costo fijo sin insumo/masa asignada");
-      } else if (tipo === "insumo_inexistente") {
-        problemas.push("insumo eliminado o inexistente");
-      } else if (tipo === "precursora_inexistente") {
-        problemas.push("masa precursora inexistente");
-      }
-    }
-    if (problemas.length) {
-      out.push({ receta: r, problemas: [...new Set(problemas)] });
+      const msg = mensajeProblemaIngrediente(ing, insumos, recetasCatalogo);
+      if (msg) problemas.push(msg);
     }
   }
+
+  const nombre = normalizeNombreUpper(r.nombre);
+  if (nombre) {
+    const veces = duplicadosPorNombre?.get(nombre) || 0;
+    if (veces > 1) {
+      problemas.push(`Nombre duplicado (${veces} recetas con «${nombre}»)`);
+    }
+    if (nombreEsCopiaDe(nombre)) {
+      problemas.push("Nombre sin renombrar (Copia de…)");
+    }
+  }
+
+  return problemas;
+}
+
+/** Recetas con al menos un problema para revisar. */
+export function recetasParaRevisar(recetas, recetaIngredientes, insumos, recetasCatalogo) {
+  const duplicadosPorNombre = contarRecetasPorNombre(recetasCatalogo || recetas);
+  const out = [];
+  for (const r of recetas || []) {
+    const problemas = problemasReceta(r, recetaIngredientes, insumos, recetasCatalogo, duplicadosPorNombre);
+    if (problemas.length) out.push({ receta: r, problemas });
+  }
   return out;
+}
+
+/** @deprecated Usar recetasParaRevisar */
+export function recetasConIngredientesIncompletos(recetas, recetaIngredientes, insumos, recetasCatalogo) {
+  return recetasParaRevisar(recetas, recetaIngredientes, insumos, recetasCatalogo);
 }
