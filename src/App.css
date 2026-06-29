@@ -843,6 +843,35 @@ body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--cream); c
 .receta-alert-chip { font-size: 12px; padding: 4px 10px; background: var(--surface); border-radius: 20px; border: 1px solid var(--border); cursor: pointer; font: inherit; color: inherit; }
 .receta-alert-chip:hover { border-color: var(--purple); }
 .receta-hint-warn { background: rgba(220, 160, 40, 0.12); border: 1px solid rgba(220, 160, 40, 0.35); border-radius: 10px; padding: 8px 10px; }
+.costo-ing-hint-wrap { position: relative; margin-top: 6px; margin-bottom: 2px; }
+.costo-ing-hint-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  width: 100%; font-size: 12px; font-weight: 800; color: var(--text);
+  background: rgba(120, 80, 255, 0.16); border: 1px solid rgba(120, 80, 255, 0.42);
+  border-radius: 10px; padding: 8px 10px; cursor: default; font-family: inherit; text-align: left;
+}
+.costo-ing-hint-wrap--open .costo-ing-hint-bar,
+.costo-ing-hint-bar:hover { background: rgba(120, 80, 255, 0.24); border-color: rgba(120, 80, 255, 0.55); cursor: help; }
+.costo-ing-hint-icon { font-size: 11px; opacity: 0.75; flex-shrink: 0; }
+.costo-ing-popover {
+  position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 300;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.14); padding: 10px 12px; font-size: 12px; line-height: 1.4;
+}
+.costo-ing-popover-title { margin: 0 0 6px; font-weight: 700; color: var(--purple-dark); font-size: 13px; }
+.costo-ing-popover-sub { margin: 8px 0 4px; font-weight: 600; color: var(--text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; }
+.costo-ing-popover-meta { margin: 0 0 4px; color: var(--text-muted); font-size: 12px; }
+.costo-ing-popover-meta strong { color: var(--text); font-weight: 600; }
+.costo-ing-popover-list { list-style: none; margin: 0; padding: 0; }
+.costo-ing-popover-list li {
+  display: grid; grid-template-columns: 1fr auto; gap: 2px 8px;
+  padding: 6px 0; border-top: 1px solid var(--border);
+}
+.costo-ing-popover-list li:first-child { border-top: none; padding-top: 0; }
+.costo-ing-popover-name { grid-column: 1 / -1; font-weight: 600; color: var(--text); }
+.costo-ing-popover-qty { color: var(--text-muted); font-size: 11px; }
+.costo-ing-popover-pres { grid-column: 1 / -1; color: var(--text-muted); font-size: 11px; }
+.costo-ing-popover-costo { font-weight: 700; color: var(--purple-dark); justify-self: end; grid-row: 1 / span 2; align-self: center; }
 
 /* Gastos — lista */
 .gasto-item { cursor: pointer; }
