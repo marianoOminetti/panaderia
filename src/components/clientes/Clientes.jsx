@@ -56,6 +56,7 @@ export default function Clientes({
   });
 
   const [modal, setModal] = useState(false);
+  const [preloadForm, setPreloadForm] = useState({ nombre: "", telefono: "" });
   const [search, setSearch] = useState("");
   const [filtro, setFiltro] = useState("todos");
   const [detalleCliente, setDetalleCliente] = useState(null);
@@ -95,7 +96,10 @@ export default function Clientes({
     });
   }, [enriquecidos, filtro, searchValue]);
 
-  const openNew = () => setModal(true);
+  const openNew = () => {
+    setPreloadForm({ nombre: "", telefono: "" });
+    setModal(true);
+  };
 
   return (
     <div className="content">
@@ -168,12 +172,18 @@ export default function Clientes({
 
       <ClienteFormModal
         visible={modal}
-        onClose={() => setModal(false)}
+        onClose={() => {
+          setModal(false);
+          setPreloadForm({ nombre: "", telefono: "" });
+        }}
         clientes={clientes}
         onRefresh={onRefresh}
         appendCliente={appendCliente}
         updateClienteInState={updateClienteInState}
         showToast={showToast}
+        initialNombre={preloadForm.nombre}
+        initialTelefono={preloadForm.telefono}
+        onExistingCliente={setDetalleCliente}
       />
     </div>
   );

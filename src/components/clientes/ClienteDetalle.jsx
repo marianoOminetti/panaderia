@@ -16,6 +16,7 @@ import ClienteDetallePedidos from "./ClienteDetallePedidos";
 import ClienteDetalleVentas from "./ClienteDetalleVentas";
 import ClientePerfilCompra from "./ClientePerfilCompra";
 import ClienteWhatsAppButton from "./ClienteWhatsAppButton";
+import { copiarTelefonoCliente } from "../../lib/whatsappCliente";
 import { deudaCliente } from "../../lib/clienteDeuda";
 
 function ClienteDetalle({
@@ -209,11 +210,12 @@ function ClienteDetalle({
           <div className="card-header">
             <span className="card-title">Resumen</span>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              {cliente.telefono?.trim() && perfil?.inactivo && (
+              {cliente.telefono?.trim() && (
                 <ClienteWhatsAppButton
                   cliente={cliente}
                   diasDesdeUltima={perfil?.diasDesdeUltima}
                   favoritoNombre={perfil?.favoritos?.[0]?.receta?.nombre}
+                  variant={perfil?.inactivo ? "retencion" : "generico"}
                   showToast={showToast}
                 />
               )}
@@ -252,6 +254,19 @@ function ClienteDetalle({
             }}
           >
             <strong>Teléfono:</strong> {cliente.telefono || "—"}
+            {cliente.telefono?.trim() && (
+              <button
+                type="button"
+                className="edit-btn"
+                style={{ marginLeft: 8, fontSize: 12 }}
+                onClick={async () => {
+                  const ok = await copiarTelefonoCliente(cliente.telefono);
+                  showToast?.(ok ? "Número copiado" : "No se pudo copiar");
+                }}
+              >
+                Copiar
+              </button>
+            )}
           </p>
           {(cliente.razon_social || cliente.cuit || cliente.dni) && (
             <p

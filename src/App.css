@@ -674,6 +674,46 @@ body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--cream); c
 }
 .cliente-wa-btn:hover { background: rgba(37, 211, 102, 0.18); }
 
+.contact-import-ios-warn {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.4;
+  border-radius: 8px;
+  background: rgba(214, 160, 50, 0.12);
+  border: 1px solid rgba(214, 160, 50, 0.35);
+  color: var(--text);
+}
+
+.contact-import-vcard-field {
+  display: block;
+  margin-top: 10px;
+}
+.contact-import-vcard-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 4px;
+  color: var(--text-muted);
+}
+.contact-import-vcard-textarea {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px;
+  font-size: 12px;
+  font-family: ui-monospace, monospace;
+  line-height: 1.35;
+  border-radius: 6px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: var(--bg, #fff);
+  color: var(--text);
+  resize: vertical;
+  min-height: 72px;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
 .venta-cliente-mini {
   margin: 10px 0 4px;
   padding: 10px 12px;

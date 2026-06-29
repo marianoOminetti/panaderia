@@ -4,9 +4,16 @@ import {
   selectContactFromPhone,
   selectContactsFromPhoneMultiple,
 } from "../../lib/contacts";
+import {
+  isContactPickerAvailable,
+  findClienteByTelefono,
+  telefonosEquivalentes,
+  normalizeTelefonoForDedup,
+} from "../../lib/contactImport";
 import { useClientes } from "../../hooks/useClientes";
 import { detectAfipDocumento } from "../../lib/afipDocumento";
 import { FormInput } from "../ui";
+import ContactImportIOS from "./ContactImportIOS";
 
 function ClienteFormModal({
   visible,
@@ -18,7 +25,10 @@ function ClienteFormModal({
   showToast,
   editando = null,
   onSaved,
+  onExistingCliente,
   confirm,
+  initialNombre = "",
+  initialTelefono = "",
 }) {
   const { insertCliente, updateCliente } = useClientes({
     onRefresh,
@@ -52,9 +62,14 @@ function ClienteFormModal({
         razon_social: editando.razon_social || "",
       });
     } else {
-      setForm({ nombre: "", telefono: "", cuit: "", razon_social: "" });
+      setForm({
+        nombre: initialNombre || "",
+        telefono: initialTelefono || "",
+        cuit: "",
+        razon_social: "",
+      });
     }
-  }, [visible, editando]);
+  }, [visible, editando, initialNombre, initialTelefono]);
 
   if (!visible) return null;
 
@@ -65,9 +80,14 @@ function ClienteFormModal({
     if (!t) return false;
     return (clientes || []).some(
       (c) =>
-        normalizedTelefono(c.telefono) === t &&
+        telefonosEquivalentes(c.telefono, t) &&
         (!isEdit || c.id !== editando.id),
     );
+  };
+
+  const clienteExistentePorTel = (tel) => {
+    if (isEdit) return null;
+    return findClienteByTelefono(clientes, tel);
   };
 
   const resetAndClose = () => {
@@ -78,6 +98,13 @@ function ClienteFormModal({
   const save = async () => {
     if (!form.nombre.trim()) return;
     const telNorm = normalizedTelefono(form.telefono);
+    const existing = telNorm ? clienteExistentePorTel(telNorm) : null;
+    if (existing) {
+      showToast(`Ya está cargado: ${existing.nombre}`);
+      onExistingCliente?.(existing);
+      resetAndClose();
+      return;
+    }
     if (telNorm && telefonoExiste(telNorm)) {
       showToast("Ya existe un cliente con ese teléfono");
       return;
@@ -160,15 +187,16 @@ function ClienteFormModal({
     let ok = 0;
     const existingPhones = new Set(
       (clientes || [])
-        .map((c) => normalizedTelefono(c.telefono))
+        .map((c) => normalizeTelefonoForDedup(c.telefono))
         .filter(Boolean),
     );
     const newPhones = new Set();
     for (let i = 0; i < list.length; i++) {
       const telNorm = normalizedTelefono(list[i].tel);
+      const telKey = normalizeTelefonoForDedup(list[i].tel);
       if (
-        telNorm &&
-        (existingPhones.has(telNorm) || newPhones.has(telNorm))
+        telKey &&
+        (existingPhones.has(telKey) || newPhones.has(telKey))
       ) {
         setImportProgress({ done: i + 1, total: list.length });
         continue;
@@ -182,7 +210,7 @@ function ClienteFormModal({
           { skipToast: true, skipRefresh: true },
         );
         ok++;
-        if (telNorm) newPhones.add(telNorm);
+        if (telKey) newPhones.add(telKey);
       } catch {
         // skip duplicate or error
       }
@@ -192,6 +220,39 @@ function ClienteFormModal({
     setImportProgress({ done: 0, total: 0 });
     showToast(`✅ ${ok} de ${list.length} cliente(s) importado(s)`);
     if (!appendCliente && onRefresh) await onRefresh();
+  };
+
+  const handleContactImport = ({ nombre, telefono }) => {
+    setForm((prev) => ({
+      ...prev,
+      nombre: nombre || prev.nombre,
+      telefono: telefono || prev.telefono,
+    }));
+  };
+
+  const handleImportedExistingCliente = (cliente) => {
+    if (isEdit) {
+      showToast(`Ese teléfono ya es de ${cliente.nombre}`);
+      return;
+    }
+    showToast(`Ya está cargado: ${cliente.nombre}`);
+    onExistingCliente?.(cliente);
+    resetAndClose();
+  };
+
+  const pickContactFromPhone = async () => {
+    const r = await selectContactFromPhone();
+    if (r.error === "no-support") {
+      showToast("No disponible en este dispositivo");
+      return;
+    }
+    if (r.error === "cancelled") return;
+    const existing = r.tel ? findClienteByTelefono(clientes, r.tel) : null;
+    if (existing && (!isEdit || existing.id !== editando.id)) {
+      handleImportedExistingCliente(existing);
+      return;
+    }
+    handleContactImport({ nombre: r.name, telefono: r.tel });
   };
 
   return (
@@ -235,40 +296,37 @@ function ClienteFormModal({
           placeholder="11 CUIT o 7–8 DNI"
           inputMode="numeric"
         />
-        {!isEdit && (
-          <div className="form-group">
-              <label className="form-label">
-                Tomar de contactos del celular
-              </label>
+        <div className="form-group">
+          <label className="form-label">
+            {isEdit
+              ? "Actualizar desde contactos del celular"
+              : "Tomar de contactos del celular"}
+          </label>
+          {isContactPickerAvailable() ? (
+            <>
               <div className="btn-group-vertical">
                 <button
                   type="button"
                   className="btn-icon"
-                  onClick={async () => {
-                    const r = await selectContactFromPhone();
-                    if (r.error === "no-support") {
-                      showToast("No disponible en este dispositivo");
-                      return;
-                    }
-                    if (r.error === "cancelled") return;
-                    setForm({ nombre: r.name, telefono: r.tel });
-                  }}
+                  onClick={pickContactFromPhone}
                   disabled={importingMultiple}
                 >
                   <span className="btn-icon-emoji">📇</span>
                   <span>Elegir contacto</span>
                 </button>
-                <button
-                  type="button"
-                  className="btn-icon"
-                  onClick={importarVariosContactos}
-                  disabled={importingMultiple}
-                >
-                  <span className="btn-icon-emoji">📋</span>
-                  <span>
-                    {importingMultiple ? "Importando…" : "Importar varios"}
-                  </span>
-                </button>
+                {!isEdit && (
+                  <button
+                    type="button"
+                    className="btn-icon"
+                    onClick={importarVariosContactos}
+                    disabled={importingMultiple}
+                  >
+                    <span className="btn-icon-emoji">📋</span>
+                    <span>
+                      {importingMultiple ? "Importando…" : "Importar varios"}
+                    </span>
+                  </button>
+                )}
               </div>
               {importingMultiple && importProgress.total > 0 && (
                 <p className="form-hint" style={{ marginTop: 8 }}>
@@ -276,11 +334,21 @@ function ClienteFormModal({
                 </p>
               )}
               <p className="form-hint" style={{ marginTop: 6 }}>
-                Funciona en Chrome Android con HTTPS. Elegí uno o varios
-                contactos para crear clientes.
+                {isEdit
+                  ? "Funciona en Chrome Android con HTTPS."
+                  : "Funciona en Chrome Android con HTTPS. Elegí uno o varios contactos para crear clientes."}
               </p>
-            </div>
-        )}
+            </>
+          ) : (
+            <ContactImportIOS
+              clientes={clientes}
+              showToast={showToast}
+              onImport={handleContactImport}
+              onExistingCliente={handleImportedExistingCliente}
+              excludeClienteId={isEdit ? editando.id : null}
+            />
+          )}
+        </div>
         {isEdit && (
           <p className="form-hint" style={{ marginBottom: 12 }}>
             Las facturas AFIP ya emitidas conservan los datos que tenían al

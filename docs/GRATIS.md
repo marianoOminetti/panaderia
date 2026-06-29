@@ -65,6 +65,7 @@ La app queda en el home como un ícono más.
 | Notificaciones push | Limitadas en iOS | Completas |
 | Offline | Parcial (requiere service worker) | Depende de la app |
 | Contact Picker | Chrome Android ✅, Safari ❌ | ✅ |
+| Recibir contacto (Compartir → app) | Android PWA ✅, iOS ❌ | ✅ |
 | Reconocimiento de voz | ✅ | ✅ |
 
 Para una panadería que registra ventas y stock, la PWA suele alcanzar.
