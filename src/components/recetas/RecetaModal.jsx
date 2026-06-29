@@ -91,9 +91,8 @@ export default function RecetaModal({
         <FormInput
           label="Nombre"
           value={form.nombre}
-          onChange={(v) => setForm({ ...form, nombre: v.toUpperCase() })}
+          onChange={(v) => setForm({ ...form, nombre: v })}
           placeholder="Ej: Pan de Molde"
-          inputClassName="text-uppercase"
           required
         />
 
@@ -102,10 +101,8 @@ export default function RecetaModal({
           <SearchableCategoria
             categorias={familiasExistentes}
             value={form.familia}
-            onChange={(familia) =>
-              setForm({ ...form, familia: familia ? familia.toUpperCase() : "" })
-            }
-            onCreate={(familia) => onFamiliaCreada?.(familia.toUpperCase())}
+            onChange={(familia) => setForm({ ...form, familia: familia || "" })}
+            onCreate={(familia) => onFamiliaCreada?.(familia)}
             placeholder="Elegir o crear familia…"
             allowEmpty
             emptyLabel="Sin familia"

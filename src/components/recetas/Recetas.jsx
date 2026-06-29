@@ -9,7 +9,6 @@ import { useRecetas } from "../../hooks/useRecetas";
 import { useRecetasForm } from "../../hooks/useRecetasForm";
 import { costosParaRecetaYCadena } from "../../lib/recetaCostoCascade";
 import { collectFamilias, groupProductosPorFamilia } from "../../lib/recetaFamilia";
-import { normalizeNombreUpper, normalizeNombreUpperOrNull } from "../../lib/normalizeNombre";
 import {
   FILTRO_OCULTAS,
   FILTRO_TIPO,
@@ -61,10 +60,10 @@ export default function Recetas({
   const [familiasSesion, setFamiliasSesion] = useState([]);
 
   const registrarFamilia = useCallback((f) => {
-    const n = normalizeNombreUpper(f);
+    const n = (f || "").trim();
     if (!n) return;
     setFamiliasSesion((prev) => {
-      if (prev.includes(n)) return prev;
+      if (prev.some((x) => x.localeCompare(n, "es", { sensitivity: "base" }) === 0)) return prev;
       return [...prev, n].sort((a, b) => a.localeCompare(b, "es", { sensitivity: "base" }));
     });
   }, []);
@@ -225,7 +224,7 @@ export default function Recetas({
     const costoLote = costoDesdeIngredientes(ings, insumosSafe, recetasSafe, recetaIngredientesSafe);
     const costoUnitario = rindeNum > 0 ? costoLote / rindeNum : 0;
     return {
-      nombre: normalizeNombreUpper(form.nombre),
+      nombre: (form.nombre || "").trim(),
       emoji: form.emoji,
       rinde: rindeNum,
       unidad_rinde: form.unidad_rinde,
@@ -238,7 +237,7 @@ export default function Recetas({
         return g != null && g > 0 ? g : null;
       })(),
       oculto_en_venta: !!form.oculto_en_venta,
-      familia: normalizeNombreUpperOrNull(form.familia),
+      familia: (form.familia || "").trim() || null,
     };
   };
 
@@ -283,7 +282,7 @@ export default function Recetas({
     const costoLote = costoDesdeIngredientes(ingsForm, insumosSafe, recetasSafe, recetaIngredientesSafe);
     const costoUnitario = rindeNum > 0 ? costoLote / rindeNum : 0;
     const payload = {
-      nombre: normalizeNombreUpper(nombreOverride || `Copia de ${r.nombre || ""}`),
+      nombre: (nombreOverride || `Copia de ${r.nombre || ""}`).trim(),
       emoji: r.emoji || "🍞",
       rinde: rindeNum,
       unidad_rinde: r.unidad_rinde || "u",
@@ -296,7 +295,7 @@ export default function Recetas({
           ? parseDecimal(r.gramos_por_unidad)
           : null,
       oculto_en_venta: !!r.oculto_en_venta,
-      familia: normalizeNombreUpperOrNull(r.familia),
+      familia: (r.familia || "").trim() || null,
     };
     const pendingId = `pending-receta-${Date.now()}`;
     const pendingReceta = { ...payload, id: pendingId };
@@ -357,8 +356,8 @@ export default function Recetas({
           }
           const cuSelf = costUpdates.find((c) => String(c.id) === String(newReceta.id));
           const recetaFinal = {
-            ...newReceta,
             ...payload,
+            ...newReceta,
             costo_lote: cuSelf?.costo_lote ?? payload.costo_lote,
             costo_unitario: cuSelf?.costo_unitario ?? payload.costo_unitario,
           };
@@ -487,19 +486,23 @@ export default function Recetas({
           let recetasPersist = [...recetasSafe];
           let riPersist = [...recetaIngredientesSafe];
 
+          let savedReceta = null;
           if (isUpdate) {
-            await updateReceta(editando.id, payload);
+            const updated = await updateReceta(editando.id, payload);
+            savedReceta = updated;
             await deleteRecetaIngredientes(editando.id);
             finalId = editando.id;
+            updateRecetaInState?.({ ...optimisticReceta, ...updated, id: finalId });
           } else {
             const rec = await insertReceta(payload);
+            savedReceta = rec;
             finalId = rec?.id;
             if (!finalId) throw new Error("No se pudo crear la receta");
             removeReceta?.(pendingId);
             appendReceta?.({ ...payload, ...rec, id: finalId });
           }
 
-          if (payload.familia) registrarFamilia(payload.familia);
+          if (savedReceta?.familia) registrarFamilia(savedReceta.familia);
 
           if (finalId) {
             const ings = buildIngredientRows(finalId, ingredientes);
@@ -512,7 +515,7 @@ export default function Recetas({
               ...ings,
             ];
             const idxRec = recetasPersist.findIndex((rec) => String(rec.id) === String(finalId));
-            const recetaGuardada = { ...payload, id: finalId };
+            const recetaGuardada = { ...payload, ...savedReceta, id: finalId };
             if (idxRec >= 0) recetasPersist[idxRec] = recetaGuardada;
             else recetasPersist.push(recetaGuardada);
 

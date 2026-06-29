@@ -2,8 +2,6 @@ import { useState, useCallback, useMemo } from "react";
 import { reportError } from "../utils/errorReport";
 import { costoReceta } from "../lib/costos";
 import { parseDecimal } from "../lib/format";
-import { normalizeNombreUpper } from "../lib/normalizeNombre";
-
 const FORM_INITIAL = {
   nombre: "",
   categoria: "Harinas",
@@ -105,7 +103,7 @@ export function useInsumosLista({
       return;
     }
     const data = {
-      nombre: normalizeNombreUpper(form.nombre),
+      nombre: form.nombre,
       categoria: form.categoria,
       presentacion: form.presentacion,
       precio,
@@ -132,14 +130,15 @@ export function useInsumosLista({
     let insumoId = isUpdate ? editando?.id : null;
     try {
       if (isUpdate) {
-        await updateInsumo(editando.id, data);
+        const row = await updateInsumo(editando.id, data);
         insumoId = editando.id;
+        updateInsumoInState?.({ ...editando, ...data, nombre: row?.nombre ?? data.nombre });
       } else {
         const row = await insertInsumo(data);
         insumoId = row?.id;
         if (!insumoId) throw new Error("No se pudo crear el insumo");
         removeInsumo?.(pendingId);
-        appendInsumo?.({ ...data, id: insumoId });
+        appendInsumo?.({ ...data, id: insumoId, nombre: row?.nombre ?? data.nombre });
       }
     } catch {
       await onRefresh?.();

@@ -20,11 +20,17 @@ function normalizeRecetaPayload(payload) {
  */
 export function useRecetas() {
   const updateReceta = useCallback(async (id, payload) => {
-    const { error } = await supabase.from("recetas").update(normalizeRecetaPayload(payload)).eq("id", id);
+    const { data, error } = await supabase
+      .from("recetas")
+      .update(normalizeRecetaPayload(payload))
+      .eq("id", id)
+      .select()
+      .single();
     if (error) {
       console.error("[recetas/updateReceta]", error);
       throw error;
     }
+    return data;
   }, []);
 
   const insertReceta = useCallback(async (payload) => {
