@@ -39,6 +39,7 @@ function ClienteSpotlightRow({
           cliente={cliente}
           diasDesdeUltima={cliente.diasDesdeUltima}
           favoritoNombre={cliente.favorito?.nombre}
+          variant="retencion"
           compact
           showToast={showToast}
         />

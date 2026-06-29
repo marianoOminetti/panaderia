@@ -28,6 +28,7 @@ export default function Clientes({
   appendCliente,
   updateClienteInState,
   removeClienteFromState,
+  reassignClienteIdInState,
   appendPedidos,
   updatePedidosEstado,
   removePedidosByPedidoIdInState,
@@ -48,12 +49,14 @@ export default function Clientes({
     appendCliente,
     updateClienteInState,
     removeClienteFromState,
+    reassignClienteIdInState,
     appendPedidos,
     updatePedidosEstado,
     removePedidosByPedidoIdInState,
   });
 
   const [modal, setModal] = useState(false);
+  const [preloadForm, setPreloadForm] = useState({ nombre: "", telefono: "" });
   const [search, setSearch] = useState("");
   const [filtro, setFiltro] = useState("todos");
   const [detalleCliente, setDetalleCliente] = useState(null);
@@ -93,7 +96,10 @@ export default function Clientes({
     });
   }, [enriquecidos, filtro, searchValue]);
 
-  const openNew = () => setModal(true);
+  const openNew = () => {
+    setPreloadForm({ nombre: "", telefono: "" });
+    setModal(true);
+  };
 
   return (
     <div className="content">
@@ -141,17 +147,21 @@ export default function Clientes({
       {detalleCliente && (
         <ClienteDetalle
           cliente={detalleCliente}
+          clientes={clientes}
           ventas={ventas}
           recetas={recetas}
           pedidos={pedidos}
           perfil={getPerfil(detalleCliente.id)}
           onClose={() => setDetalleCliente(null)}
+          onClienteUpdated={setDetalleCliente}
           actualizarStock={actualizarStock}
           actualizarStockBatch={actualizarStockBatch}
           showToast={showToast}
           confirm={confirm}
           onRefresh={onRefresh}
           updateClienteInState={updateClienteInState}
+          removeClienteFromState={removeClienteFromState}
+          reassignClienteIdInState={reassignClienteIdInState}
           appendVentas={appendVentas}
           patchStock={patchStock}
           removeVentas={removeVentas}
@@ -162,11 +172,18 @@ export default function Clientes({
 
       <ClienteFormModal
         visible={modal}
-        onClose={() => setModal(false)}
+        onClose={() => {
+          setModal(false);
+          setPreloadForm({ nombre: "", telefono: "" });
+        }}
         clientes={clientes}
         onRefresh={onRefresh}
         appendCliente={appendCliente}
+        updateClienteInState={updateClienteInState}
         showToast={showToast}
+        initialNombre={preloadForm.nombre}
+        initialTelefono={preloadForm.telefono}
+        onExistingCliente={setDetalleCliente}
       />
     </div>
   );

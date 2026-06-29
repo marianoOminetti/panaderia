@@ -29,3 +29,36 @@ export function hoyLocalISO() {
   return `${y}-${m}-${day}`;
 }
 
+/** Formatea YYYY-MM-DD para mostrar (evita desfase por timezone). */
+export function formatFechaLocal(isoDate, options = {}) {
+  const raw = String(isoDate || "").slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return isoDate || "Sin fecha";
+  const [y, m, d] = raw.split("-").map(Number);
+  const fecha = new Date(y, m - 1, d);
+  return fecha.toLocaleDateString("es-AR", {
+    weekday: options.weekday ? "short" : undefined,
+    day: "numeric",
+    month: "short",
+    year:
+      options.alwaysYear || y !== new Date().getFullYear() ? "numeric" : undefined,
+  });
+}
+
+/** Etiqueta relativa: Hoy, Ayer, Hace N días, o fecha corta. */
+export function formatFechaRelativa(isoDate) {
+  const raw = String(isoDate || "").slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return isoDate || "Sin fecha";
+  const hoy = hoyLocalISO();
+  if (raw === hoy) return "Hoy";
+  const [hy, hm, hd] = hoy.split("-").map(Number);
+  const ayerDate = new Date(hy, hm - 1, hd - 1);
+  const ayer = `${ayerDate.getFullYear()}-${String(ayerDate.getMonth() + 1).padStart(2, "0")}-${String(ayerDate.getDate()).padStart(2, "0")}`;
+  if (raw === ayer) return "Ayer";
+  const [y, m, d] = raw.split("-").map(Number);
+  const target = new Date(y, m - 1, d);
+  const hoyDate = new Date(hy, hm - 1, hd);
+  const diffDays = Math.round((hoyDate - target) / (1000 * 60 * 60 * 24));
+  if (diffDays > 0 && diffDays < 14) return `Hace ${diffDays} días`;
+  return formatFechaLocal(raw);
+}
+

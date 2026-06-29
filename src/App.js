@@ -36,6 +36,22 @@ import ErrorLogOverlay from "./components/layout/ErrorLogOverlay";
 import AppNav from "./components/layout/AppNav";
 import "./App.css";
 
+function readVentaKeyFromLocation(loc = window.location) {
+  const fromSearch = new URLSearchParams(loc.search || "").get("venta");
+  if (fromSearch) return fromSearch;
+  const rawHash = loc.hash || "";
+  if (rawHash.length <= 1) return null;
+  const inner = rawHash.startsWith("#") ? rawHash.slice(1) : rawHash;
+  const qIdx = inner.indexOf("?");
+  if (qIdx < 0) return null;
+  return new URLSearchParams(inner.slice(qIdx + 1)).get("venta");
+}
+
+function clearVentaDeepLinkSearch() {
+  if (typeof window === "undefined") return;
+  window.history.replaceState({}, "", `${window.location.pathname}#ventas`);
+}
+
 export default function App() {
   // --- Auth ---
   const { session, authLoading, signIn, signOut: authSignOut, role, roleLoading } = useAuth();
@@ -48,7 +64,8 @@ export default function App() {
     ]);
     const rawHash = window.location.hash || "";
     const hash = rawHash.startsWith("#") ? rawHash.slice(1) : rawHash;
-    if (hash && allTabIds.has(hash)) return hash;
+    const tabFromHash = hash.split(/[?/]/)[0];
+    if (tabFromHash && allTabIds.has(tabFromHash)) return tabFromHash;
     try {
       const stored = window.localStorage.getItem("app.currentTab");
       if (stored && allTabIds.has(stored)) return stored;
@@ -175,6 +192,7 @@ export default function App() {
     appendCliente,
     updateClienteInState,
     removeClienteFromState,
+    reassignClienteIdInState,
     appendReceta,
     updateRecetaInState,
     removeReceta,
@@ -310,17 +328,28 @@ export default function App() {
       },
     });
 
-  // Deep link:
-  const applyDeepLink = useCallback(() => {
-    if (typeof window === "undefined" || !window.location.search) return;
-    const params = new URLSearchParams(window.location.search);
-    const tabParam = params.get("tab");
-    const ventaKey = params.get("venta");
-    if (tabParam === "ventas" && ventaKey && canAccessTab(normalizedRole, "ventas")) {
-      setTab("ventas");
-      setVentasPreloadGrupoKey(ventaKey);
+  const goToTab = useCallback((tabId) => {
+    setTab(tabId);
+    if (typeof window === "undefined") return;
+    window.location.hash = tabId;
+    try {
+      window.localStorage.setItem("app.currentTab", tabId);
+    } catch {
+      // ignore storage errors
     }
-  }, [normalizedRole]);
+  }, []);
+
+  const applyDeepLink = useCallback(() => {
+    if (typeof window === "undefined") return;
+    if (!session || !roleReady) return;
+
+    const ventaKey = readVentaKeyFromLocation();
+    if (ventaKey && canAccessTab(normalizedRole, "ventas")) {
+      goToTab("ventas");
+      setVentasPreloadGrupoKey(ventaKey);
+      if (window.location.search) clearVentaDeepLinkSearch();
+    }
+  }, [goToTab, normalizedRole, roleReady, session]);
 
   useEffect(() => {
     applyDeepLink();
@@ -330,7 +359,12 @@ export default function App() {
     if (typeof window === "undefined") return;
     const handleFocus = () => applyDeepLink();
     window.addEventListener("focus", handleFocus);
-    return () => window.removeEventListener("focus", handleFocus);
+    const handlePageShow = () => applyDeepLink();
+    window.addEventListener("pageshow", handlePageShow);
+    return () => {
+      window.removeEventListener("focus", handleFocus);
+      window.removeEventListener("pageshow", handlePageShow);
+    };
   }, [applyDeepLink]);
 
   useEffect(() => {
@@ -367,15 +401,17 @@ export default function App() {
     const allTabIds = new Set(allowedTabs);
     const handleHashChange = () => {
       const rawHash = window.location.hash || "";
-      const next = rawHash.startsWith("#") ? rawHash.slice(1) : rawHash;
-      if (next && allTabIds.has(next)) {
-        setTab(next);
+      const tabFromHash = rawHash.slice(1).split(/[?/]/)[0];
+      if (tabFromHash && allTabIds.has(tabFromHash)) {
+        setTab(tabFromHash);
         try {
-          window.localStorage.setItem("app.currentTab", next);
+          window.localStorage.setItem("app.currentTab", tabFromHash);
         } catch {
           // ignore storage errors
         }
       }
+      const ventaKey = readVentaKeyFromLocation();
+      if (ventaKey) setVentasPreloadGrupoKey(ventaKey);
     };
     window.addEventListener("hashchange", handleHashChange);
     return () => window.removeEventListener("hashchange", handleHashChange);
@@ -680,6 +716,7 @@ export default function App() {
         appendCliente={appendCliente}
         updateClienteInState={updateClienteInState}
         removeClienteFromState={removeClienteFromState}
+        reassignClienteIdInState={reassignClienteIdInState}
         appendReceta={appendReceta}
         updateRecetaInState={updateRecetaInState}
         removeReceta={removeReceta}

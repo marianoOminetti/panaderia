@@ -264,6 +264,43 @@ export async function patchAppCache(roleKey, partial = {}) {
     });
   }
 
+  if (partial.reassignVentasClienteId) {
+    const { fromId, toId } = partial.reassignVentasClienteId;
+    if (fromId && toId) {
+      const mapClienteId = (ventas) =>
+        (ventas || []).map((v) =>
+          v.cliente_id === fromId ? { ...v, cliente_id: toId } : v,
+        );
+      const cache = await getAppCache(key);
+      const recentVentas = mapClienteId(cache?.ventasRecent?.ventas);
+      const historicVentas = cache?.ventasHistoricasFresh
+        ? mapClienteId(cache?.ventasHistoricas?.ventas)
+        : null;
+      const tx = db.transaction(
+        [VENTAS_RECENT_STORE, VENTAS_HISTORICAS_STORE, CACHE_META_STORE],
+        "readwrite",
+      );
+      await idbPut(tx.objectStore(VENTAS_RECENT_STORE), {
+        roleKey: key,
+        savedAt: now,
+        ventas: trimVentasForCache(recentVentas),
+      });
+      if (historicVentas != null) {
+        await idbPut(tx.objectStore(VENTAS_HISTORICAS_STORE), {
+          roleKey: key,
+          savedAt: now,
+          ventas: historicVentas,
+          corteReciente: cache?.ventasHistoricas?.corteReciente ?? null,
+        });
+      }
+      await idbPut(tx.objectStore(CACHE_META_STORE), {
+        roleKey: key,
+        lastSyncAt: now,
+        appCacheVersion: APP_CACHE_VERSION,
+      });
+    }
+  }
+
   if (partial.resolveOptimisticVentas) {
     const { transaccionId, inserted, pendingIds } = partial.resolveOptimisticVentas;
     const cache = await getAppCache(key);

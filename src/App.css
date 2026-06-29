@@ -447,6 +447,133 @@ body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--cream); c
   color: var(--accent);
   margin-top: 2px;
 }
+
+.card-meta {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.cliente-historial-empty {
+  font-size: 13px;
+  color: var(--text-muted);
+  padding: 12px 16px;
+  margin: 0;
+}
+
+.cliente-historial-item {
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+}
+
+.cliente-historial-item--activo {
+  background: rgba(124, 111, 205, 0.04);
+}
+
+.cliente-historial-fecha {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.cliente-historial-fecha-principal {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.cliente-historial-fecha-sec {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.cliente-historial-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.cliente-historial-badge--deuda {
+  color: var(--danger);
+  background: rgba(198, 40, 40, 0.1);
+}
+
+.cliente-historial-badge--entregado {
+  color: var(--green);
+  background: rgba(46, 125, 50, 0.1);
+}
+
+.cliente-historial-badge--pendiente,
+.cliente-historial-badge--en_preparacion,
+.cliente-historial-badge--listo {
+  color: var(--purple-dark);
+  background: rgba(124, 111, 205, 0.12);
+}
+
+.cliente-historial-productos {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+}
+
+.cliente-historial-linea {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 13px;
+}
+
+.cliente-historial-emoji {
+  flex-shrink: 0;
+  width: 22px;
+  text-align: center;
+}
+
+.cliente-historial-nombre {
+  flex: 1;
+  min-width: 0;
+  color: var(--text);
+}
+
+.cliente-historial-precio {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.cliente-historial-pie {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: var(--text-muted);
+  padding-top: 4px;
+  border-top: 1px dashed var(--border);
+}
+
+.cliente-pedido-acciones {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cliente-pedido-acciones-btns {
+  display: flex;
+  gap: 6px;
+}
+
+.cliente-pedido-acciones-btns .btn-secondary {
+  flex: 1;
+  font-size: 12px;
+  padding: 8px 10px;
+}
 .cliente-perfil-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -546,6 +673,46 @@ body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--cream); c
   border-radius: 10px;
 }
 .cliente-wa-btn:hover { background: rgba(37, 211, 102, 0.18); }
+
+.contact-import-ios-warn {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.4;
+  border-radius: 8px;
+  background: rgba(214, 160, 50, 0.12);
+  border: 1px solid rgba(214, 160, 50, 0.35);
+  color: var(--text);
+}
+
+.contact-import-vcard-field {
+  display: block;
+  margin-top: 10px;
+}
+.contact-import-vcard-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 4px;
+  color: var(--text-muted);
+}
+.contact-import-vcard-textarea {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px;
+  font-size: 12px;
+  font-family: ui-monospace, monospace;
+  line-height: 1.35;
+  border-radius: 6px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: var(--bg, #fff);
+  color: var(--text);
+  resize: vertical;
+  min-height: 72px;
+  -webkit-user-select: text;
+  user-select: text;
+}
 
 .venta-cliente-mini {
   margin: 10px 0 4px;

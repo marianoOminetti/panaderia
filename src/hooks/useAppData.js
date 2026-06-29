@@ -855,6 +855,24 @@ export function useAppData({ showToast, role, onCachePatch, onPersistCache } = {
     [onCachePatch],
   );
 
+  const reassignClienteIdInState = useCallback(
+    (fromId, toId) => {
+      if (!fromId || !toId) return;
+      setVentas((prev) =>
+        asVentasArray(prev).map((v) =>
+          v.cliente_id === fromId ? { ...v, cliente_id: toId } : v,
+        ),
+      );
+      setPedidos((prev) =>
+        prev.map((p) =>
+          p.cliente_id === fromId ? { ...p, cliente_id: toId } : p,
+        ),
+      );
+      onCachePatch?.({ reassignVentasClienteId: { fromId, toId } });
+    },
+    [onCachePatch],
+  );
+
   const upsertInsumoComposicionInState = useCallback((row) => {
     if (!row?.insumo_id || !row?.insumo_id_componente) return;
     setInsumoComposicion((prev) => {
@@ -952,6 +970,7 @@ export function useAppData({ showToast, role, onCachePatch, onPersistCache } = {
     appendCliente,
     updateClienteInState,
     removeClienteFromState,
+    reassignClienteIdInState,
     appendReceta,
     updateRecetaInState,
     removeReceta,

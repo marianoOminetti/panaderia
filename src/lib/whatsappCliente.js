@@ -25,6 +25,11 @@ export function normalizarTelefonoWhatsApp(telefono) {
   return "";
 }
 
+export function mensajeGenericoCliente({ nombre }) {
+  const first = (nombre || "").trim().split(/\s+/)[0] || "Hola";
+  return `Hola ${first}, te escribo desde Panadería SG. ¿En qué te puedo ayudar?`;
+}
+
 export function mensajeRetencionCliente({
   nombre,
   diasDesdeUltima,
@@ -47,9 +52,56 @@ export function urlWhatsApp(telefono, mensaje) {
   return `https://wa.me/${num}${text}`;
 }
 
+function isIOS() {
+  if (typeof navigator === "undefined") return false;
+  return /iPad|iPhone|iPod/.test(navigator.userAgent);
+}
+
+function openUrl(href) {
+  const a = document.createElement("a");
+  a.href = href;
+  a.target = "_blank";
+  a.rel = "noopener noreferrer";
+  a.style.display = "none";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
 export function abrirWhatsAppCliente(telefono, mensaje) {
+  const num = normalizarTelefonoWhatsApp(telefono);
+  if (!num || typeof window === "undefined") return false;
+
+  const text = mensaje ? `&text=${encodeURIComponent(mensaje)}` : "";
+
+  if (isIOS()) {
+    try {
+      openUrl(`whatsapp://send?phone=${num}${text}`);
+      return true;
+    } catch {
+      // intentar wa.me abajo
+    }
+  }
+
   const href = urlWhatsApp(telefono, mensaje);
-  if (!href || typeof window === "undefined") return false;
-  window.open(href, "_blank", "noopener,noreferrer");
-  return true;
+  if (!href) return false;
+
+  try {
+    openUrl(href);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function copiarTelefonoCliente(telefono) {
+  if (!telefono || typeof navigator === "undefined" || !navigator.clipboard?.writeText) {
+    return false;
+  }
+  try {
+    await navigator.clipboard.writeText(String(telefono).trim());
+    return true;
+  } catch {
+    return false;
+  }
 }

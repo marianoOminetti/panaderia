@@ -146,6 +146,7 @@ function ClientesList({
                   cliente={c}
                   diasDesdeUltima={c.diasDesdeUltima}
                   favoritoNombre={c.favorito?.nombre}
+                  variant="retencion"
                   compact
                   showToast={showToast}
                 />

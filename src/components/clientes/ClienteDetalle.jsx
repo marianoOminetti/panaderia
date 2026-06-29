@@ -2,10 +2,12 @@
  * Detalle de un cliente: pedidos (ClienteDetallePedidos) y ventas (ClienteDetalleVentas), alta de pedido y acciones.
  * Usa useClientes para operaciones de estado.
  */
-import { useRef } from "react";
+import { useRef, useState } from "react";
+import ClienteFormModal from "./ClienteFormModal";
+import ClienteUnificarModal from "./ClienteUnificarModal";
 import { fmt } from "../../lib/format";
 import { hoyLocalISO } from "../../lib/dates";
-import { agruparPedidos, agruparVentas } from "../../lib/agrupadores";
+import { agruparPedidos } from "../../lib/agrupadores";
 import { reportError } from "../../utils/errorReport";
 import { useClientes } from "../../hooks/useClientes";
 import { useVentas, releaseVentaTransaccionClaim } from "../../hooks/useVentas";
@@ -14,6 +16,7 @@ import ClienteDetallePedidos from "./ClienteDetallePedidos";
 import ClienteDetalleVentas from "./ClienteDetalleVentas";
 import ClientePerfilCompra from "./ClientePerfilCompra";
 import ClienteWhatsAppButton from "./ClienteWhatsAppButton";
+import { copiarTelefonoCliente } from "../../lib/whatsappCliente";
 import { deudaCliente } from "../../lib/clienteDeuda";
 
 function ClienteDetalle({
@@ -34,7 +37,13 @@ function ClienteDetalle({
   removeVentas,
   resolveOptimisticVentas,
   updatePedidosEstado,
+  onClienteUpdated,
+  clientes,
+  removeClienteFromState,
+  reassignClienteIdInState,
 }) {
+  const [editModal, setEditModal] = useState(false);
+  const [unificarModal, setUnificarModal] = useState(false);
   const entregaInFlightRef = useRef(new Set());
   const {
     updatePedidoEstado,
@@ -201,14 +210,31 @@ function ClienteDetalle({
           <div className="card-header">
             <span className="card-title">Resumen</span>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              {cliente.telefono?.trim() && perfil?.inactivo && (
+              {cliente.telefono?.trim() && (
                 <ClienteWhatsAppButton
                   cliente={cliente}
                   diasDesdeUltima={perfil?.diasDesdeUltima}
                   favoritoNombre={perfil?.favoritos?.[0]?.receta?.nombre}
+                  variant={perfil?.inactivo ? "retencion" : "generico"}
                   showToast={showToast}
                 />
               )}
+              <button
+                type="button"
+                className="edit-btn"
+                onClick={() => setEditModal(true)}
+                aria-label="Editar cliente"
+              >
+                Editar
+              </button>
+              <button
+                type="button"
+                className="edit-btn"
+                onClick={() => setUnificarModal(true)}
+                aria-label="Unificar con otro cliente"
+              >
+                Unificar
+              </button>
               <button
                 type="button"
                 className="edit-btn"
@@ -228,47 +254,57 @@ function ClienteDetalle({
             }}
           >
             <strong>Teléfono:</strong> {cliente.telefono || "—"}
+            {cliente.telefono?.trim() && (
+              <button
+                type="button"
+                className="edit-btn"
+                style={{ marginLeft: 8, fontSize: 12 }}
+                onClick={async () => {
+                  const ok = await copiarTelefonoCliente(cliente.telefono);
+                  showToast?.(ok ? "Número copiado" : "No se pudo copiar");
+                }}
+              >
+                Copiar
+              </button>
+            )}
           </p>
+          {(cliente.razon_social || cliente.cuit || cliente.dni) && (
+            <p
+              style={{
+                fontSize: 13,
+                color: "var(--text-muted)",
+                marginBottom: 6,
+              }}
+            >
+              <strong>Facturación:</strong>{" "}
+              {cliente.razon_social || "—"}
+              {(cliente.cuit || cliente.dni) &&
+                ` · ${cliente.cuit || cliente.dni}`}
+            </p>
+          )}
           {deuda > 0 && (
             <p className="clientes-deuda-resumen">
               <strong>Deuda pendiente:</strong> {fmt(deuda)}
             </p>
           )}
-          {(() => {
-            const vs = getVentasDeCliente(cliente.id);
-            const grupos = agruparVentas(vs);
-            const total = vs.reduce((s, v) => {
-              const linea =
-                v.total_final != null
-                  ? v.total_final
-                  : (v.precio_unitario || 0) * (v.cantidad || 0);
-              return s + linea;
-            }, 0);
-            return (
-              <>
-                <p
-                  style={{
-                    fontSize: 13,
-                    color: "var(--text-muted)",
-                    marginBottom: 6,
-                  }}
-                >
-                  <strong>Compras:</strong> {grupos.length}
-                </p>
-                <p
-                  style={{
-                    fontSize: 13,
-                    color: "var(--text-muted)",
-                  }}
-                >
-                  <strong>Total gastado:</strong> {fmt(total)}
-                </p>
-              </>
-            );
-          })()}
+          <p
+            style={{
+              fontSize: 13,
+              color: "var(--text-muted)",
+            }}
+          >
+            <strong>Total gastado:</strong>{" "}
+            {fmt(
+              getVentasDeCliente(cliente.id).reduce((s, v) => {
+                const linea =
+                  v.total_final != null
+                    ? v.total_final
+                    : (v.precio_unitario || 0) * (v.cantidad || 0);
+                return s + linea;
+              }, 0),
+            )}
+          </p>
         </div>
-
-        <ClientePerfilCompra perfil={perfil} />
 
         <ClienteDetallePedidos
           pedidosClienteAgrupados={pedidosClienteAgrupados}
@@ -283,7 +319,41 @@ function ClienteDetalle({
           ventasCliente={getVentasDeCliente(cliente.id)}
           recetas={recetas}
         />
+
+        <ClientePerfilCompra perfil={perfil} />
       </div>
+
+      {editModal && (
+        <ClienteFormModal
+          visible={editModal}
+          onClose={() => setEditModal(false)}
+          clientes={clientes}
+          onRefresh={onRefresh}
+          updateClienteInState={updateClienteInState}
+          showToast={showToast}
+          editando={cliente}
+          onSaved={(updated) => onClienteUpdated?.(updated)}
+          confirm={confirm}
+        />
+      )}
+
+      {unificarModal && (
+        <ClienteUnificarModal
+          visible={unificarModal}
+          onClose={() => setUnificarModal(false)}
+          cliente={cliente}
+          clientes={clientes}
+          ventas={ventas}
+          pedidos={pedidos}
+          recetas={recetas}
+          onRefresh={onRefresh}
+          showToast={showToast}
+          confirm={confirm}
+          reassignClienteIdInState={reassignClienteIdInState}
+          removeClienteFromState={removeClienteFromState}
+          onMerged={onRefresh}
+        />
+      )}
     </div>
   );
 }
