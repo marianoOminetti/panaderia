@@ -245,7 +245,6 @@ export default function AppContent({
           confirm={confirm}
           filterRecetasIds={recetasFilterIds}
           onClearFilter={() => setRecetasFilterIds([])}
-          patchRecetasCosts={patchRecetasCosts}
         />
         </LazyTab>
       )}

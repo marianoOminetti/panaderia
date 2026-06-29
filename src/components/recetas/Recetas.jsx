@@ -35,9 +35,18 @@ export default function Recetas({
   filterRecetasIds,
   onClearFilter,
 }) {
-  const recetaIngredientesSafe = Array.isArray(recetaIngredientes) ? recetaIngredientes : [];
-  const insumosSafe = Array.isArray(insumos) ? insumos : [];
-  const recetasSafe = Array.isArray(recetas) ? recetas : [];
+  const recetaIngredientesSafe = useMemo(
+    () => (Array.isArray(recetaIngredientes) ? recetaIngredientes : []),
+    [recetaIngredientes],
+  );
+  const insumosSafe = useMemo(
+    () => (Array.isArray(insumos) ? insumos : []),
+    [insumos],
+  );
+  const recetasSafe = useMemo(
+    () => (Array.isArray(recetas) ? recetas : []),
+    [recetas],
+  );
   const filterSet =
     Array.isArray(filterRecetasIds) && filterRecetasIds.length > 0
       ? new Set(filterRecetasIds.map((id) => String(id)))
