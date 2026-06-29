@@ -247,7 +247,6 @@ export function useStockMutations({
           cantTotalIng,
           ing.unidad || "g",
           insumo.unidad || "g",
-          insumo,
         );
 
         if (cantEnUnidad > 0) {
@@ -294,7 +293,6 @@ export function useStockMutations({
           cantHijoGramos,
           "g",
           insumoHijo.unidad || "g",
-          insumoHijo,
         );
         if (cantHijo > 0) {
           await registrarMovimientoInsumo(

@@ -94,7 +94,6 @@ export function calcularRequerimientoInsumosParaItems(
             cantHijoGramos,
             "g",
             insumoHijo.unidad || "g",
-            insumoHijo,
           );
           if (!requeridos[insumoHijo.id]) {
             requeridos[insumoHijo.id] = {
@@ -110,7 +109,6 @@ export function calcularRequerimientoInsumosParaItems(
           cantTotalIng,
           ing.unidad || "g",
           insumo.unidad || "g",
-          insumo,
         );
         if (!requeridos[insumo.id]) {
           requeridos[insumo.id] = {

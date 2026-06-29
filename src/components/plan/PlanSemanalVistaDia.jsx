@@ -7,33 +7,14 @@ import {
   NUM_DIAS,
   fechaDiaSemanaLabel,
 } from "../../lib/planSugerencias";
-import { getTipoReceta, TIPO_RECETA } from "../../lib/recetaTipo";
-import {
-  formatCantidadMasaPlan,
-  gramosDesdeLotesMasa,
-  lotesDesdeGramosMasa,
-  usaGramosEnPlanMasa,
-  etiquetaCantidadMasaPlan,
-  getHijosDeMasa,
-} from "../../lib/planMasa";
 
-function PlanDiaPicker({ diaIdx, recetas, recetaIngredientes, onPick, onClose }) {
+function PlanDiaPicker({ diaIdx, recetas, onPick, onClose }) {
   const [tab, setTab] = useState(diaIdx === 0 ? "masas" : "productos");
-  const [masaSub, setMasaSub] = useState("todas");
   const productos = useMemo(
     () => (recetas || []).filter((r) => !r.es_precursora && !r.oculto_en_venta),
     [recetas],
   );
-  const masas = useMemo(() => {
-    const all = (recetas || []).filter((r) => r.es_precursora);
-    if (masaSub === "base") {
-      return all.filter((r) => getTipoReceta(r, recetaIngredientes) === TIPO_RECETA.MASA_BASE);
-    }
-    if (masaSub === "porcionadas") {
-      return all.filter((r) => getTipoReceta(r, recetaIngredientes) === TIPO_RECETA.MASA_PORCIONADA);
-    }
-    return all;
-  }, [recetas, recetaIngredientes, masaSub]);
+  const masas = useMemo(() => (recetas || []).filter((r) => r.es_precursora), [recetas]);
   const list = tab === "masas" ? masas : productos;
   const { search, setSearch, filteredItems } = useFilterBySearch(list, "nombre");
 
@@ -48,19 +29,6 @@ function PlanDiaPicker({ diaIdx, recetas, recetaIngredientes, onPick, onClose })
         </button>
         <button type="button" className="plan-dia-picker-close" onClick={onClose} aria-label="Cerrar">✕</button>
       </div>
-      {tab === "masas" && (
-        <div className="plan-picker-tabs recetas-masa-subtabs">
-          <button type="button" className={`plan-picker-tab ${masaSub === "todas" ? "active" : ""}`} onClick={() => setMasaSub("todas")}>
-            Todas
-          </button>
-          <button type="button" className={`plan-picker-tab ${masaSub === "base" ? "active" : ""}`} onClick={() => setMasaSub("base")}>
-            Base
-          </button>
-          <button type="button" className={`plan-picker-tab ${masaSub === "porcionadas" ? "active" : ""}`} onClick={() => setMasaSub("porcionadas")}>
-            Porcionadas
-          </button>
-        </div>
-      )}
       <ProductSearchInput
         value={search}
         onChange={setSearch}
@@ -96,7 +64,6 @@ export default function PlanSemanalVistaDia({
   weekStart,
   cartPlanItems,
   recetas,
-  recetaIngredientes,
   saving,
   addToPlanOnDay,
   updatePlanCartItem,
@@ -152,17 +119,9 @@ export default function PlanSemanalVistaDia({
                 <p className="plan-dia-card-empty">Nada planificado</p>
               )}
               {itemsDelDia.map((item) => {
-                const qtyLotes = item.porDia[diaIdx] || 0;
+                const qty = item.porDia[diaIdx] || 0;
+                const unidad = item.receta.unidad_rinde || "u";
                 const esMasa = item.receta.es_precursora;
-                const hijos = esMasa
-                  ? getHijosDeMasa(item.receta.id, recetaIngredientes || [], recetas || [])
-                  : [];
-                const enGramos = esMasa && usaGramosEnPlanMasa(item.receta);
-                const qtyDisplay = enGramos
-                  ? gramosDesdeLotesMasa(item.receta, qtyLotes)
-                  : qtyLotes;
-                const fmtDia = formatCantidadMasaPlan(item.receta, qtyLotes);
-                const fmtUnidad = enGramos ? fmtDia.unidad : (item.receta.unidad_rinde || "u");
 
                 return (
                   <div key={item.receta.id} className="plan-dia-item">
@@ -171,34 +130,22 @@ export default function PlanSemanalVistaDia({
                       <span className="plan-dia-item-nombre">{item.receta.nombre}</span>
                       <span className="plan-dia-item-sub">
                         {esMasa ? "Masa" : "Producto"}
-                        {esMasa && hijos.length > 0 && (
-                          <> · Alimenta: {hijos.map((h) => h.nombre).slice(0, 3).join(", ")}{hijos.length > 3 ? "…" : ""}</>
-                        )}
-                        {esMasa && item.cantidad > 0 && (
-                          <> · Total semanal: {etiquetaCantidadMasaPlan(item.receta, item.cantidad)}</>
-                        )}
                       </span>
                     </div>
                     <QuantityControl
-                      value={qtyDisplay}
+                      value={qty}
                       onChange={(n) => {
-                        let val;
-                        if (enGramos) {
-                          val = Math.max(0, Math.round(lotesDesdeGramosMasa(item.receta, n) * 1000) / 1000);
-                        } else if (esMasa) {
-                          val = Math.max(0, Math.round(n * 10) / 10);
-                        } else {
-                          val = Math.max(0, Math.round(n));
-                        }
+                        const val = esMasa
+                          ? Math.max(0, Math.round(n * 10) / 10)
+                          : Math.max(0, Math.round(n));
                         updatePlanCartItem(item.receta.id, { porDiaIdx: diaIdx, porDiaVal: val });
                       }}
                       min={0}
-                      step={enGramos ? 50 : 1}
                       allowDecimals={esMasa}
                       size="sm"
                       disabled={saving}
                     />
-                    <span className="plan-semanal-unidad">{fmtUnidad}</span>
+                    <span className="plan-semanal-unidad">{unidad}</span>
                   </div>
                 );
               })}
@@ -208,7 +155,6 @@ export default function PlanSemanalVistaDia({
               <PlanDiaPicker
                 diaIdx={diaIdx}
                 recetas={recetas}
-                recetaIngredientes={recetaIngredientes}
                 onPick={(receta) => {
                   const step = receta.es_precursora ? 1 : 1;
                   addToPlanOnDay(receta, diaIdx, step);
