@@ -12,6 +12,7 @@ export function useClientes({
   appendCliente,
   updateClienteInState,
   removeClienteFromState,
+  reassignClienteIdInState,
   appendPedidos,
   updatePedidosEstado,
   removePedidosByPedidoIdInState,
@@ -45,6 +46,48 @@ export function useClientes({
       }
     },
     [onRefresh, updateClienteInState],
+  );
+
+  const updateCliente = useCallback(
+    async (id, { nombre, telefono, cuit, dni, razon_social }) => {
+      const nombreTrim = (nombre ?? "").trim();
+      if (!nombreTrim) {
+        throw new Error("El nombre es obligatorio");
+      }
+      const patch = {
+        nombre: nombreTrim,
+        telefono: telefono?.trim() || null,
+        razon_social: (razon_social ?? "").trim() || null,
+        cuit: cuit ? String(cuit).replace(/\D/g, "").slice(0, 11) : null,
+        dni: dni ? String(dni).replace(/\D/g, "").slice(0, 8) : null,
+      };
+      const { data, error } = await supabase
+        .from("clientes")
+        .update(patch)
+        .eq("id", id)
+        .select("*")
+        .single();
+      if (error) {
+        console.error("[clientes/updateCliente]", error);
+        const msg = error.message || "";
+        if (/cuit|dni|razon_social|schema cache/i.test(msg)) {
+          const err = new Error(
+            "Faltan columnas fiscales en la base. Ejecutá scripts/aplicar_migracion_afip_receptor.sql en Supabase.",
+          );
+          err.cause = error;
+          throw err;
+        }
+        throw error;
+      }
+      showToast?.("Cliente actualizado");
+      if (updateClienteInState && data) {
+        updateClienteInState(data);
+      } else {
+        await onRefresh?.();
+      }
+      return data;
+    },
+    [onRefresh, showToast, updateClienteInState],
   );
 
   const insertCliente = useCallback(
@@ -224,8 +267,108 @@ export function useClientes({
     [onRefresh, showToast, removePedidosByPedidoIdInState],
   );
 
+  const mergeClientes = useCallback(
+    async (fromClienteId, toClienteId) => {
+      if (!fromClienteId || !toClienteId || fromClienteId === toClienteId) {
+        throw new Error("No se pueden unificar el mismo cliente");
+      }
+
+      const [{ data: ventasFrom, error: ventasSelErr }, { data: pedidosFrom, error: pedidosSelErr }] =
+        await Promise.all([
+          supabase.from("ventas").select("id").eq("cliente_id", fromClienteId),
+          supabase.from("pedidos").select("id").eq("cliente_id", fromClienteId),
+        ]);
+      if (ventasSelErr) {
+        console.error("[clientes/mergeClientes/selectVentas]", ventasSelErr);
+        throw ventasSelErr;
+      }
+      if (pedidosSelErr) {
+        console.error("[clientes/mergeClientes/selectPedidos]", pedidosSelErr);
+        throw pedidosSelErr;
+      }
+
+      const ventaIds = (ventasFrom || []).map((v) => v.id).filter(Boolean);
+      const pedidoIds = (pedidosFrom || []).map((p) => p.id).filter(Boolean);
+      let ventasMoved = false;
+      let pedidosMoved = false;
+
+      try {
+        if (ventaIds.length > 0) {
+          const { error } = await supabase
+            .from("ventas")
+            .update({ cliente_id: toClienteId })
+            .in("id", ventaIds);
+          if (error) {
+            console.error("[clientes/mergeClientes/moveVentas]", error);
+            throw error;
+          }
+          ventasMoved = true;
+        }
+        if (pedidoIds.length > 0) {
+          const { error } = await supabase
+            .from("pedidos")
+            .update({ cliente_id: toClienteId })
+            .in("id", pedidoIds);
+          if (error) {
+            console.error("[clientes/mergeClientes/movePedidos]", error);
+            throw error;
+          }
+          pedidosMoved = true;
+        }
+        const { error } = await supabase
+          .from("clientes")
+          .update({ eliminado: true })
+          .eq("id", fromClienteId);
+        if (error) {
+          console.error("[clientes/mergeClientes]", error);
+          throw error;
+        }
+        reassignClienteIdInState?.(fromClienteId, toClienteId);
+        if (removeClienteFromState) {
+          removeClienteFromState(fromClienteId);
+        } else if (updateClienteInState) {
+          updateClienteInState({ id: fromClienteId, eliminado: true });
+        } else {
+          await onRefresh?.();
+        }
+        showToast?.("Clientes unificados");
+      } catch (err) {
+        if (pedidosMoved && pedidoIds.length > 0) {
+          try {
+            await supabase
+              .from("pedidos")
+              .update({ cliente_id: fromClienteId })
+              .in("id", pedidoIds);
+          } catch (rollbackErr) {
+            console.error("[clientes/mergeClientes/rollbackPedidos]", rollbackErr);
+          }
+        }
+        if (ventasMoved && ventaIds.length > 0) {
+          try {
+            await supabase
+              .from("ventas")
+              .update({ cliente_id: fromClienteId })
+              .in("id", ventaIds);
+          } catch (rollbackErr) {
+            console.error("[clientes/mergeClientes/rollbackVentas]", rollbackErr);
+          }
+        }
+        throw err;
+      }
+    },
+    [
+      reassignClienteIdInState,
+      removeClienteFromState,
+      updateClienteInState,
+      onRefresh,
+      showToast,
+    ],
+  );
+
   return {
     updateClienteDatosFiscales,
+    updateCliente,
+    mergeClientes,
     insertCliente,
     updateVentasClienteId,
     updatePedidosClienteId,

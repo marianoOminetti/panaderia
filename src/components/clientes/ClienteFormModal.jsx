@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { reportError } from "../../utils/errorReport";
 import {
   selectContactFromPhone,
@@ -8,8 +8,24 @@ import { useClientes } from "../../hooks/useClientes";
 import { detectAfipDocumento } from "../../lib/afipDocumento";
 import { FormInput } from "../ui";
 
-function ClienteFormModal({ visible, onClose, clientes, onRefresh, appendCliente, showToast }) {
-  const { insertCliente } = useClientes({ onRefresh, appendCliente, showToast });
+function ClienteFormModal({
+  visible,
+  onClose,
+  clientes,
+  onRefresh,
+  appendCliente,
+  updateClienteInState,
+  showToast,
+  editando = null,
+  onSaved,
+  confirm,
+}) {
+  const { insertCliente, updateCliente } = useClientes({
+    onRefresh,
+    appendCliente,
+    updateClienteInState,
+    showToast,
+  });
 
   const [form, setForm] = useState({
     nombre: "",
@@ -24,6 +40,22 @@ function ClienteFormModal({ visible, onClose, clientes, onRefresh, appendCliente
     total: 0,
   });
 
+  const isEdit = !!editando;
+
+  useEffect(() => {
+    if (!visible) return;
+    if (editando) {
+      setForm({
+        nombre: editando.nombre || "",
+        telefono: editando.telefono || "",
+        cuit: editando.cuit || editando.dni || "",
+        razon_social: editando.razon_social || "",
+      });
+    } else {
+      setForm({ nombre: "", telefono: "", cuit: "", razon_social: "" });
+    }
+  }, [visible, editando]);
+
   if (!visible) return null;
 
   const normalizedTelefono = (tel) => (tel ? tel.trim() : "");
@@ -32,8 +64,15 @@ function ClienteFormModal({ visible, onClose, clientes, onRefresh, appendCliente
     const t = normalizedTelefono(tel);
     if (!t) return false;
     return (clientes || []).some(
-      (c) => normalizedTelefono(c.telefono) === t,
+      (c) =>
+        normalizedTelefono(c.telefono) === t &&
+        (!isEdit || c.id !== editando.id),
     );
+  };
+
+  const resetAndClose = () => {
+    onClose();
+    setForm({ nombre: "", telefono: "", cuit: "", razon_social: "" });
   };
 
   const save = async () => {
@@ -43,8 +82,39 @@ function ClienteFormModal({ visible, onClose, clientes, onRefresh, appendCliente
       showToast("Ya existe un cliente con ese teléfono");
       return;
     }
+    if (
+      isEdit &&
+      editando.telefono?.trim() &&
+      !telNorm &&
+      confirm
+    ) {
+      const ok = await confirm(
+        "¿Quitar el teléfono de este cliente? No vas a poder enviarle WhatsApp desde la app.",
+        { destructive: true },
+      );
+      if (!ok) return;
+    }
     setSaving(true);
     try {
+      if (isEdit) {
+        const docRaw = form.cuit.replace(/\D/g, "").slice(0, 11);
+        const doc = detectAfipDocumento(docRaw);
+        if (!doc.ok && docRaw.length > 0) {
+          showToast(doc.error);
+          setSaving(false);
+          return;
+        }
+        const updated = await updateCliente(editando.id, {
+          nombre: form.nombre.trim(),
+          telefono: telNorm || null,
+          cuit: doc.ok && doc.cuit ? doc.cuit : null,
+          dni: doc.ok && doc.dni ? doc.dni : null,
+          razon_social: form.razon_social.trim() || null,
+        });
+        onSaved?.(updated);
+        resetAndClose();
+        return;
+      }
       const docRaw = form.cuit.replace(/\D/g, "").slice(0, 11);
       const doc = detectAfipDocumento(docRaw);
       if (!doc.ok && docRaw.length > 0) {
@@ -59,10 +129,12 @@ function ClienteFormModal({ visible, onClose, clientes, onRefresh, appendCliente
         dni: doc.ok && doc.dni ? doc.dni : null,
         razon_social: form.razon_social.trim() || null,
       });
-      onClose();
-      setForm({ nombre: "", telefono: "", cuit: "", razon_social: "" });
+      resetAndClose();
     } catch (error) {
-      reportError(error, { action: "saveCliente", form: { ...form } });
+      reportError(error, {
+        action: isEdit ? "updateCliente" : "saveCliente",
+        form: { ...form },
+      });
       showToast(
         `⚠️ Error al guardar: ${(error.message || "").slice(0, 50)}`,
       );
@@ -125,10 +197,12 @@ function ClienteFormModal({ visible, onClose, clientes, onRefresh, appendCliente
   return (
     <div className="screen-overlay">
       <div className="screen-header">
-        <button className="screen-back" onClick={onClose}>
+        <button className="screen-back" onClick={resetAndClose} disabled={saving}>
           ← Volver
         </button>
-        <span className="screen-title">Nuevo cliente</span>
+        <span className="screen-title">
+          {isEdit ? "Editar cliente" : "Nuevo cliente"}
+        </span>
       </div>
       <div className="screen-content">
         <FormInput
@@ -161,56 +235,68 @@ function ClienteFormModal({ visible, onClose, clientes, onRefresh, appendCliente
           placeholder="11 CUIT o 7–8 DNI"
           inputMode="numeric"
         />
-        <div className="form-group">
-          <label className="form-label">
-            Tomar de contactos del celular
-          </label>
-          <div className="btn-group-vertical">
-            <button
-              type="button"
-              className="btn-icon"
-              onClick={async () => {
-                const r = await selectContactFromPhone();
-                if (r.error === "no-support") {
-                  showToast("No disponible en este dispositivo");
-                  return;
-                }
-                if (r.error === "cancelled") return;
-                setForm({ nombre: r.name, telefono: r.tel });
-              }}
-              disabled={importingMultiple}
-            >
-              <span className="btn-icon-emoji">📇</span>
-              <span>Elegir contacto</span>
-            </button>
-            <button
-              type="button"
-              className="btn-icon"
-              onClick={importarVariosContactos}
-              disabled={importingMultiple}
-            >
-              <span className="btn-icon-emoji">📋</span>
-              <span>
-                {importingMultiple ? "Importando…" : "Importar varios"}
-              </span>
-            </button>
-          </div>
-          {importingMultiple && importProgress.total > 0 && (
-            <p className="form-hint" style={{ marginTop: 8 }}>
-              {importProgress.done} / {importProgress.total} contactos…
-            </p>
-          )}
-          <p className="form-hint" style={{ marginTop: 6 }}>
-            Funciona en Chrome Android con HTTPS. Elegí uno o varios
-            contactos para crear clientes.
+        {!isEdit && (
+          <div className="form-group">
+              <label className="form-label">
+                Tomar de contactos del celular
+              </label>
+              <div className="btn-group-vertical">
+                <button
+                  type="button"
+                  className="btn-icon"
+                  onClick={async () => {
+                    const r = await selectContactFromPhone();
+                    if (r.error === "no-support") {
+                      showToast("No disponible en este dispositivo");
+                      return;
+                    }
+                    if (r.error === "cancelled") return;
+                    setForm({ nombre: r.name, telefono: r.tel });
+                  }}
+                  disabled={importingMultiple}
+                >
+                  <span className="btn-icon-emoji">📇</span>
+                  <span>Elegir contacto</span>
+                </button>
+                <button
+                  type="button"
+                  className="btn-icon"
+                  onClick={importarVariosContactos}
+                  disabled={importingMultiple}
+                >
+                  <span className="btn-icon-emoji">📋</span>
+                  <span>
+                    {importingMultiple ? "Importando…" : "Importar varios"}
+                  </span>
+                </button>
+              </div>
+              {importingMultiple && importProgress.total > 0 && (
+                <p className="form-hint" style={{ marginTop: 8 }}>
+                  {importProgress.done} / {importProgress.total} contactos…
+                </p>
+              )}
+              <p className="form-hint" style={{ marginTop: 6 }}>
+                Funciona en Chrome Android con HTTPS. Elegí uno o varios
+                contactos para crear clientes.
+              </p>
+            </div>
+        )}
+        {isEdit && (
+          <p className="form-hint" style={{ marginBottom: 12 }}>
+            Las facturas AFIP ya emitidas conservan los datos que tenían al
+            momento del cobro.
           </p>
-        </div>
+        )}
         <button
           className="btn-primary"
           onClick={save}
           disabled={saving || !form.nombre.trim()}
         >
-          {saving ? "Guardando…" : "Agregar cliente"}
+          {saving
+            ? "Guardando…"
+            : isEdit
+              ? "Guardar cambios"
+              : "Agregar cliente"}
         </button>
       </div>
     </div>
@@ -218,4 +304,3 @@ function ClienteFormModal({ visible, onClose, clientes, onRefresh, appendCliente
 }
 
 export default ClienteFormModal;
-

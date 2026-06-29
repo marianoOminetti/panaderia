@@ -28,6 +28,7 @@ export default function Clientes({
   appendCliente,
   updateClienteInState,
   removeClienteFromState,
+  reassignClienteIdInState,
   appendPedidos,
   updatePedidosEstado,
   removePedidosByPedidoIdInState,
@@ -48,6 +49,7 @@ export default function Clientes({
     appendCliente,
     updateClienteInState,
     removeClienteFromState,
+    reassignClienteIdInState,
     appendPedidos,
     updatePedidosEstado,
     removePedidosByPedidoIdInState,
@@ -141,17 +143,21 @@ export default function Clientes({
       {detalleCliente && (
         <ClienteDetalle
           cliente={detalleCliente}
+          clientes={clientes}
           ventas={ventas}
           recetas={recetas}
           pedidos={pedidos}
           perfil={getPerfil(detalleCliente.id)}
           onClose={() => setDetalleCliente(null)}
+          onClienteUpdated={setDetalleCliente}
           actualizarStock={actualizarStock}
           actualizarStockBatch={actualizarStockBatch}
           showToast={showToast}
           confirm={confirm}
           onRefresh={onRefresh}
           updateClienteInState={updateClienteInState}
+          removeClienteFromState={removeClienteFromState}
+          reassignClienteIdInState={reassignClienteIdInState}
           appendVentas={appendVentas}
           patchStock={patchStock}
           removeVentas={removeVentas}
@@ -166,6 +172,7 @@ export default function Clientes({
         clientes={clientes}
         onRefresh={onRefresh}
         appendCliente={appendCliente}
+        updateClienteInState={updateClienteInState}
         showToast={showToast}
       />
     </div>

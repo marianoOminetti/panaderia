@@ -175,6 +175,7 @@ export default function App() {
     appendCliente,
     updateClienteInState,
     removeClienteFromState,
+    reassignClienteIdInState,
     appendReceta,
     updateRecetaInState,
     removeReceta,
@@ -680,6 +681,7 @@ export default function App() {
         appendCliente={appendCliente}
         updateClienteInState={updateClienteInState}
         removeClienteFromState={removeClienteFromState}
+        reassignClienteIdInState={reassignClienteIdInState}
         appendReceta={appendReceta}
         updateRecetaInState={updateRecetaInState}
         removeReceta={removeReceta}

@@ -91,6 +91,7 @@ export default function AppContent({
   appendCliente,
   updateClienteInState,
   removeClienteFromState,
+  reassignClienteIdInState,
   appendReceta,
   updateRecetaInState,
   removeReceta,
@@ -375,6 +376,7 @@ export default function AppContent({
           appendCliente={appendCliente}
           updateClienteInState={updateClienteInState}
           removeClienteFromState={removeClienteFromState}
+          reassignClienteIdInState={reassignClienteIdInState}
           appendPedidos={appendPedidos}
           updatePedidosEstado={updatePedidosEstado}
           removePedidosByPedidoIdInState={removePedidosByPedidoIdInState}
