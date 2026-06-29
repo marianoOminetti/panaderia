@@ -241,6 +241,7 @@ export default function AppContent({
           updateRecetaInState={updateRecetaInState}
           removeReceta={removeReceta}
           replaceRecetaIngredientes={replaceRecetaIngredientes}
+          patchRecetasCosts={patchRecetasCosts}
           confirm={confirm}
           filterRecetasIds={recetasFilterIds}
           onClearFilter={() => setRecetasFilterIds([])}

@@ -1,5 +1,17 @@
 import { useCallback } from "react";
+import { normalizeNombreUpper, normalizeNombreUpperOrNull } from "../lib/normalizeNombre";
 import { supabase } from "../lib/supabaseClient";
+
+function normalizeRecetaPayload(payload) {
+  const result = { ...payload };
+  if (payload.nombre != null) {
+    result.nombre = normalizeNombreUpper(payload.nombre);
+  }
+  if (Object.prototype.hasOwnProperty.call(payload, "familia")) {
+    result.familia = normalizeNombreUpperOrNull(payload.familia);
+  }
+  return result;
+}
 
 /**
  * Mutaciones de recetas e ingredientes en Supabase (update, insert, delete receta; ingredientes).
@@ -8,7 +20,7 @@ import { supabase } from "../lib/supabaseClient";
  */
 export function useRecetas() {
   const updateReceta = useCallback(async (id, payload) => {
-    const { error } = await supabase.from("recetas").update(payload).eq("id", id);
+    const { error } = await supabase.from("recetas").update(normalizeRecetaPayload(payload)).eq("id", id);
     if (error) {
       console.error("[recetas/updateReceta]", error);
       throw error;
@@ -18,7 +30,7 @@ export function useRecetas() {
   const insertReceta = useCallback(async (payload) => {
     const { data, error } = await supabase
       .from("recetas")
-      .insert(payload)
+      .insert(normalizeRecetaPayload(payload))
       .select()
       .single();
     if (error) {

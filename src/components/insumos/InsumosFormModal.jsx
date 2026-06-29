@@ -41,8 +41,9 @@ export default function InsumosFormModal({
         <FormInput
           label="Nombre"
           value={form.nombre}
-          onChange={(v) => setForm((f) => ({ ...f, nombre: v }))}
+          onChange={(v) => setForm((f) => ({ ...f, nombre: v.toUpperCase() }))}
           placeholder="Ej: Harina de almendras"
+          inputClassName="text-uppercase"
           required
           autoFocus
         />

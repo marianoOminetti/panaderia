@@ -3,9 +3,11 @@
  * Recibe estado y handlers de useRecetasForm; guardado y eliminación los dispara el padre (Recetas.jsx).
  */
 import { fmt, pctFmt, parseDecimal } from "../../lib/format";
-import { costoReceta, costoDesdeIngredientes } from "../../lib/costos";
-import { aGramos, convertirAUnidadInsumo } from "../../lib/units";
-import { SearchableSelect, FormInput, FormMoneyInput, FormCheckbox } from "../ui";
+import { costoDesdeIngredientes } from "../../lib/costos";
+import { SearchableSelect, SearchableCategoria, FormInput, FormMoneyInput, FormCheckbox } from "../ui";
+import { defaultsAlElegirPrecursora } from "../../lib/recetaPrecursora";
+import { advertenciasCosteoIngredientes } from "../../lib/recetaCostoCascade";
+import CostoIngredienteHint from "./CostoIngredienteHint";
 
 const EMOJIS = ["🍞", "🥐", "🍕", "🍫", "🍪", "🥧", "🍰", "🧁", "🫔", "🥬", "🍗", "🍔", "🎂", "🧇", "🥨"];
 
@@ -27,6 +29,8 @@ export default function RecetaModal({
   recetas,
   insumos,
   recetaIngredientes,
+  familiasExistentes = [],
+  onFamiliaCreada,
 }) {
   const costoTotal = costoDesdeIngredientes(ingredientes, insumos, recetas, recetaIngredientes);
   const rindeNum = parseDecimal(form.rinde) ?? 0;
@@ -48,70 +52,15 @@ export default function RecetaModal({
   }
   const margenText = margenVal != null ? pctFmt(margenVal) : "—";
 
-  const cantidadPrecursoraAUnidades = (cantidad, unidad, gramosPorUnidad) => {
-    const u = (unidad || "u").toLowerCase();
-    if (u === "u") return cantidad;
-    const gramos = aGramos(cantidad, unidad);
-    const gPu = parseDecimal(gramosPorUnidad);
-    // Alinear con `src/lib/costos.js`: si falta `gramos_por_unidad` y no está en `u`,
-    // no podemos convertir correctamente (evitamos costos enormes).
-    if (gPu == null || !Number.isFinite(gPu) || gPu <= 0) return null;
-    return gramos / gPu;
-  };
+  const avisosCosteo = advertenciasCosteoIngredientes(
+    ingredientes,
+    insumos,
+    recetas,
+    recetaIngredientes,
+  );
 
-  const costoParcialIngrediente = (ing) => {
-    // Insumo directo
-    if (ing?.insumo_id) {
-      const insumo = insumos.find((x) => String(x.id) === String(ing.insumo_id));
-      if (!insumo) return null;
-      const cant = parseDecimal(ing.cantidad) ?? 0;
-      if (cant <= 0) return null;
-      const cantidadPresentacion = parseDecimal(insumo?.cantidad_presentacion);
-      if (!Number.isFinite(cantidadPresentacion) || cantidadPresentacion <= 0) return null;
-      const precio = parseDecimal(insumo?.precio) ?? 0;
-      if (precio <= 0) return null;
-
-      const cantConvertida = convertirAUnidadInsumo(
-        cant,
-        ing.unidad || "g",
-        insumo.unidad
-      );
-      const precioUnitario = precio / cantidadPresentacion;
-      const total = precioUnitario * cantConvertida;
-      return Number.isFinite(total) ? total : null;
-    }
-
-    // Receta precursora
-    if (ing?.receta_id_precursora) {
-      const prec = recetas.find((r) => String(r.id) === String(ing.receta_id_precursora));
-      if (!prec) return null;
-      const cantRaw = parseDecimal(ing.cantidad) ?? 0;
-      if (cantRaw <= 0) return null;
-      const rindeNum = parseDecimal(prec?.rinde) ?? 1;
-      const rinde = rindeNum > 0 ? rindeNum : 1;
-
-      const cantidadUnidades = cantidadPrecursoraAUnidades(
-        cantRaw,
-        ing.unidad || "u",
-        prec?.gramos_por_unidad
-      );
-      if (cantidadUnidades == null) return null;
-
-      const costoPrecLote = costoReceta(
-        prec.id,
-        recetaIngredientes || [],
-        insumos,
-        recetas
-      );
-      const costoUnitPrec = rinde > 0 ? costoPrecLote / rinde : 0;
-      const total = cantidadUnidades * costoUnitPrec;
-      return Number.isFinite(total) ? total : null;
-    }
-
-    // Costo fijo
-    const costoFijo = parseDecimal(ing?.costo_fijo);
-    if (costoFijo == null || costoFijo <= 0) return null;
-    return costoFijo;
+  const handlePrecursoraChange = (checked) => {
+    setForm((prev) => ({ ...prev, es_precursora: checked }));
   };
 
   return (
@@ -142,11 +91,27 @@ export default function RecetaModal({
         <FormInput
           label="Nombre"
           value={form.nombre}
-          onChange={(v) => setForm({ ...form, nombre: v })}
+          onChange={(v) => setForm({ ...form, nombre: v.toUpperCase() })}
           placeholder="Ej: Pan de Molde"
           inputClassName="text-uppercase"
           required
         />
+
+        <div className="form-group">
+          <label className="form-label">Familia (opcional)</label>
+          <SearchableCategoria
+            categorias={familiasExistentes}
+            value={form.familia}
+            onChange={(familia) =>
+              setForm({ ...form, familia: familia ? familia.toUpperCase() : "" })
+            }
+            onCreate={(familia) => onFamiliaCreada?.(familia.toUpperCase())}
+            placeholder="Elegir o crear familia…"
+            allowEmpty
+            emptyLabel="Sin familia"
+          />
+          <p className="form-hint">Agrupa variantes en la lista (ej. Brownie, Empanada). No cambia precios ni ventas.</p>
+        </div>
 
         <div className="form-row">
           <FormInput
@@ -181,6 +146,11 @@ export default function RecetaModal({
           onChange={(v) => setForm({ ...form, precio_venta: v })}
           placeholder="6000"
         />
+        {form.es_precursora && (
+          <p className="form-hint">
+            Ser precursora no la oculta en ventas — usá «Ocultar en venta» si no debe aparecer al cargar una venta.
+          </p>
+        )}
 
         <FormCheckbox
           label="Ocultar en venta (no aparece al cargar una venta nueva)"
@@ -191,7 +161,7 @@ export default function RecetaModal({
         <FormCheckbox
           label="Es receta precursora (se puede usar como ingrediente de otras recetas)"
           checked={!!form.es_precursora}
-          onChange={(v) => setForm({ ...form, es_precursora: v })}
+          onChange={handlePrecursoraChange}
         />
         {form.es_precursora && (
           <>
@@ -208,6 +178,21 @@ export default function RecetaModal({
             </p>
           </>
         )}
+
+        {avisosCosteo.length > 0 && (
+          <div className="receta-hint-warn" style={{ marginBottom: 12 }}>
+            {avisosCosteo.map((a) => (
+              <p key={a} className="form-hint" style={{ color: "var(--danger)", margin: "4px 0" }}>
+                ⚠️ {a}
+              </p>
+            ))}
+          </div>
+        )}
+
+        <p className="form-hint" style={{ marginBottom: 8 }}>
+          Empanadas/tapas: usá <strong>unidades (u)</strong> al elegir masa. Brownies/porciones:{" "}
+          <strong>gramos (g)</strong> si la masa tiene peso configurado.
+        </p>
 
         <div className="form-group">
           <label className="form-label">Ingredientes</label>
@@ -239,12 +224,21 @@ export default function RecetaModal({
                 return;
               }
               if (val.startsWith("r:")) {
+                const precId = val.slice(2);
+                const prec = recetas.find((rec) => String(rec.id) === String(precId));
+                const { unidad, cantidad } = defaultsAlElegirPrecursora(prec);
                 setIngredientes((prev) =>
                   prev.map((item, idx) =>
                     idx !== i
                       ? item
-                      : { ...item, receta_id_precursora: val.slice(2), insumo_id: "", unidad: "g" }
-                  )
+                      : {
+                          ...item,
+                          receta_id_precursora: precId,
+                          insumo_id: "",
+                          unidad,
+                          cantidad,
+                        },
+                  ),
                 );
               } else {
                 setIngredientes((prev) =>
@@ -348,27 +342,12 @@ export default function RecetaModal({
                   />
                 )}
 
-                {/* Info rápida: costo individual del ingrediente actual */}
-                {true && (
-                  <div
-                    style={{
-                      fontSize: 12,
-                      color: "var(--text)",
-                      marginTop: 6,
-                      marginBottom: 2,
-                      fontWeight: 800,
-                      background: "rgba(120, 80, 255, 0.16)",
-                      border: "1px solid rgba(120, 80, 255, 0.42)",
-                      borderRadius: 10,
-                      padding: "8px 10px",
-                    }}
-                  >
-                    {(() => {
-                      const costo = costoParcialIngrediente(ing);
-                      return costo != null ? `Costo ingrediente: ${fmt(costo)}` : "Costo ingrediente: —";
-                    })()}
-                  </div>
-                )}
+                <CostoIngredienteHint
+                  ing={ing}
+                  insumos={insumos}
+                  recetas={recetas}
+                  recetaIngredientes={recetaIngredientes}
+                />
               </div>
             );
           })}
