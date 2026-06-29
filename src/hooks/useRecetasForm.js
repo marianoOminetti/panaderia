@@ -1,5 +1,4 @@
 import { useState, useCallback } from "react";
-import { TIPO_RECETA, getTipoReceta, applyTipoRecetaToForm } from "../lib/recetaTipo";
 
 const INITIAL_FORM = {
   nombre: "",
@@ -11,8 +10,6 @@ const INITIAL_FORM = {
   gramos_por_unidad: "",
   oculto_en_venta: false,
   familia: "",
-  tipo_receta: TIPO_RECETA.PRODUCTO,
-  masa_base_id: "",
 };
 
 const INITIAL_ING = {
@@ -43,17 +40,6 @@ export function useRecetasForm({ recetaIngredientes = [] }) {
 
   const openEdit = useCallback((r) => {
     setEditando(r);
-    const ings = recetaIngredientes
-      .filter((i) => String(i.receta_id) === String(r.id))
-      .map((i) => ({
-        insumo_id: i.insumo_id || "",
-        receta_id_precursora: i.receta_id_precursora || "",
-        cantidad: i.cantidad != null ? String(i.cantidad) : "",
-        unidad: i.unidad || "g",
-        costo_fijo: i.costo_fijo != null ? String(i.costo_fijo) : "",
-      }));
-    const tipo = getTipoReceta(r, recetaIngredientes);
-    const masaBaseIng = ings.find((i) => i.receta_id_precursora);
     setForm({
       nombre: r.nombre,
       emoji: r.emoji || "🍞",
@@ -64,16 +50,19 @@ export function useRecetasForm({ recetaIngredientes = [] }) {
       gramos_por_unidad: r.gramos_por_unidad != null ? String(r.gramos_por_unidad) : "",
       oculto_en_venta: !!r.oculto_en_venta,
       familia: r.familia || "",
-      tipo_receta: tipo,
-      masa_base_id: masaBaseIng?.receta_id_precursora || "",
     });
+    const ings = recetaIngredientes
+      .filter((i) => String(i.receta_id) === String(r.id))
+      .map((i) => ({
+        insumo_id: i.insumo_id || "",
+        receta_id_precursora: i.receta_id_precursora || "",
+        cantidad: i.cantidad != null ? String(i.cantidad) : "",
+        unidad: i.unidad || "g",
+        costo_fijo: i.costo_fijo != null ? String(i.costo_fijo) : ""
+      }));
     setIngredientes(ings.length > 0 ? ings : [{ ...INITIAL_ING }]);
     setModal(true);
   }, [recetaIngredientes]);
-
-  const setTipoReceta = useCallback((tipo) => {
-    setForm((prev) => applyTipoRecetaToForm(tipo, { ...prev, tipo_receta: tipo }));
-  }, []);
 
   const addIng = useCallback(() => {
     setIngredientes((prev) => [...prev, { ...INITIAL_ING }]);
@@ -110,7 +99,6 @@ export function useRecetasForm({ recetaIngredientes = [] }) {
     addIng,
     removeIng,
     updateIng,
-    closeModal,
-    setTipoReceta,
+    closeModal
   };
 }

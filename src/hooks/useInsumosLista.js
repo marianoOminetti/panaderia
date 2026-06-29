@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo } from "react";
 import { reportError } from "../utils/errorReport";
 import { costoReceta } from "../lib/costos";
 import { parseDecimal } from "../lib/format";
+import { normalizeNombreUpper } from "../lib/normalizeNombre";
 
 const FORM_INITIAL = {
   nombre: "",
@@ -104,7 +105,7 @@ export function useInsumosLista({
       return;
     }
     const data = {
-      nombre: form.nombre,
+      nombre: normalizeNombreUpper(form.nombre),
       categoria: form.categoria,
       presentacion: form.presentacion,
       precio,

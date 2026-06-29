@@ -1,9 +1,20 @@
 import { useCallback } from "react";
 import { supabase } from "../lib/supabaseClient";
+import { normalizeNombreUpper } from "../lib/normalizeNombre";
 import { reportError } from "../utils/errorReport";
 
-function normalizeNombre(nombre) {
-  return (nombre || "").trim();
+async function findInsumoDuplicado(nombre, categoria, excludeId = null) {
+  let query = supabase.from("insumos").select("id, nombre");
+  query = categoria == null ? query.is("categoria", null) : query.eq("categoria", categoria);
+  const { data, error } = await query;
+  if (error) throw error;
+  return (
+    data?.find(
+      (i) =>
+        normalizeNombreUpper(i.nombre) === nombre &&
+        (!excludeId || String(i.id) !== String(excludeId)),
+    ) ?? null
+  );
 }
 
 /**
@@ -21,9 +32,20 @@ export function useInsumos({
 } = {}) {
   const updateInsumo = useCallback(
     async (id, data) => {
+      const payload = { ...data };
+      if (payload.nombre != null) {
+        payload.nombre = normalizeNombreUpper(payload.nombre);
+        const dup = await findInsumoDuplicado(payload.nombre, payload.categoria ?? data.categoria, id);
+        if (dup) {
+          showToast?.("Ya existe un insumo con ese nombre y categoría");
+          const dupError = new Error("INSUMO_DUPLICADO");
+          dupError.code = "INSUMO_DUPLICADO";
+          throw dupError;
+        }
+      }
       const { error } = await supabase
         .from("insumos")
-        .update(data)
+        .update(payload)
         .eq("id", id)
         .select("id, precio");
       if (error) {
@@ -31,12 +53,12 @@ export function useInsumos({
         throw error;
       }
     },
-    [],
+    [showToast],
   );
 
   const insertInsumo = useCallback(
     async (data) => {
-      const nombre = normalizeNombre(data.nombre);
+      const nombre = normalizeNombreUpper(data.nombre);
       const categoria = data.categoria ?? null;
 
       if (!nombre) {
@@ -45,18 +67,8 @@ export function useInsumos({
         throw error;
       }
 
-      // Evitar duplicados antes de golpear la UNIQUE constraint
-      const { data: existentes, error: selectError } = await supabase
-        .from("insumos")
-        .select("id")
-        .eq("nombre", nombre)
-        .eq("categoria", categoria)
-        .limit(1);
-      if (selectError) {
-        console.error("[insumos/insertInsumo select]", selectError);
-        throw selectError;
-      }
-      if (existentes && existentes.length > 0) {
+      const dup = await findInsumoDuplicado(nombre, categoria);
+      if (dup) {
         showToast?.("Ya existe un insumo con ese nombre y categoría");
         const dupError = new Error("INSUMO_DUPLICADO");
         dupError.code = "INSUMO_DUPLICADO";
@@ -70,7 +82,6 @@ export function useInsumos({
         .single();
       if (error) {
         if (error.code === "23505") {
-          // UNIQUE violation como red de seguridad
           showToast?.("Ya existe un insumo con ese nombre y categoría");
           const dupError = new Error("INSUMO_DUPLICADO");
           dupError.code = "INSUMO_DUPLICADO";
