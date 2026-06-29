@@ -1,5 +1,8 @@
 import { fmt, parseDecimal } from "./format";
-import { normalizeNombreUpper } from "./normalizeNombre";
+
+function nombreKey(nombre) {
+  return (nombre ?? "").trim().toLowerCase();
+}
 
 export const FILTRO_TIPO = {
   TODAS: "todas",
@@ -105,15 +108,15 @@ export function mensajeProblemaIngrediente(ing, insumos, recetas) {
 export function contarRecetasPorNombre(recetas) {
   const counts = new Map();
   for (const r of recetas || []) {
-    const nombre = normalizeNombreUpper(r.nombre);
-    if (!nombre) continue;
-    counts.set(nombre, (counts.get(nombre) || 0) + 1);
+    const key = nombreKey(r.nombre);
+    if (!key) continue;
+    counts.set(key, (counts.get(key) || 0) + 1);
   }
   return counts;
 }
 
 export function nombreEsCopiaDe(nombre) {
-  return normalizeNombreUpper(nombre).startsWith("COPIA DE");
+  return nombreKey(nombre).startsWith("copia de");
 }
 
 /** Problemas de la receta (ingredientes, nombre, etc.) para modo Revisar. */
@@ -130,13 +133,14 @@ export function problemasReceta(r, recetaIngredientes, insumos, recetasCatalogo,
     }
   }
 
-  const nombre = normalizeNombreUpper(r.nombre);
-  if (nombre) {
-    const veces = duplicadosPorNombre?.get(nombre) || 0;
+  const key = nombreKey(r.nombre);
+  const nombre = (r.nombre || "").trim();
+  if (key) {
+    const veces = duplicadosPorNombre?.get(key) || 0;
     if (veces > 1) {
       problemas.push(`Nombre duplicado (${veces} recetas con «${nombre}»)`);
     }
-    if (nombreEsCopiaDe(nombre)) {
+    if (nombreEsCopiaDe(r.nombre)) {
       problemas.push("Nombre sin renombrar (Copia de…)");
     }
   }

@@ -1,9 +1,7 @@
-import { normalizeNombreUpper } from "./normalizeNombre";
-
 export function collectFamilias(recetas = []) {
   const set = new Set();
   for (const r of recetas) {
-    const f = normalizeNombreUpper(r.familia);
+    const f = (r.familia || "").trim();
     if (f) set.add(f);
   }
   return [...set].sort((a, b) => a.localeCompare(b, "es", { sensitivity: "base" }));
@@ -12,7 +10,7 @@ export function collectFamilias(recetas = []) {
 export function groupProductosPorFamilia(productos = []) {
   const grupos = new Map();
   for (const r of productos) {
-    const key = normalizeNombreUpper(r.familia) || "__sin_familia__";
+    const key = (r.familia || "").trim() || "__sin_familia__";
     if (!grupos.has(key)) grupos.set(key, []);
     grupos.get(key).push(r);
   }

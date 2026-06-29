@@ -43,15 +43,17 @@ export function useInsumos({
           throw dupError;
         }
       }
-      const { error } = await supabase
+      const { data: row, error } = await supabase
         .from("insumos")
         .update(payload)
         .eq("id", id)
-        .select("id, precio");
+        .select("id, precio, nombre")
+        .single();
       if (error) {
         console.error("[insumos/updateInsumo]", error);
         throw error;
       }
+      return row;
     },
     [showToast],
   );
@@ -78,7 +80,7 @@ export function useInsumos({
       const { data: row, error } = await supabase
         .from("insumos")
         .insert({ ...data, nombre, categoria })
-        .select("id, precio")
+        .select("id, precio, nombre")
         .single();
       if (error) {
         if (error.code === "23505") {
