@@ -6,6 +6,7 @@ import {
 } from "../../lib/contacts";
 import {
   isContactPickerAvailable,
+  shouldShowVCardImport,
   findClienteByTelefono,
   telefonosEquivalentes,
   normalizeTelefonoForDedup,
@@ -170,13 +171,18 @@ function ClienteFormModal({
     }
   };
 
-  const importarVariosContactos = async () => {
-    const r = await selectContactsFromPhoneMultiple();
-    if (r.error === "no-support") {
-      showToast("No disponible en este dispositivo");
-      return;
-    }
-    if (r.error === "cancelled" || !r.contacts?.length) return;
+  const importarVariosContactos = () => {
+    void selectContactsFromPhoneMultiple().then(async (r) => {
+      if (r.error === "no-support") {
+        showToast(r.message || "No disponible — importá de a uno con Pegar vCard");
+        return;
+      }
+      if (r.error === "cancelled") return;
+      if (r.error === "empty" || r.error === "failed") {
+        showToast(r.message || "No se pudieron abrir contactos");
+        return;
+      }
+      if (!r.contacts?.length) return;
     const list = r.contacts.filter((c) => c.name || c.tel);
     if (list.length === 0) {
       showToast("No hay contactos con nombre o teléfono");
@@ -220,6 +226,7 @@ function ClienteFormModal({
     setImportProgress({ done: 0, total: 0 });
     showToast(`✅ ${ok} de ${list.length} cliente(s) importado(s)`);
     if (!appendCliente && onRefresh) await onRefresh();
+    });
   };
 
   const handleContactImport = ({ nombre, telefono }) => {
@@ -240,19 +247,24 @@ function ClienteFormModal({
     resetAndClose();
   };
 
-  const pickContactFromPhone = async () => {
-    const r = await selectContactFromPhone();
-    if (r.error === "no-support") {
-      showToast("No disponible en este dispositivo");
-      return;
-    }
-    if (r.error === "cancelled") return;
-    const existing = r.tel ? findClienteByTelefono(clientes, r.tel) : null;
-    if (existing && (!isEdit || existing.id !== editando.id)) {
-      handleImportedExistingCliente(existing);
-      return;
-    }
-    handleContactImport({ nombre: r.name, telefono: r.tel });
+  const pickContactFromPhone = () => {
+    void selectContactFromPhone().then((r) => {
+      if (r.error === "no-support") {
+        showToast(r.message || "No disponible en este dispositivo — usá Pegar vCard");
+        return;
+      }
+      if (r.error === "cancelled") return;
+      if (r.error === "empty" || r.error === "failed") {
+        showToast(r.message || "No se pudo abrir contactos — usá Pegar vCard");
+        return;
+      }
+      const existing = r.tel ? findClienteByTelefono(clientes, r.tel) : null;
+      if (existing && (!isEdit || existing.id !== editando.id)) {
+        handleImportedExistingCliente(existing);
+        return;
+      }
+      handleContactImport({ nombre: r.name, telefono: r.tel });
+    });
   };
 
   return (
@@ -302,7 +314,7 @@ function ClienteFormModal({
               ? "Actualizar desde contactos del celular"
               : "Tomar de contactos del celular"}
           </label>
-          {isContactPickerAvailable() ? (
+          {isContactPickerAvailable() && (
             <>
               <div className="btn-group-vertical">
                 <button
@@ -335,17 +347,19 @@ function ClienteFormModal({
               )}
               <p className="form-hint" style={{ marginTop: 6 }}>
                 {isEdit
-                  ? "Funciona en Chrome Android con HTTPS."
-                  : "Funciona en Chrome Android con HTTPS. Elegí uno o varios contactos para crear clientes."}
+                  ? "Chrome Android con HTTPS. Si no abre la agenda, usá Pegar vCard abajo."
+                  : "Chrome Android con HTTPS. Si no abre, pegá vCard de a uno abajo."}
               </p>
             </>
-          ) : (
+          )}
+          {shouldShowVCardImport() && (
             <ContactImportIOS
               clientes={clientes}
               showToast={showToast}
               onImport={handleContactImport}
               onExistingCliente={handleImportedExistingCliente}
               excludeClienteId={isEdit ? editando.id : null}
+              compact={isContactPickerAvailable()}
             />
           )}
         </div>

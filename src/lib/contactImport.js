@@ -3,8 +3,35 @@
  */
 import { normalizarTelefonoWhatsApp } from "./whatsappCliente";
 
+export function isAndroidDevice() {
+  return typeof navigator !== "undefined" && /Android/i.test(navigator.userAgent);
+}
+
+export function isIosDevice() {
+  return (
+    typeof navigator !== "undefined" &&
+    /iPhone|iPad|iPod/i.test(navigator.userAgent)
+  );
+}
+
+/** Contact Picker API: solo Chrome/Edge en Android con HTTPS (no iOS, no Samsung Internet). */
 export function isContactPickerAvailable() {
-  return typeof navigator !== "undefined" && !!navigator.contacts?.select;
+  if (typeof navigator === "undefined") return false;
+  if (!window.isSecureContext) return false;
+  if (!navigator.contacts?.select) return false;
+  if (isIosDevice()) return false;
+  if (isAndroidDevice()) {
+    const ua = navigator.userAgent;
+    if (/SamsungBrowser/i.test(ua)) return false;
+    if (!/Chrome\//i.test(ua) && !/EdgA\//i.test(ua)) return false;
+  }
+  return true;
+}
+
+/** vCard: iOS siempre; en Android también como respaldo si el picker falla. */
+export function shouldShowVCardImport() {
+  if (typeof navigator === "undefined") return true;
+  return isIosDevice() || isAndroidDevice() || !isContactPickerAvailable();
 }
 
 /** Clave de dedup: formato wa.me si es posible, sino dígitos. */

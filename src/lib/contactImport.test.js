@@ -4,6 +4,8 @@ import {
   isVCardText,
   findClienteByTelefono,
   normalizeTelefonoForDedup,
+  isAndroidDevice,
+  shouldShowVCardImport,
 } from "./contactImport";
 
 describe("contactImport", () => {
@@ -57,5 +59,20 @@ END:VCARD`;
       { id: "a", nombre: "María", telefono: "+54 9 11 1234-5678" },
     ];
     expect(findClienteByTelefono(clientes, "11 1234-5678")?.id).toBe("a");
+  });
+
+  test("shouldShowVCardImport en Android aunque haya picker", () => {
+    const original = navigator.userAgent;
+    Object.defineProperty(navigator, "userAgent", {
+      configurable: true,
+      value:
+        "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/120.0.0.0 Mobile",
+    });
+    expect(isAndroidDevice()).toBe(true);
+    expect(shouldShowVCardImport()).toBe(true);
+    Object.defineProperty(navigator, "userAgent", {
+      configurable: true,
+      value: original,
+    });
   });
 });
