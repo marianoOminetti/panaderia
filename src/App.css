@@ -685,6 +685,12 @@ body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--cream); c
   color: var(--text);
 }
 
+.contact-import-ios--compact {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
 .contact-import-vcard-field {
   display: block;
   margin-top: 10px;

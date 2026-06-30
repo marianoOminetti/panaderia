@@ -4,10 +4,11 @@ import {
   isVCardText,
   findClienteByTelefono,
   isClipboardApiAvailable,
+  isAndroidDevice,
 } from "../../lib/contactImport";
 
 /**
- * iOS: pegar un contacto copiado como vCard desde la app Contactos.
+ * Pegar contacto copiado como vCard (iOS y respaldo en Android).
  */
 export default function ContactImportIOS({
   onImport,
@@ -15,6 +16,7 @@ export default function ContactImportIOS({
   clientes = [],
   showToast,
   excludeClienteId = null,
+  compact = false,
 }) {
   const [manualVCard, setManualVCard] = useState("");
   const clipboardOk = useMemo(() => isClipboardApiAvailable(), []);
@@ -77,10 +79,23 @@ export default function ContactImportIOS({
   }, [clipboardOk, parseAndApply, showToast]);
 
   return (
-    <div className="contact-import-ios">
+    <div className={`contact-import-ios${compact ? " contact-import-ios--compact" : ""}`}>
       <p className="form-hint" style={{ marginBottom: 8 }}>
-        En <strong>Contactos</strong>: elegí el contacto → <strong>Compartir contacto</strong>{" "}
-        → <strong>Copiar</strong>. Después tocá <strong>Pegar vCard</strong> o pegá el texto abajo.
+        {compact ? (
+          <>
+            <strong>Alternativa:</strong> en Contactos → <strong>Compartir contacto</strong> →{" "}
+            <strong>Copiar</strong>, y acá <strong>Pegar vCard</strong>.
+          </>
+        ) : (
+          <>
+            En <strong>Contactos</strong>: elegí el contacto →{" "}
+            <strong>Compartir contacto</strong> → <strong>Copiar</strong>. Después tocá{" "}
+            <strong>Pegar vCard</strong> o pegá el texto abajo.
+          </>
+        )}
+        {isAndroidDevice() && !compact && (
+          <> Funciona igual si compartís contactos entre celulares.</>
+        )}
       </p>
       {clipboardOk && (
         <button type="button" className="btn-icon" onClick={readClipboard}>

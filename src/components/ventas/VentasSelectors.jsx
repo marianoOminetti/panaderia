@@ -1,7 +1,6 @@
 import { selectContactFromPhone } from "../../lib/contacts";
+import { isContactPickerAvailable } from "../../lib/contactImport";
 import { SearchableCliente, SearchableSelect } from "../ui";
-
-const CONTACT_PICKER_AVAILABLE = typeof navigator !== "undefined" && !!navigator.contacts?.select;
 
 const MEDIOS_PAGO = [
   { value: "efectivo", label: "💵 Efectivo" },
@@ -30,20 +29,24 @@ export function SelectorCliente({ value, onChange, clientes, insertCliente, show
         showToast={showToast}
         placeholder="Buscar o escribir nombre…"
       />
-      {CONTACT_PICKER_AVAILABLE && (
+      {isContactPickerAvailable() && (
         <button
           type="button"
           className="btn-secondary"
           style={{ marginTop: 8 }}
           title="Agregar desde contactos del celular"
-          onClick={async () => {
-            const r = await selectContactFromPhone();
-            if (r.error === "no-support") {
-              showToast("No disponible en este dispositivo");
-              return;
-            }
-            if (r.error === "cancelled") return;
-            if (!r.name?.trim()) return;
+          onClick={() => {
+            void selectContactFromPhone().then(async (r) => {
+              if (r.error === "no-support") {
+                showToast(r.message || "No disponible en este dispositivo");
+                return;
+              }
+              if (r.error === "cancelled") return;
+              if (r.error === "empty" || r.error === "failed") {
+                showToast(r.message || "No se pudo abrir contactos");
+                return;
+              }
+              if (!r.name?.trim()) return;
             const telNorm = r.tel?.trim() || "";
             if (
               telNorm &&
@@ -64,6 +67,7 @@ export function SelectorCliente({ value, onChange, clientes, insertCliente, show
             } catch {
               showToast("⚠️ Error al agregar cliente");
             }
+            });
           }}
         >
           📇 Elegir contacto
