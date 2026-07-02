@@ -17,6 +17,7 @@ export function buildVentaRowsConPromos({
 }) {
   const promoResult = calcularPromosEnCarrito(cartItems, promociones, {
     excludePromoIds,
+    clienteId,
   });
   const subtotalLista = promoResult.subtotalLista;
   const descuentoPromo = promoResult.descuentoTotal;

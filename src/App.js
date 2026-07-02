@@ -54,7 +54,7 @@ function clearVentaDeepLinkSearch() {
 
 export default function App() {
   // --- Auth ---
-  const { session, authLoading, signIn, signOut: authSignOut, role, roleLoading, roleResolvedOnce } = useAuth();
+  const { session, authLoading, signIn, signOut: authSignOut, role, roleLoading } = useAuth();
   // --- Navegación y deep links ---
   const [tab, setTab] = useState(() => {
     if (typeof window === "undefined") return "dashboard";
@@ -521,9 +521,16 @@ export default function App() {
     return bootCompletedAtRef.current > 0 && sinceBoot < 5000;
   }, []);
 
-  // Refresco de datos al volver a foreground: un único camino (visibilitychange)
-  // throttleado. Es refetch silencioso (dataSyncing, sin spinner) y no toca el
-  // estado local (carrito, comprobante, scroll).
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onPageShow = () => {
+      if (!session || !roleReady || shouldSkipBackgroundRefresh()) return;
+      refreshData();
+    };
+    window.addEventListener("pageshow", onPageShow);
+    return () => window.removeEventListener("pageshow", onPageShow);
+  }, [session, roleReady, refreshData, shouldSkipBackgroundRefresh]);
+
   const lastVisibilityRefreshRef = useRef(0);
   useEffect(() => {
     if (typeof document === "undefined") return;
@@ -584,7 +591,7 @@ export default function App() {
   }, [refreshData, showToast]);
 
   if (!SUPABASE_CONFIG_OK) return <ConfigMissing />;
-  if (authLoading || (session && (!roleResolvedOnce || roleLoading))) {
+  if (authLoading || (session && !roleReady)) {
     return (
       <div
         className="app"

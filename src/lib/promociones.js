@@ -8,6 +8,27 @@ export const TIPOS_PROMO = {
   COMBO_PRECIO_FIJO: "combo_precio_fijo",
 };
 
+export const ALCANCE_PROMO = {
+  TODOS: "todos",
+  CLIENTES: "clientes",
+};
+
+/** Una promo es exclusiva cuando aplica solo a los clientes de su whitelist. */
+export function promoEsExclusivaClientes(promo) {
+  return promo?.alcance === ALCANCE_PROMO.CLIENTES;
+}
+
+/**
+ * ¿La promo aplica para este cliente?
+ * - Promos globales ('todos' / sin alcance): siempre.
+ * - Promos exclusivas: solo si hay cliente y está en la whitelist.
+ */
+export function promoAplicaACliente(promo, clienteId) {
+  if (!promoEsExclusivaClientes(promo)) return true;
+  if (!clienteId) return false;
+  return (promo.cliente_ids || []).includes(clienteId);
+}
+
 /**
  * Normaliza filas de Supabase con join promocion_recetas.
  */
@@ -46,8 +67,20 @@ export function normalizarPromociones(rows) {
       combo_items.length > 0
         ? uniqueRecetaIds(combo_items.map((l) => l.receta_id))
         : uniqueRecetaIds(p.receta_ids || []);
-    const { promocion_recetas: _pr, ...rest } = p;
-    return { ...rest, receta_ids, combo_items };
+    const clienteLinks = p.promocion_clientes || [];
+    const cliente_ids = uniqueRecetaIds(
+      clienteLinks.length > 0
+        ? clienteLinks.map((l) => l.cliente_id)
+        : p.cliente_ids || [],
+    );
+    const { promocion_recetas: _pr, promocion_clientes: _pc, ...rest } = p;
+    return {
+      ...rest,
+      receta_ids,
+      combo_items,
+      cliente_ids,
+      alcance: p.alcance === ALCANCE_PROMO.CLIENTES ? ALCANCE_PROMO.CLIENTES : ALCANCE_PROMO.TODOS,
+    };
   });
 }
 
@@ -203,11 +236,19 @@ function calcularDescuentoPromo(promo, cartItems, subtotalLista) {
 /**
  * Lista promos activas con descuento potencial (para pantalla de cobro).
  */
-export function listarPromosParaCobro(cartItems, promociones, excludePromoIds = []) {
+export function listarPromosParaCobro(
+  cartItems,
+  promociones,
+  excludePromoIds = [],
+  clienteId = null,
+) {
   const subtotalLista = subtotalCarrito(cartItems);
   const excludeSet = new Set(excludePromoIds || []);
   const activas = (promociones || []).filter(
-    (p) => p.activa !== false && !isPendingPromoId(p.id),
+    (p) =>
+      p.activa !== false &&
+      !isPendingPromoId(p.id) &&
+      promoAplicaACliente(p, clienteId),
   );
 
   return activas
@@ -227,14 +268,18 @@ export function listarPromosParaCobro(cartItems, promociones, excludePromoIds = 
 
 /**
  * Calcula promos activas sobre el carrito.
- * @param {{ excludePromoIds?: string[] }} [opciones]
+ * @param {{ excludePromoIds?: string[], clienteId?: string|null }} [opciones]
  */
 export function calcularPromosEnCarrito(cartItems, promociones, opciones = {}) {
   const subtotalLista = subtotalCarrito(cartItems);
   const excludeSet = new Set(opciones.excludePromoIds || []);
+  const clienteId = opciones.clienteId ?? null;
   const activas = (promociones || []).filter(
     (p) =>
-      p.activa !== false && !excludeSet.has(p.id) && !isPendingPromoId(p.id),
+      p.activa !== false &&
+      !excludeSet.has(p.id) &&
+      !isPendingPromoId(p.id) &&
+      promoAplicaACliente(p, clienteId),
   );
   const aplicadas = [];
   let descuentoTotal = 0;
