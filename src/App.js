@@ -351,20 +351,12 @@ export default function App() {
     }
   }, [goToTab, normalizedRole, roleReady, session]);
 
+  // El deep link (?venta=) se aplica al montar y ante cambios de hash. NO se
+  // re-aplica en cada `focus`/`pageshow`: hacerlo hacía que al volver de
+  // background la app navegara sola a Ventas y perdiera el contexto en el que
+  // estabas (venta en edición, scroll, etc.).
   useEffect(() => {
     applyDeepLink();
-  }, [applyDeepLink]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const handleFocus = () => applyDeepLink();
-    window.addEventListener("focus", handleFocus);
-    const handlePageShow = () => applyDeepLink();
-    window.addEventListener("pageshow", handlePageShow);
-    return () => {
-      window.removeEventListener("focus", handleFocus);
-      window.removeEventListener("pageshow", handlePageShow);
-    };
   }, [applyDeepLink]);
 
   useEffect(() => {
@@ -521,16 +513,9 @@ export default function App() {
     return bootCompletedAtRef.current > 0 && sinceBoot < 5000;
   }, []);
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const onPageShow = () => {
-      if (!session || !roleReady || shouldSkipBackgroundRefresh()) return;
-      refreshData();
-    };
-    window.addEventListener("pageshow", onPageShow);
-    return () => window.removeEventListener("pageshow", onPageShow);
-  }, [session, roleReady, refreshData, shouldSkipBackgroundRefresh]);
-
+  // Refresco de datos al volver a foreground: un único camino, por
+  // `visibilitychange`, throttleado y silencioso (usa `dataSyncing`, no remonta
+  // ni resetea la pantalla). Se quitó el `pageshow` que duplicaba el refetch.
   const lastVisibilityRefreshRef = useRef(0);
   useEffect(() => {
     if (typeof document === "undefined") return;
