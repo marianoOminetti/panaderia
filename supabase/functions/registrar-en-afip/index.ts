@@ -116,6 +116,50 @@ function estadoDesdeCae(cae: string, provider: "mock" | "tusfacturas" | "wsfe"):
   return "autorizada";
 }
 
+function jsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+/**
+ * Si ya existe un comprobante en estado terminal o en curso, devuelve la
+ * respuesta correspondiente (sin emitir). Null si la fila es reclamable.
+ */
+function respuestaComprobanteExistente(row: FacturaRow | null): Response | null {
+  if (!row) return null;
+  if (row.estado === "autorizada" || row.estado === "mock") {
+    return jsonResponse({
+      ok: true,
+      estado: row.estado,
+      cae: row.cae,
+      numero_comprobante: row.numero_comprobante,
+      punto_venta: row.punto_venta,
+      already_registered: true,
+      mock: row.estado === "mock",
+    });
+  }
+  if (row.cae && row.estado === "error") {
+    return jsonResponse({
+      ok: false,
+      estado: "error",
+      error:
+        row.error_mensaje ||
+        "Comprobante con CAE pendiente de conciliación. Contactá soporte.",
+      cae: row.cae,
+    });
+  }
+  if (row.estado === "pendiente" && !pendienteEsViejo(row.updated_at)) {
+    return jsonResponse({
+      ok: false,
+      estado: "pendiente",
+      error: "Registro en curso. Esperá unos segundos e intentá de nuevo.",
+    });
+  }
+  return null;
+}
+
 /** Persiste CAE emitido; si falla emisor_cuit, reintenta sin esa columna. */
 async function persistirComprobanteEmitido(
   transaccionId: string,
@@ -395,45 +439,8 @@ Deno.serve(async (req) => {
     .eq("transaccion_id", transaccionId)
     .maybeSingle();
 
-  if (existente?.estado === "pendiente" && !pendienteEsViejo(existente.updated_at)) {
-    return new Response(
-      JSON.stringify({
-        ok: false,
-        estado: "pendiente",
-        error: "Registro en curso. Esperá unos segundos e intentá de nuevo.",
-      }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
-  }
-
-  if (existente?.estado === "autorizada" || existente?.estado === "mock") {
-    return new Response(
-      JSON.stringify({
-        ok: true,
-        estado: existente.estado,
-        cae: existente.cae,
-        numero_comprobante: existente.numero_comprobante,
-        punto_venta: existente.punto_venta,
-        already_registered: true,
-        mock: existente.estado === "mock",
-      }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
-  }
-
-  if (existente?.cae && existente.estado === "error") {
-    return new Response(
-      JSON.stringify({
-        ok: false,
-        estado: "error",
-        error:
-          existente.error_mensaje ||
-          "Comprobante con CAE pendiente de conciliación. Contactá soporte.",
-        cae: existente.cae,
-      }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
-  }
+  const respExistente = respuestaComprobanteExistente(existente as FacturaRow | null);
+  if (respExistente) return respExistente;
 
   const provider = resolveProvider();
   if (!provider) {
@@ -487,27 +494,49 @@ Deno.serve(async (req) => {
     ? String(receptor.doc_nro)
     : null;
 
-  const { error: upsertErr } = await supabaseAdmin.from("facturas_electronicas").upsert(
+  // Candado atómico: solo UN request concurrente puede reclamar la emisión.
+  // Si no reclama (0 filas), otro ya está emitiendo o ya hay comprobante.
+  const { data: claimRows, error: claimErr } = await supabaseAdmin.rpc(
+    "claim_factura_para_emision",
     {
-      transaccion_id: transaccionId,
-      importe_total: importeTotal,
-      estado: "pendiente",
-      error_mensaje: null,
-      receptor_cuit: receptor.cuit,
-      receptor_razon_social: receptor.razon_social,
-      receptor_doc_tipo: receptor.doc_tipo,
-      receptor_doc_nro: docNroPersist,
-      updated_at: new Date().toISOString(),
+      p_transaccion_id: transaccionId,
+      p_importe_total: importeTotal,
+      p_receptor_cuit: receptor.cuit,
+      p_receptor_razon_social: receptor.razon_social,
+      p_receptor_doc_tipo: receptor.doc_tipo,
+      p_receptor_doc_nro: docNroPersist,
+      p_stale_seconds: Math.round(PENDIENTE_STALE_MS / 1000),
     },
-    { onConflict: "transaccion_id" },
   );
 
-  if (upsertErr) {
-    console.error("[registrar-en-afip/upsert]", upsertErr);
-    return new Response(
-      JSON.stringify({ error: "No se pudo iniciar el registro fiscal" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
+  if (claimErr) {
+    console.error("[registrar-en-afip/claim]", claimErr);
+    return jsonResponse({ error: "No se pudo iniciar el registro fiscal" }, 500);
+  }
+
+  const reclamado = Array.isArray(claimRows)
+    ? claimRows.length > 0
+    : Boolean(claimRows);
+
+  if (!reclamado) {
+    // No ganamos el candado: releer el estado actual y responder en consecuencia
+    // (already_registered / en curso / error con CAE). Nunca re-emitimos.
+    const { data: actual } = await supabaseAdmin
+      .from("facturas_electronicas")
+      .select(
+        "estado, cae, cae_vencimiento, numero_comprobante, punto_venta, importe_total, error_mensaje, updated_at, receptor_cuit, receptor_razon_social, receptor_doc_tipo, receptor_doc_nro, tipo_comprobante",
+      )
+      .eq("transaccion_id", transaccionId)
+      .maybeSingle();
+
+    const respActual = respuestaComprobanteExistente(actual as FacturaRow | null);
+    if (respActual) return respActual;
+
+    return jsonResponse({
+      ok: false,
+      estado: "pendiente",
+      error: "Registro en curso. Esperá unos segundos e intentá de nuevo.",
+    });
   }
 
   let emit: EmitResult;
