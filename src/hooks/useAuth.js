@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "../lib/supabaseClient";
 
 /**
@@ -10,27 +10,43 @@ export function useAuth() {
   const [authLoading, setAuthLoading] = useState(true);
   const [role, setRole] = useState(null);
   const [roleLoading, setRoleLoading] = useState(true);
+  // true una vez que el rol se resolvió por primera vez (ok o error). Sirve para
+  // que el spinner de pantalla completa solo aparezca en el arranque inicial y
+  // nunca más re-monte la app, aunque en el futuro se vuelva a cargar el rol.
+  const [roleResolvedOnce, setRoleResolvedOnce] = useState(false);
+  // Usuario activo actual. Sirve para ignorar eventos de auth del MISMO usuario
+  // (TOKEN_REFRESHED / re-emisión de SIGNED_IN al volver de background), que si no
+  // dispararían setSession + loadRole → spinner global → remount y pérdida de contexto.
+  const currentUserIdRef = useRef(undefined);
 
   const loadRole = useCallback(async (nextSession) => {
     if (!nextSession?.user?.id) {
       setRole(null);
       setRoleLoading(false);
+      setRoleResolvedOnce(true);
       return;
     }
     setRoleLoading(true);
-    const { data, error } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", nextSession.user.id)
-      .maybeSingle();
-    if (error) {
-      console.error("[auth/loadRole]", error);
+    try {
+      const { data, error } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", nextSession.user.id)
+        .maybeSingle();
+      if (error) {
+        console.error("[auth/loadRole]", error);
+        setRole(null);
+        return;
+      }
+      setRole(data?.role || null);
+    } catch (err) {
+      console.error("[auth/loadRole]", err);
       setRole(null);
+    } finally {
+      // Garantiza que el spinner nunca quede colgado aunque la query rechace.
       setRoleLoading(false);
-      return;
+      setRoleResolvedOnce(true);
     }
-    setRole(data?.role || null);
-    setRoleLoading(false);
   }, []);
 
   useEffect(() => {
@@ -54,6 +70,7 @@ export function useAuth() {
           }
         }
       }
+      currentUserIdRef.current = session?.user?.id ?? null;
       setSession(session);
       setAuthLoading(false);
       loadRole(session);
@@ -65,6 +82,18 @@ export function useAuth() {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, s) => {
+      const nextUserId = s?.user?.id ?? null;
+      // Mismo usuario (TOKEN_REFRESHED o SIGNED_IN re-emitido al volver de
+      // background): la sesión sigue siendo válida y el cliente Supabase ya
+      // actualizó el token internamente. No tocamos session ni el rol para
+      // evitar el remount que borraba el contexto (carrito, comprobante, scroll).
+      if (
+        currentUserIdRef.current !== undefined &&
+        nextUserId === currentUserIdRef.current
+      ) {
+        return;
+      }
+      currentUserIdRef.current = nextUserId;
       setSession(s);
       loadRole(s);
     });
@@ -86,5 +115,5 @@ export function useAuth() {
     await supabase.auth.signOut();
   }, []);
 
-  return { session, authLoading, signIn, signOut, role, roleLoading };
+  return { session, authLoading, signIn, signOut, role, roleLoading, roleResolvedOnce };
 }
