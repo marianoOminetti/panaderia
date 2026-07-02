@@ -88,7 +88,8 @@ function Ventas({
     showToast,
     appendPedidos,
   });
-  const { facturasByTransaccion, refreshFacturas } = useFacturasElectronicas();
+  const { facturasByTransaccion, refreshFacturas, hydrateFacturas } =
+    useFacturasElectronicas();
 
   const {
     cartItems,
@@ -139,6 +140,19 @@ function Ventas({
   const deleteInFlightRef = useRef(new Set());
   const hoy = hoyLocalISO();
   const isVentaRole = checkVentaRole(role);
+
+  const ventasTransaccionIds = useMemo(() => {
+    if (isVentaRole) return [];
+    const ids = new Set();
+    for (const v of ventas || []) {
+      if (v.transaccion_id) ids.add(v.transaccion_id);
+    }
+    return [...ids];
+  }, [ventas, isVentaRole]);
+
+  useEffect(() => {
+    if (ventasTransaccionIds.length) hydrateFacturas(ventasTransaccionIds);
+  }, [ventasTransaccionIds, hydrateFacturas]);
 
   useEffect(() => {
     let cancelled = false;
@@ -331,7 +345,7 @@ function Ventas({
     }
     invokeRegistrarEnAfip(transaccionId, afipReceptor)
       .then(async (afip) => {
-        await refreshFacturas(transaccionId);
+        await refreshFacturas(transaccionId, afip.ok ? { retries: 4 } : {});
         if (afip.ok) {
           showToast(
             afip.mock
@@ -384,7 +398,7 @@ function Ventas({
       clientes,
     );
     const afip = await invokeRegistrarEnAfip(transaccionId, receptor);
-    await refreshFacturas(transaccionId);
+    await refreshFacturas(transaccionId, afip.ok ? { retries: 4 } : {});
     if (afip.ok) {
       const venta = (ventas || []).find(
         (v) => v.transaccion_id === transaccionId && v.cliente_id,
