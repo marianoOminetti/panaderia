@@ -4,7 +4,7 @@
 import { useState, useMemo, useRef } from "react";
 import { reportError } from "../../utils/errorReport";
 import { usePromociones } from "../../hooks/usePromociones";
-import { TIPOS_PROMO, calcularPrecioListaCombo, etiquetaPromo, isPendingPromoId, promoUsaProductos, promoUsaCantidadesPorProducto } from "../../lib/promociones";
+import { TIPOS_PROMO, ALCANCE_PROMO, calcularPrecioListaCombo, etiquetaPromo, isPendingPromoId, promoEsExclusivaClientes, promoUsaProductos, promoUsaCantidadesPorProducto } from "../../lib/promociones";
 import { FormInput, FormMoneyInput, FormCheckbox, SearchableSelect, QuantityControl } from "../ui";
 
 const TIPOS_OPCIONES = [
@@ -34,9 +34,11 @@ const emptyForm = () => ({
   combo_cantidades: {},
   activa: true,
   receta_ids: [],
+  alcance: ALCANCE_PROMO.TODOS,
+  cliente_ids: [],
 });
 
-export default function Promociones({ promociones, recetas, onRefresh, upsertPromocionInState, removePromocion, showToast, confirm }) {
+export default function Promociones({ promociones, recetas, clientes = [], onRefresh, upsertPromocionInState, removePromocion, showToast, confirm }) {
   const { savePromocion, toggleActiva, deletePromocion } = usePromociones({
     onRefresh,
     showToast,
@@ -47,6 +49,7 @@ export default function Promociones({ promociones, recetas, onRefresh, upsertPro
   const [editId, setEditId] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [searchRecetas, setSearchRecetas] = useState("");
+  const [searchClientes, setSearchClientes] = useState("");
   const [saving, setSaving] = useState(false);
   const saveInFlightRef = useRef(false);
 
@@ -69,6 +72,7 @@ export default function Promociones({ promociones, recetas, onRefresh, upsertPro
     setEditId(null);
     setForm(emptyForm());
     setSearchRecetas("");
+    setSearchClientes("");
     setModalOpen(true);
   };
 
@@ -101,8 +105,11 @@ export default function Promociones({ promociones, recetas, onRefresh, upsertPro
       combo_cantidades: comboCantidades,
       activa: p.activa !== false,
       receta_ids: [...(p.receta_ids || [])],
+      alcance: p.alcance === ALCANCE_PROMO.CLIENTES ? ALCANCE_PROMO.CLIENTES : ALCANCE_PROMO.TODOS,
+      cliente_ids: [...(p.cliente_ids || [])],
     });
     setSearchRecetas("");
+    setSearchClientes("");
     setModalOpen(true);
   };
 
@@ -112,6 +119,32 @@ export default function Promociones({ promociones, recetas, onRefresh, upsertPro
       .filter((r) => !q || (r.nombre || "").toLowerCase().includes(q))
       .sort((a, b) => (a.nombre || "").localeCompare(b.nombre || "", "es"));
   }, [recetas, searchRecetas]);
+
+  const usaClientes = form.alcance === ALCANCE_PROMO.CLIENTES;
+
+  const clientesFiltrados = useMemo(() => {
+    const q = searchClientes.trim().toLowerCase();
+    return [...(clientes || [])]
+      .filter((c) => c.eliminado !== true)
+      .filter((c) => !q || (c.nombre || "").toLowerCase().includes(q))
+      .sort((a, b) => (a.nombre || "").localeCompare(b.nombre || "", "es"));
+  }, [clientes, searchClientes]);
+
+  const clientesSeleccionadosNombres = useMemo(() => {
+    const byId = new Map((clientes || []).map((c) => [c.id, c.nombre]));
+    return (form.cliente_ids || [])
+      .map((id) => byId.get(id))
+      .filter(Boolean);
+  }, [clientes, form.cliente_ids]);
+
+  const toggleCliente = (clienteId) => {
+    setForm((prev) => {
+      const ids = prev.cliente_ids || [];
+      return ids.includes(clienteId)
+        ? { ...prev, cliente_ids: ids.filter((id) => id !== clienteId) }
+        : { ...prev, cliente_ids: [...ids, clienteId] };
+    });
+  };
 
   const productosDePromo = (p) => {
     if (p.tipo === TIPOS_PROMO.COMBO_PRECIO_FIJO && p.combo_items?.length) {
@@ -267,6 +300,11 @@ export default function Promociones({ promociones, recetas, onRefresh, upsertPro
       }
     }
 
+    if (usaClientes && !(form.cliente_ids || []).length) {
+      showToast("Elegí al menos un cliente para la promo exclusiva");
+      return;
+    }
+
     saveInFlightRef.current = true;
     setSaving(true);
     setModalOpen(false);
@@ -284,6 +322,8 @@ export default function Promociones({ promociones, recetas, onRefresh, upsertPro
         activa: form.activa,
         receta_ids: usaProductos ? form.receta_ids : [],
         combo_items,
+        alcance: form.alcance,
+        cliente_ids: usaClientes ? form.cliente_ids : [],
       });
     } catch (err) {
       if (err?.partialPromoId) setEditId(err.partialPromoId);
@@ -369,6 +409,12 @@ export default function Promociones({ promociones, recetas, onRefresh, upsertPro
             <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 8 }}>
               {etiquetaPromo(p)}
             </p>
+            {promoEsExclusivaClientes(p) && (
+              <p style={{ fontSize: 12, color: "var(--green)", fontWeight: 600, marginBottom: 8 }}>
+                🔒 Exclusiva · {(p.cliente_ids || []).length} cliente
+                {(p.cliente_ids || []).length === 1 ? "" : "s"}
+              </p>
+            )}
             {promoUsaProductos(p.tipo) && (p.receta_ids || []).length > 0 && (
               <div
                 style={{
@@ -550,7 +596,110 @@ export default function Promociones({ promociones, recetas, onRefresh, upsertPro
                 checked={form.activa}
                 onChange={(v) => setForm((f) => ({ ...f, activa: v }))}
               />
+
+              <label className="form-label" style={{ display: "block", margin: "12px 0 6px" }}>
+                ¿Para quién es la promo?
+              </label>
+              <SearchableSelect
+                options={[
+                  { value: ALCANCE_PROMO.TODOS, label: "Todos los clientes" },
+                  { value: ALCANCE_PROMO.CLIENTES, label: "Solo ciertos clientes" },
+                ]}
+                value={form.alcance}
+                onChange={(v) =>
+                  setForm((f) => ({
+                    ...f,
+                    alcance:
+                      v === ALCANCE_PROMO.CLIENTES
+                        ? ALCANCE_PROMO.CLIENTES
+                        : ALCANCE_PROMO.TODOS,
+                  }))
+                }
+                placeholder="Elegí el alcance"
+                emptyMessage="Sin opciones"
+              />
+              <p className="form-hint" style={{ marginTop: 6, marginBottom: 0 }}>
+                {usaClientes
+                  ? "Exclusiva: solo se aplica a los clientes elegidos y no aparece en ventas sin cliente."
+                  : "Se aplica automáticamente en cualquier venta que cumpla la condición."}
+              </p>
             </div>
+
+            {usaClientes && (
+              <div className="card" style={{ marginBottom: 16 }}>
+                <div className="card-header">
+                  <span className="card-title">Clientes con la promo</span>
+                  <span style={{ fontSize: 12, color: "var(--green)", fontWeight: 600 }}>
+                    {(form.cliente_ids || []).length} seleccionado
+                    {(form.cliente_ids || []).length === 1 ? "" : "s"}
+                  </span>
+                </div>
+                <p className="form-hint" style={{ marginBottom: 8 }}>
+                  La promo solo aplica cuando la venta tiene alguno de estos clientes. El
+                  cliente se elige en el cobro.
+                </p>
+                {clientesSeleccionadosNombres.length > 0 && (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+                    {clientesSeleccionadosNombres.map((nombre, i) => (
+                      <span
+                        key={`${nombre}-${i}`}
+                        style={{
+                          fontSize: 12,
+                          padding: "4px 8px",
+                          borderRadius: 8,
+                          background: "rgba(74, 124, 89, 0.12)",
+                          color: "var(--green)",
+                        }}
+                      >
+                        {nombre}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <FormInput
+                  label="Buscar cliente"
+                  value={searchClientes}
+                  onChange={setSearchClientes}
+                  placeholder="Nombre del cliente"
+                />
+                <div style={{ maxHeight: 280, overflowY: "auto" }}>
+                  {clientesFiltrados.length === 0 ? (
+                    <p style={{ fontSize: 13, color: "var(--text-muted)", padding: "8px 0" }}>
+                      No hay clientes que coincidan.
+                    </p>
+                  ) : (
+                    clientesFiltrados.map((c) => {
+                      const checked = (form.cliente_ids || []).includes(c.id);
+                      return (
+                        <label
+                          key={c.id}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 8,
+                            padding: "8px 10px",
+                            marginBottom: 4,
+                            borderRadius: 8,
+                            border: checked
+                              ? "1px solid rgba(74, 124, 89, 0.4)"
+                              : "1px solid var(--border)",
+                            background: checked ? "rgba(74, 124, 89, 0.08)" : "transparent",
+                            cursor: "pointer",
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleCliente(c.id)}
+                          />
+                          <span style={{ flex: 1 }}>{c.nombre}</span>
+                        </label>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            )}
 
             {usaProductos && (
               <div className="card" style={{ marginBottom: 16 }}>

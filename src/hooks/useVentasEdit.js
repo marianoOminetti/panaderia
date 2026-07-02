@@ -81,7 +81,9 @@ export function useVentasEdit({
         };
       })
       .filter(Boolean);
-    const preview = calcularPromosEnCarrito(tempCart, promociones);
+    const preview = calcularPromosEnCarrito(tempCart, promociones, {
+      clienteId: grupo.cliente_id || null,
+    });
     const promosGuardadas = new Set(
       grupo.rawItems.map((r) => r.promocion_id).filter(Boolean),
     );
@@ -152,6 +154,7 @@ export function useVentasEdit({
     editCartItems,
     promociones,
     editPromosExcluidas,
+    editForm.cliente_id || null,
   );
 
   const editUpdateQuantity = (recetaId, delta) => {

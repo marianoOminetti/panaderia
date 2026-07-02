@@ -30,12 +30,10 @@ import { registrarEnAfip as invokeRegistrarEnAfip } from "../../lib/registrarEnA
 import {
   buildAfipReceptorPayload,
   afipReceptorFromCliente,
-  buildAfipReceptorForRetry,
-  documentoFromFactura,
-  shouldPersistClienteFiscal,
 } from "../../lib/afipReceptor";
 import { getTransaccionIdFromGrupo, facturaPuedeReintentarAfip } from "../../lib/facturaFiscal";
 import { useFacturasElectronicas } from "../../hooks/useFacturasElectronicas";
+import { useVentasAfip } from "../../hooks/useVentasAfip";
 import VentasList from "./VentasList";
 import VentasChargeModal from "./VentasChargeModal";
 import VentasManualScreen from "./VentasManualScreen";
@@ -103,10 +101,22 @@ function Ventas({
   } = useVentasCart();
 
   const [promosExcluidasCobro, setPromosExcluidasCobro] = useState([]);
-  const cartPromos = useCartConPromos(cartItems, promociones, promosExcluidasCobro);
+  const [clienteSel, setClienteSel] = useState(null);
+  const cartPromos = useCartConPromos(
+    cartItems,
+    promociones,
+    promosExcluidasCobro,
+    clienteSel,
+  );
+  const hayPromosPorCliente = useMemo(
+    () =>
+      (promociones || []).some(
+        (p) => p.activa !== false && p.alcance === "clientes",
+      ),
+    [promociones],
+  );
 
   const [manualScreenOpen, setManualScreenOpen] = useState(false);
-  const [clienteSel, setClienteSel] = useState(null);
   const [medioPago, setMedioPago] = useState("efectivo");
   const [estadoPago, setEstadoPago] = useState("pagado");
   const [registering, setRegistering] = useState(false);
@@ -116,18 +126,6 @@ function Ventas({
   const [senia, setSenia] = useState("");
   const [horaEntrega, setHoraEntrega] = useState("");
   const [notas, setNotas] = useState("");
-  const [registrarEnAfip, setRegistrarEnAfip] = useState(false);
-  const [datosFiscalesAfip, setDatosFiscalesAfip] = useState({
-    documento: "",
-    razon_social: "",
-  });
-  const [editRegistrarEnAfip, setEditRegistrarEnAfip] = useState(false);
-  const [editDatosFiscalesAfip, setEditDatosFiscalesAfip] = useState({
-    documento: "",
-    razon_social: "",
-  });
-  const [editFacturaEstado, setEditFacturaEstado] = useState(null);
-  const [editPuedeRegistrarAfip, setEditPuedeRegistrarAfip] = useState(true);
   const [isPedidoFlow, setIsPedidoFlow] = useState(false);
   const {
     chargeModalOpen,
@@ -216,6 +214,35 @@ function Ventas({
     onRefresh,
     hoy,
     onCloseEdit: () => setManualScreenOpen(false),
+  });
+
+  const {
+    registrarEnAfip,
+    datosFiscalesAfip,
+    setDatosFiscalesAfip,
+    editRegistrarEnAfip,
+    editDatosFiscalesAfip,
+    setEditDatosFiscalesAfip,
+    editFacturaEstado,
+    editPuedeRegistrarAfip,
+    persistirDatosFiscalesCliente,
+    runAfipAfterVenta,
+    registrarAfipDesdeVenta,
+    prefillDatosFiscalesAfip,
+    handleRegistrarEnAfipChange,
+    initAfipEdicion,
+    handleEditRegistrarEnAfipChange,
+    resetAfipNueva,
+    resetAfipEdicion,
+  } = useVentasAfip({
+    clientes,
+    ventas,
+    clienteSel,
+    editForm: edit.editForm,
+    showToast,
+    facturasByTransaccion,
+    refreshFacturas,
+    updateClienteDatosFiscales,
   });
 
   const ventasArray = useMemo(
@@ -338,100 +365,9 @@ function Ventas({
     return { inserted };
   };
 
-  const runAfipAfterVenta = (transaccionId, afipReceptor, totalCobrado, afipActivo, clienteEff) => {
-    if (!afipActivo) return;
-    if (clienteEff && afipReceptor) {
-      persistirDatosFiscalesCliente(clienteEff, afipReceptor).catch(() => {});
-    }
-    invokeRegistrarEnAfip(transaccionId, afipReceptor)
-      .then(async (afip) => {
-        await refreshFacturas(transaccionId, afip.ok ? { retries: 4 } : {});
-        if (afip.ok) {
-          showToast(
-            afip.mock
-              ? `✅ AFIP (prueba) · ${fmt(totalCobrado)}`
-              : `✅ Registrado en AFIP · ${fmt(totalCobrado)}`,
-          );
-        } else {
-          const detalle = afip.error
-            ? String(afip.error).slice(0, 120)
-            : "no se pudo registrar";
-          showToast(`⚠️ AFIP: ${detalle} (la venta sí quedó guardada)`);
-        }
-      })
-      .catch((afipErr) => {
-        reportError(afipErr, { action: "registrarEnAfip", transaccionId });
-        showToast("⚠️ AFIP: error de conexión (la venta sí quedó guardada)");
-      });
-  };
-
   const cerrarCobro = () => {
+    setClienteSel(null);
     closeChargeModal();
-  };
-
-  const persistirDatosFiscalesCliente = async (clienteId, receptor) => {
-    if (!clienteId || !shouldPersistClienteFiscal(receptor)) return;
-    try {
-      await updateClienteDatosFiscales(clienteId, {
-        ...(receptor.cuit ? { cuit: receptor.cuit } : {}),
-        ...(receptor.dni ? { dni: receptor.dni } : {}),
-        razon_social: receptor.razon_social,
-      });
-    } catch (err) {
-      reportError(err, { action: "persistirDatosFiscalesCliente", clienteId });
-    }
-  };
-
-  const registrarAfipDesdeVenta = async (transaccionId) => {
-    if (typeof navigator !== "undefined" && !navigator.onLine) {
-      showToast("Necesitás conexión para registrar en AFIP");
-      return;
-    }
-    const factura = await refreshFacturas(transaccionId);
-    const facturasMap = factura
-      ? { ...facturasByTransaccion, [transaccionId]: factura }
-      : facturasByTransaccion;
-    const receptor = buildAfipReceptorForRetry(
-      transaccionId,
-      facturasMap,
-      ventas,
-      clientes,
-    );
-    const afip = await invokeRegistrarEnAfip(transaccionId, receptor);
-    await refreshFacturas(transaccionId, afip.ok ? { retries: 4 } : {});
-    if (afip.ok) {
-      const venta = (ventas || []).find(
-        (v) => v.transaccion_id === transaccionId && v.cliente_id,
-      );
-      if (venta?.cliente_id) {
-        await persistirDatosFiscalesCliente(venta.cliente_id, receptor);
-      }
-      showToast(
-        afip.mock ? "✅ Registrado en AFIP (prueba)" : "✅ Registrado en AFIP",
-      );
-    } else {
-      showToast(`⚠️ AFIP: ${(afip.error || "error").slice(0, 80)}`);
-    }
-  };
-
-  const prefillDatosFiscalesAfip = (clienteId, { force = false } = {}) => {
-    setDatosFiscalesAfip((prev) => {
-      const tieneDatos =
-        (prev.documento ?? prev.cuit ?? "").length > 0 ||
-          (prev.razon_social || "").trim().length > 0;
-      if (!force && tieneDatos) return prev;
-      const cliente = (clientes || []).find((c) => c.id === clienteId);
-      return afipReceptorFromCliente(cliente);
-    });
-  };
-
-  const handleRegistrarEnAfipChange = (checked) => {
-    setRegistrarEnAfip(checked);
-    if (checked) {
-      prefillDatosFiscalesAfip(clienteSel, { force: true });
-    } else {
-      setDatosFiscalesAfip({ documento: "", razon_social: "" });
-    }
   };
 
   const resetNuevaVenta = () => {
@@ -445,8 +381,7 @@ function Ventas({
     setSenia("");
     setHoraEntrega("");
     setNotas("");
-    setRegistrarEnAfip(false);
-    setDatosFiscalesAfip({ documento: "", razon_social: "" });
+    resetAfipNueva();
     closeChargeModal();
     setIsPedidoFlow(false);
     clearVentaSession().catch(() => {});
@@ -548,45 +483,6 @@ function Ventas({
         deleteInFlightRef.current.delete(deleteKey);
       }
     })();
-  };
-
-  const initAfipEdicion = (grupo, facturaOverride) => {
-    const transaccionId = getTransaccionIdFromGrupo(grupo);
-    const factura =
-      facturaOverride ??
-      (transaccionId ? facturasByTransaccion[transaccionId] : null);
-    setEditFacturaEstado(factura?.estado ?? null);
-    setEditPuedeRegistrarAfip(facturaPuedeReintentarAfip(factura));
-    setEditRegistrarEnAfip(false);
-    const cliente = (clientes || []).find((c) => c.id === grupo?.cliente_id);
-    const docFactura = documentoFromFactura(factura);
-    const razonFactura = factura?.receptor_razon_social || "";
-    if (docFactura || razonFactura) {
-      setEditDatosFiscalesAfip({
-        documento: docFactura,
-        razon_social: razonFactura.trim(),
-      });
-    } else {
-      setEditDatosFiscalesAfip(afipReceptorFromCliente(cliente));
-    }
-  };
-
-  const handleEditRegistrarEnAfipChange = (checked) => {
-    setEditRegistrarEnAfip(checked);
-    if (checked && edit.editForm?.cliente_id) {
-      setEditDatosFiscalesAfip((prev) => {
-        const tieneDatos =
-          (prev.documento ?? prev.cuit ?? "").length > 0 ||
-          (prev.razon_social || "").trim().length > 0;
-        if (tieneDatos) return prev;
-        const cliente = (clientes || []).find(
-          (c) => c.id === edit.editForm.cliente_id,
-        );
-        return afipReceptorFromCliente(cliente);
-      });
-    } else if (!checked) {
-      setEditDatosFiscalesAfip({ documento: "", razon_social: "" });
-    }
   };
 
   const abrirEditar = (grupo) => {
@@ -701,10 +597,7 @@ function Ventas({
     if (edit.editGrupo) {
       setManualScreenOpen(false);
       edit.closeEdit();
-      setEditRegistrarEnAfip(false);
-      setEditDatosFiscalesAfip({ documento: "", razon_social: "" });
-      setEditFacturaEstado(null);
-      setEditPuedeRegistrarAfip(true);
+      resetAfipEdicion();
     } else {
       resetNuevaVenta();
     }
@@ -1089,6 +982,7 @@ function Ventas({
           setClienteSel(id);
           if (registrarEnAfip) prefillDatosFiscalesAfip(id);
         }}
+        hayPromosPorCliente={hayPromosPorCliente}
         ventas={ventas}
         recetas={recetas}
       />

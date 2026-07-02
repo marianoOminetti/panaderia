@@ -12,12 +12,14 @@ function buildPromoPayload({
   descuento_fijo,
   precio_combo,
   activa,
+  alcance,
 }) {
   const tipoFinal = tipo || "nxm";
   const payload = {
     nombre: nombre.trim(),
     tipo: tipoFinal,
     activa: activa !== false,
+    alcance: alcance === "clientes" ? "clientes" : "todos",
     llevar: tipoFinal === "nxm" ? Number(llevar) : null,
     pagar: tipoFinal === "nxm" ? Number(pagar) : null,
     porcentaje:
@@ -47,7 +49,7 @@ export function usePromociones({
   const loadPromociones = useCallback(async () => {
     const { data, error } = await supabase
       .from("promociones")
-      .select("*, promocion_recetas(receta_id, cantidad)")
+      .select("*, promocion_recetas(receta_id, cantidad), promocion_clientes(cliente_id)")
       .order("nombre");
     if (error) {
       console.error("[promociones/load]", error);
@@ -59,7 +61,7 @@ export function usePromociones({
   const savePromocion = useCallback(
     async (params) => {
       if (saveInFlightRef.current) return;
-      const { id, receta_ids, combo_items } = params;
+      const { id, receta_ids, combo_items, cliente_ids } = params;
       if (id && isPendingPromoId(id)) {
         showToast?.("Esperá a que termine de guardarse la promo");
         return;
@@ -68,6 +70,8 @@ export function usePromociones({
       saveInFlightRef.current = true;
       const payload = buildPromoPayload(params);
       const recetaIdsUnique = uniqueRecetaIds(receta_ids);
+      const clienteIdsUnique =
+        payload.alcance === "clientes" ? uniqueRecetaIds(cliente_ids) : [];
       const comboItemsResolved =
         combo_items?.length > 0
           ? combo_items
@@ -78,6 +82,7 @@ export function usePromociones({
         id: pendingId,
         receta_ids: recetaIdsUnique,
         combo_items: comboItemsResolved,
+        cliente_ids: clienteIdsUnique,
       };
 
       showToast?.(id ? "Guardando cambios…" : "Creando promo…");
@@ -102,6 +107,7 @@ export function usePromociones({
             id: promoId,
             receta_ids: recetaIdsUnique,
             combo_items: comboItemsResolved,
+            cliente_ids: clienteIdsUnique,
           });
         }
         const { error: delErr } = await supabase
@@ -118,11 +124,27 @@ export function usePromociones({
           const { error: linkErr } = await supabase.from("promocion_recetas").insert(links);
           if (linkErr) throw linkErr;
         }
+        const { error: delCliErr } = await supabase
+          .from("promocion_clientes")
+          .delete()
+          .eq("promocion_id", promoId);
+        if (delCliErr) throw delCliErr;
+        if (clienteIdsUnique.length > 0) {
+          const clienteLinks = clienteIdsUnique.map((cliente_id) => ({
+            promocion_id: promoId,
+            cliente_id,
+          }));
+          const { error: cliLinkErr } = await supabase
+            .from("promocion_clientes")
+            .insert(clienteLinks);
+          if (cliLinkErr) throw cliLinkErr;
+        }
         upsertPromocionInState?.({
           ...payload,
           id: promoId,
           receta_ids: recetaIdsUnique,
           combo_items: comboItemsResolved,
+          cliente_ids: clienteIdsUnique,
         });
         showToast?.(id ? "✅ Promo actualizada" : "✅ Promo creada");
       } catch (err) {
@@ -132,6 +154,7 @@ export function usePromociones({
             id: promoId,
             receta_ids: recetaIdsUnique,
             combo_items: comboItemsResolved,
+            cliente_ids: clienteIdsUnique,
           });
           err.partialPromoId = promoId;
         } else if (!id) {

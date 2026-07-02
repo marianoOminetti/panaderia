@@ -1,0 +1,60 @@
+---
+description: Al iniciar cualquier tarea de código, crear/usar una rama dedicada desde develop — evita mezclar trabajo concurrente
+alwaysApply: true
+---
+
+# Gatekeeper de ramas: una rama por tarea
+
+Objetivo: que el trabajo concurrente **no se entrevere**. Cada tarea vive en su
+propia rama. Esta regla se activa **siempre**, al inicio de cualquier pedido que
+implique tocar código.
+
+## Cuándo se dispara
+
+Antes de tu **primera edición de código** en una respuesta, si el usuario pide:
+
+- una feature nueva, un fix, un refactor, un ajuste de UI/estilos, una migración, etc.
+
+**No** se dispara si el mensaje es:
+
+- Solo una pregunta / exploración / lectura (sin editar).
+- Contiene **`mergemos`** → manda `mergemos-gatekeeper` (pr-gatekeeper primero).
+- Un pedido explícito de seguir en la rama actual («seguí acá», «mismo branch»).
+
+## Qué hacer (orden fijo, automático — sin preguntar)
+
+1. **Ver estado**:
+   ```bash
+   git branch --show-current
+   git status --short
+   ```
+
+2. **Decidir si es tarea nueva o continuación**:
+   - **Continuación** de lo que ya estás haciendo en esta rama (mismo tema) →
+     quedate en la rama actual. No crees rama nueva por cada mensaje.
+   - **Tarea nueva** (tema distinto al de la rama actual) → creá rama dedicada.
+
+3. **Cambios sin commitear que son de OTRA tarea** (no de la nueva):
+   - No los arrastres a la rama nueva. Avisá al usuario y ofrecé `git stash`
+     (o commitear el WIP en su rama) antes de cambiar de rama.
+   - Si los cambios pertenecen a la tarea que arranca, seguí normal.
+
+4. **Crear la rama** desde `develop` actualizado:
+   ```bash
+   git checkout develop && git pull
+   git checkout -b <prefijo>/<slug>
+   ```
+   - Prefijos: `feat/` (nueva func.), `fix/` (bug), `hotfix/` (urgente prod),
+     `chore/` (mantenimiento), `refactor/` (reestructura).
+   - `<slug>`: kebab-case corto y descriptivo del tema (ej. `feat/combos-precio-fijo`).
+
+5. **Avisar** en una línea qué rama creaste y por qué, y seguí con la tarea.
+
+## Reglas
+
+- **No** empujar tareas de temas distintos a la misma rama.
+- **No** partir siempre de la rama actual: las features nacen de `develop`.
+- Una rama = una tarea = (eventualmente) un PR a `develop`.
+- El merge a `master` sigue siendo trabajo de **pr-gatekeeper** (regla `mergemos`).
+
+Referencia de flujo: `docs/FLUJO-PR.md`.

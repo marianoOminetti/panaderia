@@ -47,6 +47,7 @@ export default function VentasChargeModal({
   datosFiscalesAfip = { documento: "", razon_social: "" },
   setDatosFiscalesAfip,
   onClienteSelChange,
+  hayPromosPorCliente = false,
   ventas,
   recetas,
 }) {
@@ -121,6 +122,12 @@ export default function VentasChargeModal({
             showToast={showToast}
             required={esPedido}
           />
+
+          {hayPromosPorCliente && !clienteSel && (
+            <p className="form-hint" style={{ marginTop: 6, marginBottom: 12 }}>
+              Hay promos exclusivas por cliente. Elegí el cliente para que se apliquen.
+            </p>
+          )}
 
           {clienteSel && !esPedido && (
             <VentasClienteMiniPerfil
