@@ -103,10 +103,22 @@ function Ventas({
   } = useVentasCart();
 
   const [promosExcluidasCobro, setPromosExcluidasCobro] = useState([]);
-  const cartPromos = useCartConPromos(cartItems, promociones, promosExcluidasCobro);
+  const [clienteSel, setClienteSel] = useState(null);
+  const cartPromos = useCartConPromos(
+    cartItems,
+    promociones,
+    promosExcluidasCobro,
+    clienteSel,
+  );
+  const hayPromosPorCliente = useMemo(
+    () =>
+      (promociones || []).some(
+        (p) => p.activa !== false && p.alcance === "clientes",
+      ),
+    [promociones],
+  );
 
   const [manualScreenOpen, setManualScreenOpen] = useState(false);
-  const [clienteSel, setClienteSel] = useState(null);
   const [medioPago, setMedioPago] = useState("efectivo");
   const [estadoPago, setEstadoPago] = useState("pagado");
   const [registering, setRegistering] = useState(false);
@@ -366,6 +378,7 @@ function Ventas({
   };
 
   const cerrarCobro = () => {
+    setClienteSel(null);
     closeChargeModal();
   };
 
@@ -1089,6 +1102,7 @@ function Ventas({
           setClienteSel(id);
           if (registrarEnAfip) prefillDatosFiscalesAfip(id);
         }}
+        hayPromosPorCliente={hayPromosPorCliente}
         ventas={ventas}
         recetas={recetas}
       />

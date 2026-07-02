@@ -287,6 +287,7 @@ export default function AppContent({
         <Promociones
           promociones={promociones}
           recetas={recetas}
+          clientes={clientes}
           onRefresh={loadData}
           upsertPromocionInState={upsertPromocionInState}
           removePromocion={removePromocion}

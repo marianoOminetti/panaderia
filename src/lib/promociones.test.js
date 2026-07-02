@@ -4,6 +4,9 @@ import {
   aplicarDescuentoPromoARows,
   comboTieneStockSuficiente,
   filtrarCombosActivos,
+  normalizarPromociones,
+  promoAplicaACliente,
+  ALCANCE_PROMO,
   TIPOS_PROMO,
 } from "./promociones";
 
@@ -312,6 +315,77 @@ describe("excluir promos en cobro", () => {
     });
     expect(r.descuentoTotal).toBe(0);
     expect(r.totalFinal).toBe(500);
+  });
+});
+
+describe("promos exclusivas por cliente", () => {
+  const promoExclusiva = {
+    id: "pe",
+    nombre: "Solo VIP",
+    tipo: TIPOS_PROMO.PORCENTAJE_PRODUCTOS,
+    porcentaje: 20,
+    activa: true,
+    receta_ids: ["a"],
+    alcance: ALCANCE_PROMO.CLIENTES,
+    cliente_ids: ["cli-1", "cli-2"],
+  };
+  const cart = [{ receta: recetaA, cantidad: 2, precio_unitario: 1000 }];
+
+  it("no aplica sin cliente seleccionado", () => {
+    const r = calcularPromosEnCarrito(cart, [promoExclusiva]);
+    expect(r.descuentoTotal).toBe(0);
+    expect(r.totalFinal).toBe(2000);
+  });
+
+  it("no aplica si el cliente no está en la whitelist", () => {
+    const r = calcularPromosEnCarrito(cart, [promoExclusiva], { clienteId: "otro" });
+    expect(r.descuentoTotal).toBe(0);
+  });
+
+  it("aplica cuando el cliente está habilitado", () => {
+    const r = calcularPromosEnCarrito(cart, [promoExclusiva], { clienteId: "cli-1" });
+    expect(r.descuentoTotal).toBe(400);
+    expect(r.totalFinal).toBe(1600);
+  });
+
+  it("las promos globales siguen aplicando sin cliente", () => {
+    const global20 = { ...promoExclusiva, id: "pg", alcance: ALCANCE_PROMO.TODOS, cliente_ids: [] };
+    const r = calcularPromosEnCarrito(cart, [global20]);
+    expect(r.descuentoTotal).toBe(400);
+  });
+
+  it("promoAplicaACliente respeta el alcance", () => {
+    expect(promoAplicaACliente({ alcance: ALCANCE_PROMO.TODOS }, null)).toBe(true);
+    expect(promoAplicaACliente(promoExclusiva, null)).toBe(false);
+    expect(promoAplicaACliente(promoExclusiva, "cli-2")).toBe(true);
+    expect(promoAplicaACliente(promoExclusiva, "x")).toBe(false);
+  });
+});
+
+describe("normalizarPromociones con clientes", () => {
+  it("extrae cliente_ids del join y default alcance 'todos'", () => {
+    const [p] = normalizarPromociones([
+      {
+        id: "p1",
+        nombre: "X",
+        tipo: TIPOS_PROMO.NXM,
+        activa: true,
+        alcance: ALCANCE_PROMO.CLIENTES,
+        promocion_recetas: [{ receta_id: "a", cantidad: 1 }],
+        promocion_clientes: [{ cliente_id: "c1" }, { cliente_id: "c2" }],
+      },
+    ]);
+    expect(p.cliente_ids).toEqual(["c1", "c2"]);
+    expect(p.alcance).toBe(ALCANCE_PROMO.CLIENTES);
+    expect(p.promocion_clientes).toBeUndefined();
+  });
+
+  it("sin alcance queda 'todos' y cliente_ids vacío", () => {
+    const [p] = normalizarPromociones([
+      { id: "p2", nombre: "Y", tipo: TIPOS_PROMO.NXM, activa: true },
+    ]);
+    expect(p.alcance).toBe(ALCANCE_PROMO.TODOS);
+    expect(p.cliente_ids).toEqual([]);
   });
 });
 
