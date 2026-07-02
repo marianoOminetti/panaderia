@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "../lib/supabaseClient";
 
 /**
@@ -10,6 +10,11 @@ export function useAuth() {
   const [authLoading, setAuthLoading] = useState(true);
   const [role, setRole] = useState(null);
   const [roleLoading, setRoleLoading] = useState(true);
+  // Usuario activo. Sirve para ignorar eventos de auth del MISMO usuario
+  // (TOKEN_REFRESHED / SIGNED_IN re-emitido al volver de background). Sin esto,
+  // cada refresh de token cambiaba la identidad de `session` y remontaba la app
+  // (spinner global), perdiendo el contexto (venta en edición, carrito, scroll).
+  const currentUserIdRef = useRef(undefined);
 
   const loadRole = useCallback(async (nextSession) => {
     if (!nextSession?.user?.id) {
@@ -54,6 +59,7 @@ export function useAuth() {
           }
         }
       }
+      currentUserIdRef.current = session?.user?.id ?? null;
       setSession(session);
       setAuthLoading(false);
       loadRole(session);
@@ -65,6 +71,17 @@ export function useAuth() {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, s) => {
+      const nextUserId = s?.user?.id ?? null;
+      // Mismo usuario (refresh de token al volver de foco): la sesión sigue
+      // válida y el cliente Supabase ya renovó el token internamente. No tocamos
+      // `session` ni el rol para no remontar la app y perder el contexto.
+      if (
+        currentUserIdRef.current !== undefined &&
+        nextUserId === currentUserIdRef.current
+      ) {
+        return;
+      }
+      currentUserIdRef.current = nextUserId;
       setSession(s);
       loadRole(s);
     });
