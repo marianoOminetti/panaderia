@@ -3,7 +3,12 @@
  * @ramiidv/arca-facturacion omite SOAPAction en WSAA; AFIP exige urn:LoginCms.
  */
 
-import { Arca, CbteTipo } from "npm:@ramiidv/arca-facturacion@2.0.0";
+import {
+  Arca,
+  ArcaError,
+  ArcaSoapError,
+  CbteTipo,
+} from "npm:@ramiidv/arca-facturacion@2.0.0";
 import type { ReceptorFiscal } from "./receptor.ts";
 
 const WSAA_SOAP_ACTION = "urn:LoginCms";
@@ -25,7 +30,12 @@ export type WsfeEmitResult = {
   numero_comprobante?: number;
   importe_total: number;
   error?: string;
+  /** true si el CAE se recuperó por reconciliación (no se re-emitió). */
+  reconciliado?: boolean;
 };
+
+/** Ventana de números a escanear hacia atrás al reconciliar. */
+const RECONCILIACION_MAX_SCAN = 25;
 
 function installAfipFetchPatch(): void {
   const g = globalThis as typeof globalThis & { __panaderiaAfipFetchPatched?: boolean };
@@ -101,12 +111,7 @@ function humanizeAfipError(msg: string, puntoVenta: number): string {
   return msg.slice(0, 500);
 }
 
-export async function emitWsfe(
-  _ventas: VentaRow[],
-  importeTotal: number,
-  puntoVenta: number,
-  receptor: ReceptorFiscal,
-): Promise<WsfeEmitResult> {
+function buildArca(): Arca | { error: string } {
   const cuit = parseInt(Deno.env.get("AFIP_CUIT") || "", 10);
   const cert = decodePem(
     Deno.env.get("AFIP_CERT_B64"),
@@ -120,27 +125,183 @@ export async function emitWsfe(
 
   if (!cuit || !cert || !key) {
     return {
-      ok: false,
-      importe_total: importeTotal,
       error: "Faltan AFIP_CUIT y certificado/clave (AFIP_CERT_B64 + AFIP_KEY_B64)",
     };
   }
 
+  return new Arca({
+    cuit,
+    cert,
+    key,
+    production,
+    // Sin reintentos internos: la reconciliación la manejamos nosotros para no
+    // arriesgar una doble solicitud de CAE ante un error transitorio.
+    retries: 0,
+    onEvent: (e) => {
+      if (e.type === "request:error" || e.type === "soap:fault") {
+        console.error("[wsfe/arca]", e.type, JSON.stringify(e).slice(0, 600));
+      }
+    },
+  });
+}
+
+/**
+ * Solo reconciliamos ante errores de transporte (HTTP/timeout/SOAP fault),
+ * donde AFIP PUDO haber autorizado aunque perdimos la respuesta. Ante errores
+ * de negocio/auth/validación (ArcaWSFEError, ArcaAuthError, etc.) AFIP NO
+ * autorizó, así que no tiene sentido reconciliar y evitamos falsos positivos.
+ */
+function debeReconciliar(err: unknown): boolean {
+  if (err instanceof ArcaSoapError) return true;
+  if (err instanceof ArcaError) return false;
+  return true; // error desconocido: por seguridad, verificamos contra AFIP
+}
+
+/** Reintenta una consulta read-only (idempotente) ante blips de red. */
+async function conReintentos<T>(
+  fn: () => Promise<T>,
+  intentos = 3,
+  delayMs = 400,
+): Promise<T> {
+  let ultimoError: unknown;
+  for (let i = 0; i < intentos; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      ultimoError = err;
+      if (i < intentos - 1) await new Promise((r) => setTimeout(r, delayMs));
+    }
+  }
+  throw ultimoError;
+}
+
+/** ¿El comprobante consultado en AFIP corresponde a esta emisión? */
+function comprobanteCoincide(
+  g: Record<string, unknown> | null | undefined,
+  impTotal: number,
+  receptor: ReceptorFiscal,
+  fechasValidas: string[],
+): boolean {
+  if (!g) return false;
+  if (g.Resultado !== "A") return false;
+  if (!g.CodAutorizacion) return false;
+  const impOk = Math.abs(Number(g.ImpTotal) - impTotal) < 0.01;
+  const docOk =
+    Number(g.DocNro) === Number(receptor.doc_nro) &&
+    Number(g.DocTipo) === Number(receptor.doc_tipo);
+  const fechaOk = fechasValidas.includes(String(g.CbteFch));
+  return impOk && docOk && fechaOk;
+}
+
+function ymd(date: Date): string {
+  return Arca.formatDate(date);
+}
+
+/**
+ * Tras un fallo de transporte al emitir, AFIP pudo haber autorizado el CAE
+ * aunque perdimos la respuesta. Escanea los comprobantes autorizados después
+ * de `ultimoAntes` buscando uno que coincida (importe + documento + fecha).
+ *
+ * SEGURIDAD ANTI FALSO-POSITIVO: solo reconcilia si encuentra EXACTAMENTE UN
+ * candidato que coincide. Si hay 0 o ≥2 (p. ej. dos ventas a consumidor final
+ * del mismo importe el mismo día), se abstiene y devuelve null → el flujo
+ * marca error y queda para revisión/reintento manual, en vez de atribuir a
+ * esta venta un CAE que podría ser de otra.
+ */
+async function reconciliarEmitido(
+  arca: Arca,
+  puntoVenta: number,
+  ultimoAntes: number,
+  impTotal: number,
+  receptor: ReceptorFiscal,
+): Promise<WsfeEmitResult | null> {
+  let ultimoAhora: number;
+  try {
+    ultimoAhora = await conReintentos(() =>
+      arca.ultimoComprobante(puntoVenta, CbteTipo.FACTURA_C),
+    );
+  } catch {
+    return null;
+  }
+  if (!ultimoAhora || ultimoAhora <= ultimoAntes) return null;
+
+  const ahora = new Date();
+  const ayer = new Date(ahora.getTime() - 24 * 60 * 60 * 1000);
+  const fechasValidas = [ymd(ahora), ymd(ayer)];
+
+  const desde = Math.max(ultimoAntes + 1, ultimoAhora - RECONCILIACION_MAX_SCAN + 1);
+  const coincidencias: Record<string, unknown>[] = [];
+  for (let n = ultimoAhora; n >= desde; n--) {
+    let g: Record<string, unknown> | undefined;
+    try {
+      const info = await conReintentos(() =>
+        arca.consultarComprobante(CbteTipo.FACTURA_C, puntoVenta, n),
+      );
+      g = info?.ResultGet as Record<string, unknown> | undefined;
+    } catch {
+      // No pudimos leer este número: no podemos garantizar unicidad → abstenerse.
+      return null;
+    }
+    if (comprobanteCoincide(g, impTotal, receptor, fechasValidas)) {
+      coincidencias.push(g!);
+    }
+  }
+
+  if (coincidencias.length !== 1) {
+    if (coincidencias.length > 1) {
+      console.error(
+        "[wsfe/reconciliacion] ambiguo: múltiples comprobantes coinciden, no se reconcilia",
+        JSON.stringify({ candidatos: coincidencias.length, impTotal }),
+      );
+    }
+    return null;
+  }
+
+  const g = coincidencias[0];
+  console.error(
+    "[wsfe/reconciliacion] CAE recuperado sin re-emitir",
+    JSON.stringify({ nro: g.CbteDesde, cae: g.CodAutorizacion }),
+  );
+  return {
+    ok: true,
+    cae: String(g.CodAutorizacion),
+    cae_vencimiento: caeVencimientoToIso(String(g.FchVto || "")),
+    tipo_comprobante: Number(g.CbteTipo),
+    punto_venta: Number(g.PtoVta),
+    numero_comprobante: Number(g.CbteDesde),
+    importe_total: Number(g.ImpTotal),
+    reconciliado: true,
+  };
+}
+
+export async function emitWsfe(
+  _ventas: VentaRow[],
+  importeTotal: number,
+  puntoVenta: number,
+  receptor: ReceptorFiscal,
+): Promise<WsfeEmitResult> {
+  const arca = buildArca();
+  if (!(arca instanceof Arca)) {
+    return { ok: false, importe_total: importeTotal, error: arca.error };
+  }
+
   const impTotal = Math.round(importeTotal * 100) / 100;
 
+  // Baseline: último comprobante autorizado ANTES de emitir. Si la emisión
+  // falla por red, sirve para reconciliar y no re-emitir un CAE ya otorgado.
+  let ultimoAntes: number | null = null;
   try {
-    const arca = new Arca({
-      cuit,
-      cert,
-      key,
-      production,
-      onEvent: (e) => {
-        if (e.type === "request:error" || e.type === "soap:fault") {
-          console.error("[wsfe/arca]", e.type, JSON.stringify(e).slice(0, 600));
-        }
-      },
-    });
+    ultimoAntes = await conReintentos(() =>
+      arca.ultimoComprobante(puntoVenta, CbteTipo.FACTURA_C),
+    );
+  } catch (err) {
+    console.error(
+      "[wsfe/ultimoComprobante]",
+      err instanceof Error ? err.message : String(err),
+    );
+  }
 
+  try {
     const result = await arca.facturar({
       ptoVta: puntoVenta,
       cbteTipo: CbteTipo.FACTURA_C,
@@ -181,8 +342,32 @@ export async function emitWsfe(
     };
   } catch (err) {
     const raw = err instanceof Error ? err.message : String(err);
-    const msg = humanizeAfipError(raw, puntoVenta);
     console.error("[emitWsfe]", raw);
-    return { ok: false, importe_total: impTotal, error: msg };
+
+    // Reconciliación: solo ante errores de transporte, y solo si teníamos el
+    // baseline. Quizás AFIP sí autorizó el CAE y perdimos la respuesta.
+    if (ultimoAntes != null && debeReconciliar(err)) {
+      try {
+        const recuperado = await reconciliarEmitido(
+          arca,
+          puntoVenta,
+          ultimoAntes,
+          impTotal,
+          receptor,
+        );
+        if (recuperado) return recuperado;
+      } catch (reconErr) {
+        console.error(
+          "[wsfe/reconciliacion]",
+          reconErr instanceof Error ? reconErr.message : String(reconErr),
+        );
+      }
+    }
+
+    return {
+      ok: false,
+      importe_total: impTotal,
+      error: humanizeAfipError(raw, puntoVenta),
+    };
   }
 }

@@ -464,7 +464,12 @@ export function useVentasEdit({
           afipOpts
             .invokeAfip(transaccionId, afipOpts.receptor)
             .then(async (afip) => {
-              if (afipOpts.refreshFacturas) await afipOpts.refreshFacturas();
+              if (afipOpts.refreshFacturas) {
+                await afipOpts.refreshFacturas(
+                  transaccionId,
+                  afip?.ok ? { retries: 4 } : {},
+                );
+              }
               if (afip?.ok) {
                 showToast(
                   afip.mock
