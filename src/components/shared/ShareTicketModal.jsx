@@ -18,7 +18,7 @@ export default function ShareTicketModal({ type, data, onClose }) {
   const editedData = useMemo(() => {
     const items = (data?.items || []).map((it, i) => {
       const computed = (it.precio_unitario || 0) * (it.cantidad || 0);
-      const lineTotal = lineTotals[i] ?? computed;
+      const lineTotal = lineTotals[i] ?? it._lineTotal ?? computed;
       return { ...it, _lineTotal: lineTotal };
     });
     const itemsSubtotal = items.reduce((s, it) => s + (it._lineTotal || 0), 0);
@@ -48,6 +48,7 @@ export default function ShareTicketModal({ type, data, onClose }) {
   };
 
   const [capturing, setCapturing] = useState(false);
+  const allowPriceEdit = !data?.seccionesPorFecha?.length;
 
   const handleShare = async () => {
     if (!ticketRef.current) return;
@@ -116,8 +117,8 @@ export default function ShareTicketModal({ type, data, onClose }) {
             editableCliente
             clienteValue={cliente}
             onClienteChange={setCliente}
-            editablePrices
-            onLineTotalChange={handleLineTotalChange}
+            editablePrices={allowPriceEdit}
+            onLineTotalChange={allowPriceEdit ? handleLineTotalChange : undefined}
             capturing={capturing}
           />
         </div>

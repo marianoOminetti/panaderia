@@ -42,6 +42,8 @@ export default function Clientes({
   confirm,
   ventasHistoricasLoaded = true,
   ventasSyncing = false,
+  replaceVentas,
+  promociones = [],
 }) {
   useClientes({
     onRefresh,
@@ -167,6 +169,8 @@ export default function Clientes({
           removeVentas={removeVentas}
           resolveOptimisticVentas={resolveOptimisticVentas}
           updatePedidosEstado={updatePedidosEstado}
+          replaceVentas={replaceVentas}
+          promociones={promociones}
         />
       )}
 

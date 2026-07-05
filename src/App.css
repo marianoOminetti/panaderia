@@ -464,10 +464,71 @@ body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--cream); c
 .cliente-historial-item {
   padding: 12px 16px;
   border-top: 1px solid var(--border);
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
 }
 
 .cliente-historial-item--activo {
   background: rgba(124, 111, 205, 0.04);
+}
+
+.cliente-historial-check {
+  flex-shrink: 0;
+  padding-top: 14px;
+  display: flex;
+  align-items: center;
+}
+
+.cliente-historial-check input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--purple);
+}
+
+.cliente-historial-item-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.cliente-historial-unificar-hint {
+  padding: 0 16px 8px;
+  margin: 0;
+}
+
+.cliente-historial-bloqueo {
+  margin: 6px 0 0;
+  color: var(--danger);
+  font-size: 11px;
+}
+
+.cliente-historial-unificar-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-secondary);
+  position: sticky;
+  bottom: 0;
+}
+
+.cliente-historial-separar-row {
+  padding: 0 0 4px;
+  margin-top: 8px;
+}
+
+.ventas-unificar-seccion-fecha {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin: 8px 0 4px;
+  text-transform: capitalize;
+}
+
+.ventas-unificar-seccion:first-child .ventas-unificar-seccion-fecha {
+  margin-top: 0;
 }
 
 .cliente-historial-fecha {

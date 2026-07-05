@@ -45,6 +45,33 @@ async function insertVentasDirect(rows) {
   return data || [];
 }
 
+export async function unificarVentasTransacciones({
+  ventaIds,
+  transaccionIdDestino,
+  marcarPagado = false,
+  medioPago,
+}) {
+  const ids = (ventaIds || []).filter((id) => id && !isPendingVentaId(id));
+  if (!ids.length || !transaccionIdDestino) {
+    throw new Error("Datos incompletos para unificar ventas");
+  }
+  const payload = { transaccion_id: transaccionIdDestino };
+  if (marcarPagado) {
+    payload.estado_pago = "pagado";
+    payload.medio_pago = medioPago || "efectivo";
+  }
+  const { data, error } = await supabase
+    .from("ventas")
+    .update(payload)
+    .in("id", ids)
+    .select("*");
+  if (error) {
+    console.error("[ventas/unificarVentasTransacciones]", error);
+    throw error;
+  }
+  return data || [];
+}
+
 /**
  * Mutaciones de ventas. No incluye actualizarStock; el componente debe llamarlo.
  * insertVentas devuelve los ids insertados para poder hacer rollback si falla el stock.
@@ -112,5 +139,11 @@ export function useVentas() {
     if (transaccionId) await releaseVentaTransaccionClaim(transaccionId);
   }, [deleteVentas]);
 
-  return { insertVentas, deleteVentas, updateVenta, rollbackInsertVentas, releaseVentaTransaccionClaim };
+  return {
+    insertVentas,
+    deleteVentas,
+    updateVenta,
+    rollbackInsertVentas,
+    releaseVentaTransaccionClaim,
+  };
 }

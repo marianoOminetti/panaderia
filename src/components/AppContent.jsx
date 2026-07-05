@@ -391,6 +391,8 @@ export default function AppContent({
           confirm={confirm}
           ventasHistoricasLoaded={ventasHistoricasLoaded}
           ventasSyncing={ventasSyncing}
+          replaceVentas={replaceVentas}
+          promociones={promociones}
         />
         </LazyTab>
       )}
