@@ -123,7 +123,9 @@ export default function VentaAfipToolbar({
               const msg = notaCreditoNecesitaConfirmar(notaCredito)
                 ? `¿Confirmar en el sistema la nota de crédito AFIP (CAE ${notaCredito.cae})?`
                 : [
-                    `¿Emitir nota de crédito en AFIP por ${fmt(grupo.total)}?`,
+                    facturaFueRefacturada(factura, notaCredito)
+                      ? `¿Emitir nota de crédito en AFIP por la factura nueva (${fmt(grupo.total)})?`
+                      : `¿Emitir nota de crédito en AFIP por ${fmt(grupo.total)}?`,
                     "La venta queda igual en la app; solo se anula la factura en AFIP.",
                     factura?.numero_comprobante
                       ? `Factura: ${String(factura.punto_venta || "").padStart(5, "0")}-${String(factura.numero_comprobante).padStart(8, "0")}`
