@@ -1,22 +1,36 @@
 import { fmt } from "../../lib/format";
 import { formatFechaLocal, formatFechaRelativa } from "../../lib/dates";
 import { agruparVentas } from "../../lib/agrupadores";
+import { getTransaccionIdFromGrupo } from "../../lib/facturaFiscal";
+import VentaAfipToolbar from "../ventas/VentaAfipToolbar";
 
 const MEDIO_PAGO_LABEL = {
   efectivo: "Efectivo",
   transferencia: "Transferencia",
   tarjeta: "Tarjeta",
   mercadopago: "Mercado Pago",
+  debito: "Débito",
+  credito: "Crédito",
 };
 
 function ClienteDetalleVentas({
   ventasCliente,
   recetas,
+  cliente,
+  clientes = [],
+  promociones = [],
+  facturasByTransaccion = {},
+  notasCreditoByTransaccion = {},
+  onRegistrarAfip,
+  onEmitirNotaCredito,
+  onRefacturarAfip,
+  confirm,
   title = "Historial de compras",
   emptyMessage = "No hay compras registradas para este cliente.",
   style,
 }) {
   const grupos = agruparVentas(ventasCliente || []);
+  const afipEnabled = Boolean(onRegistrarAfip);
 
   if (grupos.length === 0) {
     return (
@@ -44,6 +58,13 @@ function ClienteDetalleVentas({
         const fechaCompleta = fechaRaw ? formatFechaLocal(fechaRaw, { weekday: true }) : null;
         const tieneDeuda = grupo.rawItems?.some((v) => v.estado_pago === "debe");
         const medioPago = raw?.medio_pago;
+        const transaccionId = getTransaccionIdFromGrupo(grupo);
+        const factura = transaccionId
+          ? facturasByTransaccion[transaccionId]
+          : null;
+        const notaCredito = transaccionId
+          ? notasCreditoByTransaccion[transaccionId]
+          : null;
 
         return (
           <div key={grupo.key} className="cliente-historial-item">
@@ -88,8 +109,64 @@ function ClienteDetalleVentas({
                   ? MEDIO_PAGO_LABEL[medioPago]
                   : medioPago || ""}
               </span>
-              <strong>Total {fmt(grupo.total)}</strong>
+              <span>
+                <strong>Total {fmt(grupo.total)}</strong>
+                {afipEnabled && factura?.estado === "autorizada" && (
+                  <span
+                    style={{
+                      marginLeft: 8,
+                      fontSize: 10,
+                      color: "var(--green)",
+                      fontWeight: 600,
+                    }}
+                  >
+                    AFIP
+                  </span>
+                )}
+                {afipEnabled && factura?.estado === "mock" && (
+                  <span
+                    style={{
+                      marginLeft: 8,
+                      fontSize: 10,
+                      color: "var(--text-muted)",
+                    }}
+                  >
+                    AFIP prueba
+                  </span>
+                )}
+                {afipEnabled &&
+                  (notaCredito?.estado === "autorizada" ||
+                    notaCredito?.estado === "mock") && (
+                    <span
+                      style={{
+                        marginLeft: 8,
+                        fontSize: 10,
+                        color: "var(--danger)",
+                        fontWeight: 600,
+                      }}
+                    >
+                      NC
+                    </span>
+                  )}
+              </span>
             </div>
+            {afipEnabled && transaccionId && (
+              <VentaAfipToolbar
+                grupo={grupo}
+                transaccionId={transaccionId}
+                factura={factura}
+                notaCredito={notaCredito}
+                cliente={cliente}
+                clientes={clientes}
+                recetas={recetas}
+                promociones={promociones}
+                confirm={confirm}
+                onRegistrarAfip={onRegistrarAfip}
+                onEmitirNotaCredito={onEmitirNotaCredito}
+                onRefacturarAfip={onRefacturarAfip}
+                className="cliente-historial-afip-actions"
+              />
+            )}
           </div>
         );
       })}

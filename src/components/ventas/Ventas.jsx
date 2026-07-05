@@ -30,12 +30,9 @@ import { registrarEnAfip as invokeRegistrarEnAfip } from "../../lib/registrarEnA
 import {
   buildAfipReceptorPayload,
   afipReceptorFromCliente,
-  buildAfipReceptorForRetry,
 } from "../../lib/afipReceptor";
 import { getTransaccionIdFromGrupo, facturaPuedeReintentarAfip } from "../../lib/facturaFiscal";
-import { useFacturasElectronicas } from "../../hooks/useFacturasElectronicas";
-import { useNotasCreditoAfip } from "../../hooks/useNotasCreditoAfip";
-import { emitirNotaCreditoAfip } from "../../lib/notaCreditoAfip";
+import { useAfipComprobanteActions } from "../../hooks/useAfipComprobanteActions";
 import { useVentasAfip } from "../../hooks/useVentasAfip";
 import VentasList from "./VentasList";
 import VentasChargeModal from "./VentasChargeModal";
@@ -89,13 +86,22 @@ function Ventas({
     showToast,
     appendPedidos,
   });
-  const { facturasByTransaccion, refreshFacturas, hydrateFacturas, patchFactura } =
-    useFacturasElectronicas();
+  const afip = useAfipComprobanteActions({
+    ventas,
+    clientes,
+    showToast,
+    updateClienteDatosFiscales,
+  });
   const {
+    facturasByTransaccion,
     notasCreditoByTransaccion,
-    hydrateNotasCredito,
-    refreshNotaCredito,
-  } = useNotasCreditoAfip();
+    hydrateAfipForTransacciones,
+    registrarAfipDesdeVenta,
+    emitirNotaCreditoDesdeVenta,
+    refacturarAfipDesdeVenta,
+    refreshFacturas,
+    persistirDatosFiscalesCliente,
+  } = afip;
 
   const {
     cartItems,
@@ -158,10 +164,9 @@ function Ventas({
 
   useEffect(() => {
     if (ventasTransaccionIds.length) {
-      hydrateFacturas(ventasTransaccionIds);
-      hydrateNotasCredito(ventasTransaccionIds);
+      hydrateAfipForTransacciones(ventasTransaccionIds);
     }
-  }, [ventasTransaccionIds, hydrateFacturas, hydrateNotasCredito]);
+  }, [ventasTransaccionIds, hydrateAfipForTransacciones]);
 
   useEffect(() => {
     let cancelled = false;
@@ -236,9 +241,7 @@ function Ventas({
     setEditDatosFiscalesAfip,
     editFacturaEstado,
     editPuedeRegistrarAfip,
-    persistirDatosFiscalesCliente,
     runAfipAfterVenta,
-    registrarAfipDesdeVenta,
     prefillDatosFiscalesAfip,
     handleRegistrarEnAfipChange,
     initAfipEdicion,
@@ -255,66 +258,6 @@ function Ventas({
     refreshFacturas,
     updateClienteDatosFiscales,
   });
-
-  const emitirNotaCreditoDesdeVenta = async (transaccionId) => {
-    if (typeof navigator !== "undefined" && !navigator.onLine) {
-      showToast("Necesitás conexión para emitir nota de crédito");
-      return;
-    }
-    const nc = await emitirNotaCreditoAfip(transaccionId);
-    await refreshNotaCredito(transaccionId, nc.ok ? { retries: 4 } : {});
-    if (nc.ok) {
-      showToast(
-        nc.mock
-          ? "✅ Nota de crédito (prueba)"
-          : "✅ Nota de crédito emitida en AFIP",
-      );
-    } else {
-      showToast(`⚠️ NC AFIP: ${(nc.error || "error").slice(0, 80)}`);
-    }
-  };
-
-  const refacturarAfipDesdeVenta = async (transaccionId) => {
-    if (typeof navigator !== "undefined" && !navigator.onLine) {
-      showToast("Necesitás conexión para refacturar en AFIP");
-      return;
-    }
-    const factura = await refreshFacturas(transaccionId);
-    const facturasMap = factura
-      ? { ...facturasByTransaccion, [transaccionId]: factura }
-      : facturasByTransaccion;
-    const receptor = buildAfipReceptorForRetry(
-      transaccionId,
-      facturasMap,
-      ventas,
-      clientes,
-    );
-    const afip = await invokeRegistrarEnAfip(transaccionId, receptor, { refacturar: true });
-    if (afip.ok && afip.cae) {
-      patchFactura(transaccionId, {
-        cae: afip.cae,
-        numero_comprobante: afip.numero_comprobante,
-        punto_venta: afip.punto_venta,
-        estado: afip.estado || (afip.mock ? "mock" : "autorizada"),
-        tipo_comprobante: 11,
-        updated_at: new Date().toISOString(),
-      });
-    }
-    await refreshFacturas(transaccionId, afip.ok ? {
-      retries: 6,
-      delayMs: 400,
-      expectNumero: afip.numero_comprobante ?? null,
-    } : {});
-    if (afip.ok) {
-      showToast(
-        afip.mock
-          ? "✅ Refacturado en AFIP (prueba)"
-          : "✅ Nueva factura emitida en AFIP",
-      );
-    } else {
-      showToast(`⚠️ AFIP: ${(afip.error || "error").slice(0, 80)}`);
-    }
-  };
 
   const ventasArray = useMemo(
     () => (Array.isArray(ventas) ? ventas : []),

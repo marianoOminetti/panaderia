@@ -1183,6 +1183,14 @@ body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--cream); c
 .venta-transaction:last-child { border-bottom: none; }
 .venta-grupo-total { font-family: 'Outfit', sans-serif; font-size: 15px; color: var(--purple-dark); font-weight: 600; text-align: right; margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border); }
 .venta-grupo-actions { display: flex; gap: 8px; margin-top: 8px; justify-content: flex-end; }
+.venta-afip-toolbar-inline { display: contents; }
+.cliente-historial-afip-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
 .btn-venta-action { font-size: 12px; padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--cream); color: var(--text-muted); cursor: pointer; }
 .btn-venta-action:hover { background: var(--border); }
 .btn-venta-delete { color: var(--danger); border-color: rgba(214,69,69,0.4); }
