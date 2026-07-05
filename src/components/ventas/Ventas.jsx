@@ -30,6 +30,7 @@ import { registrarEnAfip as invokeRegistrarEnAfip } from "../../lib/registrarEnA
 import {
   buildAfipReceptorPayload,
   afipReceptorFromCliente,
+  buildAfipReceptorForRetry,
 } from "../../lib/afipReceptor";
 import { getTransaccionIdFromGrupo, facturaPuedeReintentarAfip } from "../../lib/facturaFiscal";
 import { useFacturasElectronicas } from "../../hooks/useFacturasElectronicas";
@@ -270,6 +271,34 @@ function Ventas({
       );
     } else {
       showToast(`⚠️ NC AFIP: ${(nc.error || "error").slice(0, 80)}`);
+    }
+  };
+
+  const refacturarAfipDesdeVenta = async (transaccionId) => {
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      showToast("Necesitás conexión para refacturar en AFIP");
+      return;
+    }
+    const factura = await refreshFacturas(transaccionId);
+    const facturasMap = factura
+      ? { ...facturasByTransaccion, [transaccionId]: factura }
+      : facturasByTransaccion;
+    const receptor = buildAfipReceptorForRetry(
+      transaccionId,
+      facturasMap,
+      ventas,
+      clientes,
+    );
+    const afip = await invokeRegistrarEnAfip(transaccionId, receptor, { refacturar: true });
+    await refreshFacturas(transaccionId, afip.ok ? { retries: 4 } : {});
+    if (afip.ok) {
+      showToast(
+        afip.mock
+          ? "✅ Refacturado en AFIP (prueba)"
+          : "✅ Nueva factura emitida en AFIP",
+      );
+    } else {
+      showToast(`⚠️ AFIP: ${(afip.error || "error").slice(0, 80)}`);
     }
   };
 
@@ -890,6 +919,7 @@ function Ventas({
         notasCreditoByTransaccion={notasCreditoByTransaccion}
         onRegistrarAfip={registrarAfipDesdeVenta}
         onEmitirNotaCredito={emitirNotaCreditoDesdeVenta}
+        onRefacturarAfip={refacturarAfipDesdeVenta}
         confirm={confirm}
       />
 

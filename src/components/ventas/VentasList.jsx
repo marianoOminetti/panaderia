@@ -16,6 +16,7 @@ import {
   facturaPuedeReintentarAfip,
   facturaNecesitaConfirmarAfip,
   facturaPuedeEmitirNotaCredito,
+  facturaPuedeRefacturarAfip,
   notaCreditoListaParaPdf,
   notaCreditoPuedeReintentar,
   notaCreditoNecesitaConfirmar,
@@ -59,6 +60,7 @@ export default function VentasList({
   notasCreditoByTransaccion = {},
   onRegistrarAfip,
   onEmitirNotaCredito,
+  onRefacturarAfip,
   confirm,
 }) {
   const hoyDate = new Date(hoy);
@@ -71,6 +73,7 @@ export default function VentasList({
   const [facturaFiscalData, setFacturaFiscalData] = useState(null);
   const [afipLoadingTx, setAfipLoadingTx] = useState(null);
   const [ncLoadingTx, setNcLoadingTx] = useState(null);
+  const [refacturarLoadingTx, setRefacturarLoadingTx] = useState(null);
   const filteredGrupos = useFilterVentasGrupos(grupos, recetas, clientes, search);
   const [listPage, setListPage] = useState(0);
 
@@ -264,6 +267,8 @@ export default function VentasList({
               facturaPuedeEmitirNotaCredito(factura, notaCredito) ||
               notaCreditoPuedeReintentar(notaCredito) ||
               notaCreditoNecesitaConfirmar(notaCredito);
+            const puedeRefacturar =
+              facturaPuedeRefacturarAfip(factura, notaCredito);
             const medio = ejemplo?.medio_pago || "efectivo";
             const estado = ejemplo?.estado_pago || "pagado";
             const medioTxt =
@@ -464,6 +469,36 @@ export default function VentasList({
                             : "NC"}
                       </button>
                     )}
+                  {!isVentaRole &&
+                    transaccionId &&
+                    onRefacturarAfip &&
+                    puedeRefacturar && (
+                      <button
+                        type="button"
+                        className="btn-venta-action"
+                        title="Refacturar en AFIP (nueva factura)"
+                        disabled={refacturarLoadingTx === transaccionId}
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          e.preventDefault();
+                          if (!confirm) return;
+                          const msg = [
+                            `¿Emitir una nueva factura en AFIP por ${fmt(grupo.total)}?`,
+                            "La nota de crédito ya anuló la factura anterior.",
+                          ].join("\n");
+                          const ok = await confirm(msg);
+                          if (!ok) return;
+                          setRefacturarLoadingTx(transaccionId);
+                          try {
+                            await onRefacturarAfip(transaccionId);
+                          } finally {
+                            setRefacturarLoadingTx(null);
+                          }
+                        }}
+                      >
+                        {refacturarLoadingTx === transaccionId ? "…" : "AFIP"}
+                      </button>
+                    )}
                   {!isVentaRole && transaccionId && puedePdf && (
                     <button
                       type="button"
@@ -489,7 +524,7 @@ export default function VentasList({
                   {!isVentaRole &&
                     transaccionId &&
                     onRegistrarAfip &&
-                    facturaPuedeReintentarAfip(factura) && (
+                    facturaPuedeReintentarAfip(factura, notaCredito) && (
                       <button
                         type="button"
                         className="btn-venta-action"

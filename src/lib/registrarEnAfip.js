@@ -3,12 +3,13 @@
  */
 import { supabase } from "./supabaseClient";
 
-export async function registrarEnAfip(transaccionId, receptor = null) {
+export async function registrarEnAfip(transaccionId, receptor = null, opts = {}) {
   if (!transaccionId) {
     return { ok: false, error: "Sin transaccion_id" };
   }
   try {
     const body = { transaccion_id: transaccionId };
+    if (opts.refacturar) body.refacturar = true;
     if (receptor) {
       body.receptor = {
         cuit: receptor.cuit ?? null,
@@ -31,6 +32,7 @@ export async function registrarEnAfip(transaccionId, receptor = null) {
       cae: data?.cae,
       error: data?.error,
       mock: data?.mock,
+      refacturado: data?.refacturado,
     };
   } catch (err) {
     console.error("[registrarEnAfip]", err);

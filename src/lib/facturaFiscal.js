@@ -195,7 +195,10 @@ export function facturaNecesitaConfirmarAfip(factura) {
   return factura?.estado === "error" && !!factura?.cae;
 }
 
-export function facturaPuedeReintentarAfip(factura) {
+export function facturaPuedeReintentarAfip(factura, notaCredito = null) {
+  if (notaCredito && facturaPuedeRefacturarAfip(factura, notaCredito)) {
+    return false;
+  }
   if (!factura) return true;
   if (factura.estado === "pendiente") return true;
   if (factura.estado === "error") return true;
@@ -210,6 +213,19 @@ export function facturaPuedeEmitirNotaCredito(factura, notaCredito) {
   }
   if (notaCredito?.estado === "pendiente") return false;
   return true;
+}
+
+/** Tras NC autorizada que anuló la factura vigente: emitir factura nueva. */
+export function facturaPuedeRefacturarAfip(factura, notaCredito) {
+  if (!factura?.cae || !notaCredito?.cae) return false;
+  if (!["autorizada", "mock", "error"].includes(factura.estado)) return false;
+  if (!["autorizada", "mock"].includes(notaCredito.estado)) return false;
+  const pv = Number(factura.punto_venta);
+  const nro = Number(factura.numero_comprobante);
+  const ncPv = Number(notaCredito.factura_punto_venta);
+  const ncNro = Number(notaCredito.factura_numero);
+  if (!pv || !nro || !ncPv || !ncNro) return false;
+  return pv === ncPv && nro === ncNro;
 }
 
 export function notaCreditoListaParaPdf(notaCredito) {
