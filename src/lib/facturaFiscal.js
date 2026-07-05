@@ -208,10 +208,12 @@ export function facturaPuedeReintentarAfip(factura, notaCredito = null) {
 export function facturaPuedeEmitirNotaCredito(factura, notaCredito) {
   if (!factura?.cae) return false;
   if (!["autorizada", "mock"].includes(factura.estado)) return false;
+  if (notaCredito?.estado === "pendiente") return false;
+  // Tras refacturar hay factura nueva: la NC anterior anuló la anterior, no la vigente.
+  if (facturaFueRefacturada(factura, notaCredito)) return true;
   if (notaCredito?.estado === "autorizada" || notaCredito?.estado === "mock") {
     return false;
   }
-  if (notaCredito?.estado === "pendiente") return false;
   return true;
 }
 
