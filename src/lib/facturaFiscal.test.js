@@ -4,6 +4,8 @@ import {
   buildGrupoTotalesConPromo,
   buildGrupoLineasLista,
   formatComprobanteNumero,
+  facturaPuedeRefacturarAfip,
+  facturaFueRefacturada,
 } from "./facturaFiscal";
 
 describe("formatComprobanteNumero", () => {
@@ -157,5 +159,60 @@ describe("buildFacturaFiscalData", () => {
     };
     const data = buildFacturaFiscalData(grupo, factura, [], []);
     expect(data.qrUrl).toMatch(/^https:\/\/www\.afip\.gob\.ar\/fe\/qr\/\?p=/);
+  });
+});
+
+describe("facturaPuedeRefacturarAfip", () => {
+  const factura = {
+    estado: "autorizada",
+    cae: "123",
+    punto_venta: 2,
+    numero_comprobante: 100,
+  };
+
+  test("permite refacturar si la NC anuló esa factura", () => {
+    expect(
+      facturaPuedeRefacturarAfip(factura, {
+        estado: "autorizada",
+        cae: "456",
+        factura_punto_venta: 2,
+        factura_numero: 100,
+      }),
+    ).toBe(true);
+  });
+
+  test("no permite si la factura ya fue reemplazada", () => {
+    expect(
+      facturaPuedeRefacturarAfip(
+        { ...factura, numero_comprobante: 101 },
+        {
+          estado: "autorizada",
+          cae: "456",
+          factura_punto_venta: 2,
+          factura_numero: 100,
+        },
+      ),
+    ).toBe(false);
+  });
+});
+
+describe("facturaFueRefacturada", () => {
+  test("detecta factura nueva distinta a la anulada por NC", () => {
+    expect(
+      facturaFueRefacturada(
+        {
+          estado: "autorizada",
+          cae: "999",
+          punto_venta: 2,
+          numero_comprobante: 101,
+        },
+        {
+          estado: "autorizada",
+          cae: "456",
+          factura_punto_venta: 2,
+          factura_numero: 100,
+        },
+      ),
+    ).toBe(true);
   });
 });

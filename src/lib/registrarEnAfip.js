@@ -3,12 +3,13 @@
  */
 import { supabase } from "./supabaseClient";
 
-export async function registrarEnAfip(transaccionId, receptor = null) {
+export async function registrarEnAfip(transaccionId, receptor = null, opts = {}) {
   if (!transaccionId) {
     return { ok: false, error: "Sin transaccion_id" };
   }
   try {
     const body = { transaccion_id: transaccionId };
+    if (opts.refacturar) body.refacturar = true;
     if (receptor) {
       body.receptor = {
         cuit: receptor.cuit ?? null,
@@ -25,12 +26,21 @@ export async function registrarEnAfip(transaccionId, receptor = null) {
       console.error("[registrarEnAfip]", error);
       return { ok: false, error: error.message || "Error al invocar AFIP" };
     }
+    if (opts.refacturar && data?.already_registered) {
+      return {
+        ok: false,
+        error: "No se emitió factura nueva (ya registrada). Reintentá refacturar.",
+      };
+    }
     return {
       ok: !!data?.ok,
       estado: data?.estado,
       cae: data?.cae,
+      numero_comprobante: data?.numero_comprobante,
+      punto_venta: data?.punto_venta,
       error: data?.error,
       mock: data?.mock,
+      refacturado: data?.refacturado,
     };
   } catch (err) {
     console.error("[registrarEnAfip]", err);

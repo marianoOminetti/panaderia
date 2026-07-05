@@ -188,6 +188,11 @@ const FacturaFiscalPreview = forwardRef(function FacturaFiscalPreview(
             <strong>Vto. CAE:</strong> {formatFecha(data.cae_vencimiento)}
           </div>
         )}
+        {data.facturaAsociadaNumero && (
+          <div>
+            <strong>Anula factura:</strong> {data.facturaAsociadaNumero}
+          </div>
+        )}
         <div>
           <strong>Fecha:</strong> {formatFecha(data.fecha || data.created_at)}
         </div>

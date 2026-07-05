@@ -4,7 +4,6 @@ import { reportError } from "../utils/errorReport";
 import { registrarEnAfip as invokeRegistrarEnAfip } from "../lib/registrarEnAfip";
 import {
   afipReceptorFromCliente,
-  buildAfipReceptorForRetry,
   documentoFromFactura,
   shouldPersistClienteFiscal,
 } from "../lib/afipReceptor";
@@ -96,38 +95,6 @@ export function useVentasAfip({
       });
   };
 
-  const registrarAfipDesdeVenta = async (transaccionId) => {
-    if (typeof navigator !== "undefined" && !navigator.onLine) {
-      showToast("Necesitás conexión para registrar en AFIP");
-      return;
-    }
-    const factura = await refreshFacturas(transaccionId);
-    const facturasMap = factura
-      ? { ...facturasByTransaccion, [transaccionId]: factura }
-      : facturasByTransaccion;
-    const receptor = buildAfipReceptorForRetry(
-      transaccionId,
-      facturasMap,
-      ventas,
-      clientes,
-    );
-    const afip = await invokeRegistrarEnAfip(transaccionId, receptor);
-    await refreshFacturas(transaccionId, afip.ok ? { retries: 4 } : {});
-    if (afip.ok) {
-      const venta = (ventas || []).find(
-        (v) => v.transaccion_id === transaccionId && v.cliente_id,
-      );
-      if (venta?.cliente_id) {
-        await persistirDatosFiscalesCliente(venta.cliente_id, receptor);
-      }
-      showToast(
-        afip.mock ? "✅ Registrado en AFIP (prueba)" : "✅ Registrado en AFIP",
-      );
-    } else {
-      showToast(`⚠️ AFIP: ${(afip.error || "error").slice(0, 80)}`);
-    }
-  };
-
   const prefillDatosFiscalesAfip = (clienteId, { force = false } = {}) => {
     setDatosFiscalesAfip((prev) => {
       const tieneDatos =
@@ -210,7 +177,6 @@ export function useVentasAfip({
     editPuedeRegistrarAfip,
     persistirDatosFiscalesCliente,
     runAfipAfterVenta,
-    registrarAfipDesdeVenta,
     prefillDatosFiscalesAfip,
     handleRegistrarEnAfipChange,
     initAfipEdicion,

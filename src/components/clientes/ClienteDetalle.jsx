@@ -2,14 +2,16 @@
  * Detalle de un cliente: pedidos (ClienteDetallePedidos) y ventas (ClienteDetalleVentas), alta de pedido y acciones.
  * Usa useClientes para operaciones de estado.
  */
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect, useMemo } from "react";
 import ClienteFormModal from "./ClienteFormModal";
 import ClienteUnificarModal from "./ClienteUnificarModal";
 import { fmt } from "../../lib/format";
 import { hoyLocalISO } from "../../lib/dates";
-import { agruparPedidos } from "../../lib/agrupadores";
+import { agruparPedidos, agruparVentas } from "../../lib/agrupadores";
+import { getTransaccionIdFromGrupo } from "../../lib/facturaFiscal";
 import { reportError } from "../../utils/errorReport";
 import { useClientes } from "../../hooks/useClientes";
+import { useAfipComprobanteActions } from "../../hooks/useAfipComprobanteActions";
 import { useVentas, releaseVentaTransaccionClaim } from "../../hooks/useVentas";
 import { enqueueVentaWrite } from "../../lib/ventaWriteQueue";
 import ClienteDetallePedidos from "./ClienteDetallePedidos";
@@ -45,20 +47,47 @@ function ClienteDetalle({
   const [editModal, setEditModal] = useState(false);
   const [unificarModal, setUnificarModal] = useState(false);
   const entregaInFlightRef = useRef(new Set());
+  const clienteId = cliente?.id ?? null;
+  const ventasCliente = useMemo(
+    () => (clienteId ? ventas.filter((v) => v.cliente_id === clienteId) : []),
+    [ventas, clienteId],
+  );
+  const ventasTransaccionIds = useMemo(() => {
+    const grupos = agruparVentas(ventasCliente);
+    return [...new Set(grupos.map(getTransaccionIdFromGrupo).filter(Boolean))];
+  }, [ventasCliente]);
   const {
     updatePedidoEstado,
     updatePedidoEntregado,
     deleteVentasByIds,
     softDeleteCliente,
+    updateClienteDatosFiscales,
   } = useClientes({ onRefresh, showToast, updateClienteInState, updatePedidosEstado });
+  const {
+    facturasByTransaccion,
+    notasCreditoByTransaccion,
+    hydrateAfipForTransacciones,
+    registrarAfipDesdeVenta,
+    emitirNotaCreditoDesdeVenta,
+    refacturarAfipDesdeVenta,
+  } = useAfipComprobanteActions({
+    ventas,
+    clientes,
+    showToast,
+    updateClienteDatosFiscales,
+  });
   const { insertVentas } = useVentas();
+
+  useEffect(() => {
+    if (!clienteId) return;
+    hydrateAfipForTransacciones(ventasTransaccionIds);
+  }, [clienteId, ventasTransaccionIds, hydrateAfipForTransacciones]);
 
   if (!cliente) return null;
 
   const deuda = deudaCliente(ventas, cliente.id);
 
-  const getVentasDeCliente = (clienteId) =>
-    ventas.filter((v) => v.cliente_id === clienteId);
+  const getVentasDeCliente = (id) => ventas.filter((v) => v.cliente_id === id);
 
   const actualizarEstadoPedido = async (grupo, nuevoEstado) => {
     if (!grupo || !nuevoEstado || grupo.estado === nuevoEstado) return;
@@ -316,8 +345,16 @@ function ClienteDetalle({
         />
 
         <ClienteDetalleVentas
-          ventasCliente={getVentasDeCliente(cliente.id)}
+          ventasCliente={ventasCliente}
           recetas={recetas}
+          cliente={cliente}
+          clientes={clientes}
+          facturasByTransaccion={facturasByTransaccion}
+          notasCreditoByTransaccion={notasCreditoByTransaccion}
+          onRegistrarAfip={registrarAfipDesdeVenta}
+          onEmitirNotaCredito={emitirNotaCreditoDesdeVenta}
+          onRefacturarAfip={refacturarAfipDesdeVenta}
+          confirm={confirm}
         />
 
         <ClientePerfilCompra perfil={perfil} />

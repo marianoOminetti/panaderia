@@ -2,7 +2,7 @@ import { useState, useCallback, useRef } from "react";
 import { supabase } from "../lib/supabaseClient";
 
 const SELECT_LEGACY =
-  "transaccion_id, estado, cae, cae_vencimiento, punto_venta, numero_comprobante, importe_total, error_mensaje, receptor_cuit, receptor_razon_social, emisor_cuit, tipo_comprobante";
+  "transaccion_id, estado, cae, cae_vencimiento, punto_venta, numero_comprobante, importe_total, error_mensaje, receptor_cuit, receptor_razon_social, emisor_cuit, tipo_comprobante, updated_at";
 
 const SELECT_FULL = `${SELECT_LEGACY}, receptor_doc_tipo, receptor_doc_nro`;
 
@@ -104,11 +104,14 @@ export function useFacturasElectronicas() {
    */
   const refreshFacturas = useCallback(async (transaccionId, opts = {}) => {
     if (transaccionId) {
-      const { retries = 0, delayMs = 600 } = opts;
+      const { retries = 0, delayMs = 600, expectNumero = null } = opts;
       let row = null;
       for (let intento = 0; intento <= retries; intento += 1) {
         row = await fetchFacturaRow(transaccionId);
-        if (row) break;
+        const numeroOk =
+          expectNumero == null ||
+          Number(row?.numero_comprobante) === Number(expectNumero);
+        if (row && numeroOk) break;
         if (intento < retries) await sleep(delayMs);
       }
       if (row) {
@@ -142,5 +145,14 @@ export function useFacturasElectronicas() {
     return map;
   }, []);
 
-  return { facturasByTransaccion, refreshFacturas, hydrateFacturas };
+  const patchFactura = useCallback((transaccionId, partial) => {
+    if (!transaccionId || !partial) return;
+    setFacturasByTransaccion((prev) => {
+      const cur = prev[transaccionId];
+      if (!cur) return prev;
+      return { ...prev, [transaccionId]: { ...cur, ...partial } };
+    });
+  }, []);
+
+  return { facturasByTransaccion, refreshFacturas, hydrateFacturas, patchFactura };
 }
