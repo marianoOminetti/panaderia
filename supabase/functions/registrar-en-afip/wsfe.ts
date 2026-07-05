@@ -274,6 +274,172 @@ async function reconciliarEmitido(
   };
 }
 
+export type ComprobanteOriginal = {
+  tipo: number;
+  ptoVta: number;
+  nro: number;
+  fecha?: string;
+};
+
+async function reconciliarNcEmitido(
+  arca: Arca,
+  puntoVenta: number,
+  ultimoAntes: number,
+  impTotal: number,
+  receptor: ReceptorFiscal,
+): Promise<WsfeEmitResult | null> {
+  let ultimoAhora: number;
+  try {
+    ultimoAhora = await conReintentos(() =>
+      arca.ultimoComprobante(puntoVenta, CbteTipo.NOTA_CREDITO_C),
+    );
+  } catch {
+    return null;
+  }
+  if (!ultimoAhora || ultimoAhora <= ultimoAntes) return null;
+
+  const ahora = new Date();
+  const ayer = new Date(ahora.getTime() - 24 * 60 * 60 * 1000);
+  const fechasValidas = [ymd(ahora), ymd(ayer)];
+
+  const desde = Math.max(ultimoAntes + 1, ultimoAhora - RECONCILIACION_MAX_SCAN + 1);
+  const coincidencias: Record<string, unknown>[] = [];
+  for (let n = ultimoAhora; n >= desde; n--) {
+    let g: Record<string, unknown> | undefined;
+    try {
+      const info = await conReintentos(() =>
+        arca.consultarComprobante(CbteTipo.NOTA_CREDITO_C, puntoVenta, n),
+      );
+      g = info?.ResultGet as Record<string, unknown> | undefined;
+    } catch {
+      return null;
+    }
+    if (comprobanteCoincide(g, impTotal, receptor, fechasValidas)) {
+      coincidencias.push(g!);
+    }
+  }
+
+  if (coincidencias.length !== 1) {
+    if (coincidencias.length > 1) {
+      console.error(
+        "[wsfe/reconciliacion-nc] ambiguo",
+        JSON.stringify({ candidatos: coincidencias.length, impTotal }),
+      );
+    }
+    return null;
+  }
+
+  const g = coincidencias[0];
+  console.error(
+    "[wsfe/reconciliacion-nc] CAE recuperado sin re-emitir",
+    JSON.stringify({ nro: g.CbteDesde, cae: g.CodAutorizacion }),
+  );
+  return {
+    ok: true,
+    cae: String(g.CodAutorizacion),
+    cae_vencimiento: caeVencimientoToIso(String(g.FchVto || "")),
+    tipo_comprobante: Number(g.CbteTipo),
+    punto_venta: Number(g.PtoVta),
+    numero_comprobante: Number(g.CbteDesde),
+    importe_total: Number(g.ImpTotal),
+    reconciliado: true,
+  };
+}
+
+export async function emitNotaCreditoWsfe(
+  importeTotal: number,
+  puntoVenta: number,
+  receptor: ReceptorFiscal,
+  comprobanteOriginal: ComprobanteOriginal,
+): Promise<WsfeEmitResult> {
+  const arca = buildArca();
+  if (!(arca instanceof Arca)) {
+    return { ok: false, importe_total: importeTotal, error: arca.error };
+  }
+
+  const impTotal = Math.round(importeTotal * 100) / 100;
+
+  let ultimoAntes: number | null = null;
+  try {
+    ultimoAntes = await conReintentos(() =>
+      arca.ultimoComprobante(puntoVenta, CbteTipo.NOTA_CREDITO_C),
+    );
+  } catch (err) {
+    console.error(
+      "[wsfe/ultimoComprobante-nc]",
+      err instanceof Error ? err.message : String(err),
+    );
+  }
+
+  try {
+    const result = await arca.notaCredito({
+      ptoVta: puntoVenta,
+      comprobanteOriginal,
+      items: [{ neto: impTotal }],
+      docTipo: receptor.doc_tipo,
+      docNro: receptor.doc_nro,
+      condicionIva: receptor.condicion_iva,
+    });
+
+    if (!result.aprobada) {
+      const obs =
+        result.observaciones?.map((o) => `${o.code}: ${o.msg}`).join("; ") ||
+        "Nota de crédito rechazada por AFIP";
+      console.error("[wsfe/arca/nc] rechazado", obs);
+      return {
+        ok: false,
+        importe_total: impTotal,
+        error: humanizeAfipError(obs, puntoVenta),
+      };
+    }
+
+    if (!result.cae) {
+      return {
+        ok: false,
+        importe_total: impTotal,
+        error: "AFIP aprobó la NC sin devolver CAE",
+      };
+    }
+
+    return {
+      ok: true,
+      cae: String(result.cae),
+      cae_vencimiento: caeVencimientoToIso(result.caeVencimiento),
+      tipo_comprobante: result.cbteTipo,
+      punto_venta: result.ptoVta,
+      numero_comprobante: result.cbteNro,
+      importe_total: impTotal,
+    };
+  } catch (err) {
+    const raw = err instanceof Error ? err.message : String(err);
+    console.error("[emitNotaCreditoWsfe]", raw);
+
+    if (ultimoAntes != null && debeReconciliar(err)) {
+      try {
+        const recuperado = await reconciliarNcEmitido(
+          arca,
+          puntoVenta,
+          ultimoAntes,
+          impTotal,
+          receptor,
+        );
+        if (recuperado) return recuperado;
+      } catch (reconErr) {
+        console.error(
+          "[wsfe/reconciliacion-nc]",
+          reconErr instanceof Error ? reconErr.message : String(reconErr),
+        );
+      }
+    }
+
+    return {
+      ok: false,
+      importe_total: impTotal,
+      error: humanizeAfipError(raw, puntoVenta),
+    };
+  }
+}
+
 export async function emitWsfe(
   _ventas: VentaRow[],
   importeTotal: number,

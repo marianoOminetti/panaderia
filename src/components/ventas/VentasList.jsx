@@ -15,7 +15,12 @@ import {
   facturaListaParaPdf,
   facturaPuedeReintentarAfip,
   facturaNecesitaConfirmarAfip,
+  facturaPuedeEmitirNotaCredito,
+  notaCreditoListaParaPdf,
+  notaCreditoPuedeReintentar,
+  notaCreditoNecesitaConfirmar,
   buildFacturaFiscalData,
+  buildNotaCreditoFiscalData,
   buildGrupoLineasLista,
   buildGrupoTotalesConPromo,
 } from "../../lib/facturaFiscal";
@@ -51,7 +56,9 @@ export default function VentasList({
   deletingId,
   isVentaRole = false,
   facturasByTransaccion = {},
+  notasCreditoByTransaccion = {},
   onRegistrarAfip,
+  onEmitirNotaCredito,
   confirm,
 }) {
   const hoyDate = new Date(hoy);
@@ -63,6 +70,7 @@ export default function VentasList({
   const [shareGrupo, setShareGrupo] = useState(null);
   const [facturaFiscalData, setFacturaFiscalData] = useState(null);
   const [afipLoadingTx, setAfipLoadingTx] = useState(null);
+  const [ncLoadingTx, setNcLoadingTx] = useState(null);
   const filteredGrupos = useFilterVentasGrupos(grupos, recetas, clientes, search);
   const [listPage, setListPage] = useState(0);
 
@@ -247,7 +255,15 @@ export default function VentasList({
             const factura = transaccionId
               ? facturasByTransaccion[transaccionId]
               : null;
+            const notaCredito = transaccionId
+              ? notasCreditoByTransaccion[transaccionId]
+              : null;
             const puedePdf = factura && facturaListaParaPdf(factura);
+            const puedeNcPdf = notaCredito && notaCreditoListaParaPdf(notaCredito);
+            const puedeEmitirNc =
+              facturaPuedeEmitirNotaCredito(factura, notaCredito) ||
+              notaCreditoPuedeReintentar(notaCredito) ||
+              notaCreditoNecesitaConfirmar(notaCredito);
             const medio = ejemplo?.medio_pago || "efectivo";
             const estado = ejemplo?.estado_pago || "pagado";
             const medioTxt =
@@ -350,6 +366,20 @@ export default function VentasList({
                       AFIP prueba
                     </span>
                   )}
+                  {!isVentaRole &&
+                    (notaCredito?.estado === "autorizada" ||
+                      notaCredito?.estado === "mock") && (
+                      <span
+                        style={{
+                          marginLeft: 8,
+                          fontSize: 10,
+                          color: "var(--danger)",
+                          fontWeight: 600,
+                        }}
+                      >
+                        NC
+                      </span>
+                    )}
                 </div>
                 <div className="venta-grupo-actions">
                   {!isVentaRole && (
@@ -366,6 +396,74 @@ export default function VentasList({
                       📤
                     </button>
                   )}
+                  {!isVentaRole && transaccionId && puedeNcPdf && (
+                    <button
+                      type="button"
+                      className="btn-venta-action"
+                      title="Nota de crédito AFIP"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        setFacturaFiscalData(
+                          buildNotaCreditoFiscalData(
+                            grupo,
+                            factura,
+                            notaCredito,
+                            recetas,
+                            clientes,
+                            promociones,
+                          ),
+                        );
+                      }}
+                    >
+                      🧾
+                    </button>
+                  )}
+                  {!isVentaRole &&
+                    transaccionId &&
+                    onEmitirNotaCredito &&
+                    puedeEmitirNc && (
+                      <button
+                        type="button"
+                        className="btn-venta-action"
+                        title={
+                          notaCreditoNecesitaConfirmar(notaCredito)
+                            ? "Confirmar nota de crédito AFIP"
+                            : "Emitir nota de crédito en AFIP"
+                        }
+                        disabled={ncLoadingTx === transaccionId}
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          e.preventDefault();
+                          if (!confirm) return;
+                          const msg = notaCreditoNecesitaConfirmar(notaCredito)
+                            ? `¿Confirmar en el sistema la nota de crédito AFIP (CAE ${notaCredito.cae})?`
+                            : [
+                                `¿Emitir nota de crédito en AFIP por ${fmt(grupo.total)}?`,
+                                "La venta queda igual en la app; solo se anula la factura en AFIP.",
+                                factura?.numero_comprobante
+                                  ? `Factura: ${String(factura.punto_venta || "").padStart(5, "0")}-${String(factura.numero_comprobante).padStart(8, "0")}`
+                                  : null,
+                              ]
+                                .filter(Boolean)
+                                .join("\n");
+                          const ok = await confirm(msg);
+                          if (!ok) return;
+                          setNcLoadingTx(transaccionId);
+                          try {
+                            await onEmitirNotaCredito(transaccionId);
+                          } finally {
+                            setNcLoadingTx(null);
+                          }
+                        }}
+                      >
+                        {ncLoadingTx === transaccionId
+                          ? "…"
+                          : notaCreditoNecesitaConfirmar(notaCredito)
+                            ? "NC ✓"
+                            : "NC"}
+                      </button>
+                    )}
                   {!isVentaRole && transaccionId && puedePdf && (
                     <button
                       type="button"

@@ -53,4 +53,5 @@ No uses `#` en la misma línea de `supabase secrets set`.
 
 - Cobro: checkbox **Registrar en AFIP**
 - Lista ventas: **📄** factura fiscal · **AFIP** si falta registro
+- Factura autorizada: **NC** emite nota de crédito en AFIP (la venta no se borra) · **🧾** ver NC
 - Comprobante WhatsApp (📤): sin cambios

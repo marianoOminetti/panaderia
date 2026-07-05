@@ -44,7 +44,7 @@
     "push:icons": "bash scripts/generate-notification-icons.sh",
     "push:vapid:set": "node scripts/push-set-vapid-secrets.js",
     "push:deploy": "supabase link --project-ref clgxrxlccjjqxzvapfav && supabase functions deploy send-push notify-event",
-    "functions:deploy:afip": "npm run supabase:link && supabase functions deploy registrar-en-afip",
+    "functions:deploy:afip": "npm run supabase:link && supabase functions deploy registrar-en-afip nota-credito-afip",
     "secrets:set:afip-mock": "npm run supabase:link && supabase secrets set AFIP_ALLOW_MOCK=true",
     "afip:setup": "./scripts/afip-setup-secrets.sh",
     "afip:setup:local": "./scripts/afip-setup-from-local.sh",

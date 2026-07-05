@@ -33,6 +33,8 @@ import {
 } from "../../lib/afipReceptor";
 import { getTransaccionIdFromGrupo, facturaPuedeReintentarAfip } from "../../lib/facturaFiscal";
 import { useFacturasElectronicas } from "../../hooks/useFacturasElectronicas";
+import { useNotasCreditoAfip } from "../../hooks/useNotasCreditoAfip";
+import { emitirNotaCreditoAfip } from "../../lib/notaCreditoAfip";
 import { useVentasAfip } from "../../hooks/useVentasAfip";
 import VentasList from "./VentasList";
 import VentasChargeModal from "./VentasChargeModal";
@@ -88,6 +90,11 @@ function Ventas({
   });
   const { facturasByTransaccion, refreshFacturas, hydrateFacturas } =
     useFacturasElectronicas();
+  const {
+    notasCreditoByTransaccion,
+    hydrateNotasCredito,
+    refreshNotaCredito,
+  } = useNotasCreditoAfip();
 
   const {
     cartItems,
@@ -149,8 +156,11 @@ function Ventas({
   }, [ventas, isVentaRole]);
 
   useEffect(() => {
-    if (ventasTransaccionIds.length) hydrateFacturas(ventasTransaccionIds);
-  }, [ventasTransaccionIds, hydrateFacturas]);
+    if (ventasTransaccionIds.length) {
+      hydrateFacturas(ventasTransaccionIds);
+      hydrateNotasCredito(ventasTransaccionIds);
+    }
+  }, [ventasTransaccionIds, hydrateFacturas, hydrateNotasCredito]);
 
   useEffect(() => {
     let cancelled = false;
@@ -244,6 +254,24 @@ function Ventas({
     refreshFacturas,
     updateClienteDatosFiscales,
   });
+
+  const emitirNotaCreditoDesdeVenta = async (transaccionId) => {
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      showToast("Necesitás conexión para emitir nota de crédito");
+      return;
+    }
+    const nc = await emitirNotaCreditoAfip(transaccionId);
+    await refreshNotaCredito(transaccionId, nc.ok ? { retries: 4 } : {});
+    if (nc.ok) {
+      showToast(
+        nc.mock
+          ? "✅ Nota de crédito (prueba)"
+          : "✅ Nota de crédito emitida en AFIP",
+      );
+    } else {
+      showToast(`⚠️ NC AFIP: ${(nc.error || "error").slice(0, 80)}`);
+    }
+  };
 
   const ventasArray = useMemo(
     () => (Array.isArray(ventas) ? ventas : []),
@@ -859,7 +887,9 @@ function Ventas({
         deletingId={deletingId}
         isVentaRole={isVentaRole}
         facturasByTransaccion={facturasByTransaccion}
+        notasCreditoByTransaccion={notasCreditoByTransaccion}
         onRegistrarAfip={registrarAfipDesdeVenta}
+        onEmitirNotaCredito={emitirNotaCreditoDesdeVenta}
         confirm={confirm}
       />
 
