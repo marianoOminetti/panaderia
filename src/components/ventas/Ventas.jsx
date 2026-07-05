@@ -89,7 +89,7 @@ function Ventas({
     showToast,
     appendPedidos,
   });
-  const { facturasByTransaccion, refreshFacturas, hydrateFacturas } =
+  const { facturasByTransaccion, refreshFacturas, hydrateFacturas, patchFactura } =
     useFacturasElectronicas();
   const {
     notasCreditoByTransaccion,
@@ -290,7 +290,21 @@ function Ventas({
       clientes,
     );
     const afip = await invokeRegistrarEnAfip(transaccionId, receptor, { refacturar: true });
-    await refreshFacturas(transaccionId, afip.ok ? { retries: 4 } : {});
+    if (afip.ok && afip.cae) {
+      patchFactura(transaccionId, {
+        cae: afip.cae,
+        numero_comprobante: afip.numero_comprobante,
+        punto_venta: afip.punto_venta,
+        estado: afip.estado || (afip.mock ? "mock" : "autorizada"),
+        tipo_comprobante: 11,
+        updated_at: new Date().toISOString(),
+      });
+    }
+    await refreshFacturas(transaccionId, afip.ok ? {
+      retries: 6,
+      delayMs: 400,
+      expectNumero: afip.numero_comprobante ?? null,
+    } : {});
     if (afip.ok) {
       showToast(
         afip.mock

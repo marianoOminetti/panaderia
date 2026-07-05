@@ -26,10 +26,18 @@ export async function registrarEnAfip(transaccionId, receptor = null, opts = {})
       console.error("[registrarEnAfip]", error);
       return { ok: false, error: error.message || "Error al invocar AFIP" };
     }
+    if (opts.refacturar && data?.already_registered) {
+      return {
+        ok: false,
+        error: "No se emitió factura nueva (ya registrada). Reintentá refacturar.",
+      };
+    }
     return {
       ok: !!data?.ok,
       estado: data?.estado,
       cae: data?.cae,
+      numero_comprobante: data?.numero_comprobante,
+      punto_venta: data?.punto_venta,
       error: data?.error,
       mock: data?.mock,
       refacturado: data?.refacturado,

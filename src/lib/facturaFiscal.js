@@ -365,12 +365,25 @@ export function buildGrupoTotalesConPromo(grupo, items, promociones, totalCobrad
   };
 }
 
+/** La factura vigente ya no es la que anuló la NC (hubo refacturación). */
+export function facturaFueRefacturada(factura, notaCredito) {
+  if (!factura?.cae || !notaCredito?.cae) return false;
+  if (!["autorizada", "mock"].includes(notaCredito.estado)) return false;
+  const pv = Number(factura.punto_venta);
+  const nro = Number(factura.numero_comprobante);
+  const ncPv = Number(notaCredito.factura_punto_venta);
+  const ncNro = Number(notaCredito.factura_numero);
+  if (!pv || !nro || !ncPv || !ncNro) return false;
+  return pv !== ncPv || nro !== ncNro;
+}
+
 export function buildFacturaFiscalData(
   grupo,
   factura,
   recetas,
   clientes,
   promociones = [],
+  notaCredito = null,
 ) {
   const ejemplo = grupo.rawItems?.[0] || grupo.items?.[0];
   const cliente = (clientes || []).find((c) => c.id === grupo.cliente_id);
@@ -387,12 +400,16 @@ export function buildFacturaFiscalData(
   const docSnap = factura?.cae ? formatReceptorDocDisplay(factura) : null;
   const emisor = resolveEmisorComprobante(factura);
   const esMock = factura?.estado === "mock";
+  const refacturada = facturaFueRefacturada(factura, notaCredito);
   const tipoDocRec = receptor.doc_tipo ?? AFIP_DOC_CONSUMIDOR_FINAL;
   const nroDocRec = receptor.doc_nro ?? 0;
+  const fechaQr = refacturada
+    ? factura?.updated_at || ejemplo?.created_at || ejemplo?.fecha
+    : ejemplo?.fecha || ejemplo?.created_at;
   const qrUrl =
     !esMock && factura?.cae
       ? buildAfipQrUrl({
-          fecha: ejemplo?.fecha || ejemplo?.created_at,
+          fecha: fechaQr,
           cuitEmisor: resolveEmisorCuit(factura),
           ptoVta: factura?.punto_venta,
           tipoCmp: factura?.tipo_comprobante ?? AFIP_TIPO_FACTURA_C,
@@ -406,8 +423,10 @@ export function buildFacturaFiscalData(
 
   return {
     factura,
+    notaCredito,
     esMock,
-    fecha: ejemplo?.fecha,
+    refacturada,
+    fecha: refacturada ? fechaQr : ejemplo?.fecha,
     created_at: ejemplo?.created_at,
     cliente: formatClienteFiscalLabel(factura, cliente?.nombre, cliente),
     emisorCuit: emisor.cuitDisplay,
@@ -428,7 +447,8 @@ export function buildFacturaFiscalData(
     descuentoLabel,
     total,
     items,
-    tipoLabel: "Factura C",
+    tipoLabel: refacturada ? "Factura C (vigente)" : "Factura C",
+    modalTitle: refacturada ? "Factura vigente AFIP" : "Factura AFIP",
     comprobanteNumero: formatComprobanteNumero(
       factura?.punto_venta,
       factura?.numero_comprobante,

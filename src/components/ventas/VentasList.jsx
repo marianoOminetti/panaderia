@@ -17,6 +17,7 @@ import {
   facturaNecesitaConfirmarAfip,
   facturaPuedeEmitirNotaCredito,
   facturaPuedeRefacturarAfip,
+  facturaFueRefacturada,
   notaCreditoListaParaPdf,
   notaCreditoPuedeReintentar,
   notaCreditoNecesitaConfirmar,
@@ -503,7 +504,11 @@ export default function VentasList({
                     <button
                       type="button"
                       className="btn-venta-action"
-                      title="Factura AFIP"
+                      title={
+                        facturaFueRefacturada(factura, notaCredito)
+                          ? "Factura vigente AFIP"
+                          : "Factura AFIP"
+                      }
                       onClick={(e) => {
                         e.stopPropagation();
                         e.preventDefault();
@@ -514,6 +519,7 @@ export default function VentasList({
                             recetas,
                             clientes,
                             promociones,
+                            notaCredito,
                           ),
                         );
                       }}

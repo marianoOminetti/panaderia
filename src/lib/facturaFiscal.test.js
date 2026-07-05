@@ -5,6 +5,7 @@ import {
   buildGrupoLineasLista,
   formatComprobanteNumero,
   facturaPuedeRefacturarAfip,
+  facturaFueRefacturada,
 } from "./facturaFiscal";
 
 describe("formatComprobanteNumero", () => {
@@ -192,5 +193,26 @@ describe("facturaPuedeRefacturarAfip", () => {
         },
       ),
     ).toBe(false);
+  });
+});
+
+describe("facturaFueRefacturada", () => {
+  test("detecta factura nueva distinta a la anulada por NC", () => {
+    expect(
+      facturaFueRefacturada(
+        {
+          estado: "autorizada",
+          cae: "999",
+          punto_venta: 2,
+          numero_comprobante: 101,
+        },
+        {
+          estado: "autorizada",
+          cae: "456",
+          factura_punto_venta: 2,
+          factura_numero: 100,
+        },
+      ),
+    ).toBe(true);
   });
 });
