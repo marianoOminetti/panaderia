@@ -18,8 +18,21 @@ import ClienteDetallePedidos from "./ClienteDetallePedidos";
 import ClienteDetalleVentas from "./ClienteDetalleVentas";
 import ClientePerfilCompra from "./ClientePerfilCompra";
 import ClienteWhatsAppButton from "./ClienteWhatsAppButton";
+import VentasUnificarModal from "../ventas/VentasUnificarModal";
+import VentasSepararModal from "../ventas/VentasSepararModal";
+import ShareTicketModal from "../shared/ShareTicketModal";
+import { useVentasUnificaciones } from "../../hooks/useVentasUnificaciones";
 import { copiarTelefonoCliente } from "../../lib/whatsappCliente";
 import { deudaCliente } from "../../lib/clienteDeuda";
+import {
+  buildLineasAuditoria,
+  buildPreviewSeparar,
+  buildShareDataUnificado,
+  elegirTransaccionDestino,
+  indexUnificacionesActivas,
+  validarUnificacion,
+  motivoBloqueoSeparar,
+} from "../../lib/unificarVentas";
 
 function ClienteDetalle({
   cliente,
@@ -43,9 +56,23 @@ function ClienteDetalle({
   clientes,
   removeClienteFromState,
   reassignClienteIdInState,
+  replaceVentas,
+  promociones = [],
 }) {
   const [editModal, setEditModal] = useState(false);
   const [unificarModal, setUnificarModal] = useState(false);
+  const [unificarVentasModal, setUnificarVentasModal] = useState(false);
+  const [unificarResumen, setUnificarResumen] = useState(null);
+  const [unificarGrupos, setUnificarGrupos] = useState([]);
+  const [unificandoVentas, setUnificandoVentas] = useState(false);
+  const unificarInFlightRef = useRef(false);
+  const [shareTicketData, setShareTicketData] = useState(null);
+  const [historialKey, setHistorialKey] = useState(0);
+  const [separarModal, setSepararModal] = useState(false);
+  const [separarPreview, setSepararPreview] = useState(null);
+  const [separarUnificacionId, setSepararUnificacionId] = useState(null);
+  const [separandoVentas, setSeparandoVentas] = useState(false);
+  const separarInFlightRef = useRef(false);
   const entregaInFlightRef = useRef(new Set());
   const clienteId = cliente?.id ?? null;
   const ventasCliente = useMemo(
@@ -77,6 +104,17 @@ function ClienteDetalle({
     updateClienteDatosFiscales,
   });
   const { insertVentas } = useVentas();
+  const {
+    unificacionesActivas,
+    unificarConAuditoria,
+    deshacerUnificacion,
+    refreshUnificaciones,
+  } = useVentasUnificaciones(clienteId);
+
+  const unificacionesByTransaccion = useMemo(
+    () => indexUnificacionesActivas(unificacionesActivas),
+    [unificacionesActivas],
+  );
 
   useEffect(() => {
     if (!clienteId) return;
@@ -201,6 +239,142 @@ function ClienteDetalle({
   const pedidosClienteAgrupados = agruparPedidos(
     (pedidos || []).filter((p) => p.cliente_id === cliente.id),
   );
+
+  const handleUnificarRequest = (grupos, resumen) => {
+    const validacion = validarUnificacion({
+      grupos,
+      facturasByTransaccion,
+      notasCreditoByTransaccion,
+      unificacionesActivasByTransaccion: unificacionesByTransaccion,
+    });
+    if (!validacion.ok) {
+      showToast?.(`⚠️ ${validacion.reason}`);
+      return;
+    }
+    setUnificarGrupos(grupos);
+    setUnificarResumen(resumen);
+    setUnificarVentasModal(true);
+  };
+
+  const handleConfirmarUnificacion = async ({ marcarPagado, medioPago }) => {
+    if (unificarInFlightRef.current || unificandoVentas || !unificarResumen) return;
+    const validacion = validarUnificacion({
+      grupos: unificarGrupos,
+      facturasByTransaccion,
+      notasCreditoByTransaccion,
+      unificacionesActivasByTransaccion: unificacionesByTransaccion,
+    });
+    if (!validacion.ok) {
+      showToast?.(`⚠️ ${validacion.reason}`);
+      return;
+    }
+
+    const transaccionDestino = elegirTransaccionDestino(unificarGrupos);
+    const lineas = buildLineasAuditoria(unificarResumen.ventaIds, ventasCliente);
+    unificarInFlightRef.current = true;
+    setUnificandoVentas(true);
+    try {
+      const { ventas: updated, sinAuditoria } = await unificarConAuditoria({
+        clienteId: cliente.id,
+        transaccionIdDestino: transaccionDestino,
+        marcarPagado,
+        medioPago,
+        lineas,
+      });
+      if (replaceVentas && updated.length) {
+        replaceVentas(updated);
+      }
+      const shareData = buildShareDataUnificado({
+        clienteNombre: cliente.nombre,
+        resumen: {
+          ...unificarResumen,
+          estadoPago: marcarPagado ? "pagado" : unificarResumen.estadoPago,
+        },
+      });
+      if (marcarPagado) {
+        shareData.estado_pago = "pagado";
+        shareData.medio_pago = medioPago;
+      }
+      setUnificarVentasModal(false);
+      setUnificarGrupos([]);
+      setUnificarResumen(null);
+      setHistorialKey((k) => k + 1);
+      showToast?.(
+        sinAuditoria
+          ? "✓ Ventas unificadas (sin deshacer: falta migración en Supabase)"
+          : "✓ Ventas unificadas",
+      );
+      setShareTicketData(shareData);
+    } catch (err) {
+      reportError(err, {
+        action: "unificarVentas",
+        clienteId: cliente.id,
+      });
+      const detalle = err?.message ? `: ${err.message}` : "";
+      showToast?.(`⚠️ No se pudieron unificar las ventas${detalle}`);
+      await onRefresh?.();
+    } finally {
+      unificarInFlightRef.current = false;
+      setUnificandoVentas(false);
+    }
+  };
+
+  const handleSepararRequest = (transaccionId) => {
+    const bloqueo = motivoBloqueoSeparar(
+      transaccionId,
+      facturasByTransaccion,
+      notasCreditoByTransaccion,
+    );
+    if (bloqueo) {
+      showToast?.(`⚠️ ${bloqueo}`);
+      return;
+    }
+    const unificacion = unificacionesByTransaccion.get(transaccionId);
+    if (!unificacion?.lineas?.length) return;
+    const preview = buildPreviewSeparar(unificacion.lineas, ventas, recetas);
+    setSepararUnificacionId(unificacion.id);
+    setSepararPreview(preview);
+    setSepararModal(true);
+  };
+
+  const handleConfirmarSeparar = async () => {
+    if (
+      separarInFlightRef.current ||
+      separandoVentas ||
+      !separarUnificacionId
+    ) {
+      return;
+    }
+    separarInFlightRef.current = true;
+    setSeparandoVentas(true);
+    try {
+      const updated = await deshacerUnificacion(separarUnificacionId);
+      if (replaceVentas && updated.length) {
+        replaceVentas(updated);
+      }
+      setSepararModal(false);
+      setSepararPreview(null);
+      setSepararUnificacionId(null);
+      setHistorialKey((k) => k + 1);
+      showToast?.("✓ Ventas separadas");
+      await refreshUnificaciones();
+    } catch (err) {
+      reportError(err, {
+        action: "deshacerUnificacion",
+        unificacionId: separarUnificacionId,
+        clienteId: cliente.id,
+      });
+      const msg =
+        err?.message?.includes("migración")
+          ? err.message
+          : "⚠️ No se pudieron separar las ventas";
+      showToast?.(msg);
+      await onRefresh?.();
+    } finally {
+      separarInFlightRef.current = false;
+      setSeparandoVentas(false);
+    }
+  };
 
   const handleEliminarCliente = async () => {
     const ok = await confirm(
@@ -345,16 +519,23 @@ function ClienteDetalle({
         />
 
         <ClienteDetalleVentas
+          key={historialKey}
           ventasCliente={ventasCliente}
           recetas={recetas}
           cliente={cliente}
           clientes={clientes}
+          promociones={promociones}
           facturasByTransaccion={facturasByTransaccion}
           notasCreditoByTransaccion={notasCreditoByTransaccion}
           onRegistrarAfip={registrarAfipDesdeVenta}
           onEmitirNotaCredito={emitirNotaCreditoDesdeVenta}
           onRefacturarAfip={refacturarAfipDesdeVenta}
           confirm={confirm}
+          onUnificarRequest={handleUnificarRequest}
+          unificarEnProgreso={unificandoVentas}
+          unificacionesByTransaccion={unificacionesByTransaccion}
+          onSepararRequest={handleSepararRequest}
+          separarEnProgreso={separandoVentas}
         />
 
         <ClientePerfilCompra perfil={perfil} />
@@ -371,6 +552,45 @@ function ClienteDetalle({
           editando={cliente}
           onSaved={(updated) => onClienteUpdated?.(updated)}
           confirm={confirm}
+        />
+      )}
+
+      {separarModal && separarPreview && (
+        <VentasSepararModal
+          open={separarModal}
+          onClose={() => {
+            if (separandoVentas) return;
+            setSepararModal(false);
+            setSepararPreview(null);
+            setSepararUnificacionId(null);
+          }}
+          preview={separarPreview}
+          onConfirm={handleConfirmarSeparar}
+          confirming={separandoVentas}
+        />
+      )}
+
+      {unificarVentasModal && unificarResumen && (
+        <VentasUnificarModal
+          open={unificarVentasModal}
+          onClose={() => {
+            if (unificandoVentas) return;
+            setUnificarVentasModal(false);
+            setUnificarGrupos([]);
+            setUnificarResumen(null);
+          }}
+          clienteNombre={cliente.nombre}
+          resumen={unificarResumen}
+          onConfirm={handleConfirmarUnificacion}
+          confirming={unificandoVentas}
+        />
+      )}
+
+      {shareTicketData && (
+        <ShareTicketModal
+          type="venta"
+          data={shareTicketData}
+          onClose={() => setShareTicketData(null)}
         />
       )}
 
