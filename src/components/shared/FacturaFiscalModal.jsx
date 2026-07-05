@@ -64,7 +64,7 @@ export default function FacturaFiscalModal({ data, onClose }) {
         <button type="button" className="screen-back" onClick={onClose}>
           ← Volver
         </button>
-        <span className="screen-title">Factura AFIP</span>
+        <span className="screen-title">{data.modalTitle || "Factura AFIP"}</span>
       </div>
       <div className="screen-content">
         <div className="factura-fiscal-layout">

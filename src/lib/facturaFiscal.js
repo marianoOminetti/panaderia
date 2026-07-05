@@ -16,6 +16,7 @@ import {
   AFIP_DOC_CUIT,
   AFIP_DOC_DNI,
   AFIP_TIPO_FACTURA_C,
+  AFIP_TIPO_NOTA_CREDITO_C,
   buildAfipQrUrl,
   resolveEmisorCuit,
 } from "./afipQr";
@@ -194,11 +195,136 @@ export function facturaNecesitaConfirmarAfip(factura) {
   return factura?.estado === "error" && !!factura?.cae;
 }
 
-export function facturaPuedeReintentarAfip(factura) {
+export function facturaPuedeReintentarAfip(factura, notaCredito = null) {
+  if (notaCredito && facturaPuedeRefacturarAfip(factura, notaCredito)) {
+    return false;
+  }
   if (!factura) return true;
   if (factura.estado === "pendiente") return true;
   if (factura.estado === "error") return true;
   return false;
+}
+
+export function facturaPuedeEmitirNotaCredito(factura, notaCredito) {
+  if (!factura?.cae) return false;
+  if (!["autorizada", "mock"].includes(factura.estado)) return false;
+  if (notaCredito?.estado === "autorizada" || notaCredito?.estado === "mock") {
+    return false;
+  }
+  if (notaCredito?.estado === "pendiente") return false;
+  return true;
+}
+
+/** Tras NC autorizada que anuló la factura vigente: emitir factura nueva. */
+export function facturaPuedeRefacturarAfip(factura, notaCredito) {
+  if (!factura?.cae || !notaCredito?.cae) return false;
+  if (!["autorizada", "mock", "error"].includes(factura.estado)) return false;
+  if (!["autorizada", "mock"].includes(notaCredito.estado)) return false;
+  const pv = Number(factura.punto_venta);
+  const nro = Number(factura.numero_comprobante);
+  const ncPv = Number(notaCredito.factura_punto_venta);
+  const ncNro = Number(notaCredito.factura_numero);
+  if (!pv || !nro || !ncPv || !ncNro) return false;
+  return pv === ncPv && nro === ncNro;
+}
+
+export function notaCreditoListaParaPdf(notaCredito) {
+  if (!notaCredito?.cae) return false;
+  return (
+    notaCredito.estado === "autorizada" ||
+    notaCredito.estado === "mock" ||
+    notaCredito.estado === "error"
+  );
+}
+
+export function notaCreditoNecesitaConfirmar(notaCredito) {
+  return notaCredito?.estado === "error" && !!notaCredito?.cae;
+}
+
+export function notaCreditoPuedeReintentar(notaCredito) {
+  if (!notaCredito) return false;
+  if (notaCredito.estado === "pendiente") return false;
+  if (notaCredito.cae) return false;
+  if (notaCredito.estado === "error") return true;
+  return false;
+}
+
+export function formatFacturaAsociadaNumero(puntoVenta, numero) {
+  return formatComprobanteNumero(puntoVenta, numero);
+}
+
+export function buildNotaCreditoFiscalData(
+  grupo,
+  factura,
+  notaCredito,
+  recetas,
+  clientes,
+  promociones = [],
+) {
+  const base = buildFacturaFiscalData(
+    grupo,
+    {
+      ...factura,
+      cae: notaCredito?.cae,
+      cae_vencimiento: notaCredito?.cae_vencimiento,
+      punto_venta: notaCredito?.punto_venta,
+      numero_comprobante: notaCredito?.numero_comprobante,
+      tipo_comprobante: notaCredito?.tipo_comprobante ?? AFIP_TIPO_NOTA_CREDITO_C,
+      importe_total: notaCredito?.importe_total ?? factura?.importe_total,
+      estado: notaCredito?.estado,
+      emisor_cuit: notaCredito?.emisor_cuit ?? factura?.emisor_cuit,
+    },
+    recetas,
+    clientes,
+    promociones,
+  );
+
+  const ejemplo = grupo.rawItems?.[0] || grupo.items?.[0];
+  const cliente = (clientes || []).find((c) => c.id === grupo.cliente_id);
+  const receptor = resolveReceptorComprobante(factura, cliente);
+  const tipoDocRec = receptor.doc_tipo ?? AFIP_DOC_CONSUMIDOR_FINAL;
+  const nroDocRec = receptor.doc_nro ?? 0;
+  const totalFiscal =
+    notaCredito?.importe_total != null
+      ? Number(notaCredito.importe_total)
+      : base.total;
+  const esMock = notaCredito?.estado === "mock";
+  const qrUrl =
+    !esMock && notaCredito?.cae
+      ? buildAfipQrUrl({
+          fecha: ejemplo?.fecha || ejemplo?.created_at,
+          cuitEmisor: resolveEmisorCuit(notaCredito ?? factura),
+          ptoVta: notaCredito?.punto_venta,
+          tipoCmp: notaCredito?.tipo_comprobante ?? AFIP_TIPO_NOTA_CREDITO_C,
+          nroCmp: notaCredito?.numero_comprobante,
+          importe: totalFiscal,
+          tipoDocRec,
+          nroDocRec,
+          cae: notaCredito.cae,
+        })
+      : null;
+
+  return {
+    ...base,
+    factura,
+    notaCredito,
+    tipoLabel: "Nota de Crédito C",
+    comprobanteNumero: formatComprobanteNumero(
+      notaCredito?.punto_venta,
+      notaCredito?.numero_comprobante,
+    ),
+    punto_venta: notaCredito?.punto_venta,
+    numero: notaCredito?.numero_comprobante,
+    cae: notaCredito?.cae,
+    cae_vencimiento: notaCredito?.cae_vencimiento,
+    esMock,
+    qrUrl,
+    facturaAsociadaNumero: formatFacturaAsociadaNumero(
+      factura?.punto_venta ?? notaCredito?.factura_punto_venta,
+      factura?.numero_comprobante ?? notaCredito?.factura_numero,
+    ),
+    modalTitle: "Nota de crédito AFIP",
+  };
 }
 
 /** Ítems del comprobante a precio de lista (como ticket WhatsApp), no total_final repartido. */
@@ -239,12 +365,25 @@ export function buildGrupoTotalesConPromo(grupo, items, promociones, totalCobrad
   };
 }
 
+/** La factura vigente ya no es la que anuló la NC (hubo refacturación). */
+export function facturaFueRefacturada(factura, notaCredito) {
+  if (!factura?.cae || !notaCredito?.cae) return false;
+  if (!["autorizada", "mock"].includes(notaCredito.estado)) return false;
+  const pv = Number(factura.punto_venta);
+  const nro = Number(factura.numero_comprobante);
+  const ncPv = Number(notaCredito.factura_punto_venta);
+  const ncNro = Number(notaCredito.factura_numero);
+  if (!pv || !nro || !ncPv || !ncNro) return false;
+  return pv !== ncPv || nro !== ncNro;
+}
+
 export function buildFacturaFiscalData(
   grupo,
   factura,
   recetas,
   clientes,
   promociones = [],
+  notaCredito = null,
 ) {
   const ejemplo = grupo.rawItems?.[0] || grupo.items?.[0];
   const cliente = (clientes || []).find((c) => c.id === grupo.cliente_id);
@@ -261,12 +400,16 @@ export function buildFacturaFiscalData(
   const docSnap = factura?.cae ? formatReceptorDocDisplay(factura) : null;
   const emisor = resolveEmisorComprobante(factura);
   const esMock = factura?.estado === "mock";
+  const refacturada = facturaFueRefacturada(factura, notaCredito);
   const tipoDocRec = receptor.doc_tipo ?? AFIP_DOC_CONSUMIDOR_FINAL;
   const nroDocRec = receptor.doc_nro ?? 0;
+  const fechaQr = refacturada
+    ? factura?.updated_at || ejemplo?.created_at || ejemplo?.fecha
+    : ejemplo?.fecha || ejemplo?.created_at;
   const qrUrl =
     !esMock && factura?.cae
       ? buildAfipQrUrl({
-          fecha: ejemplo?.fecha || ejemplo?.created_at,
+          fecha: fechaQr,
           cuitEmisor: resolveEmisorCuit(factura),
           ptoVta: factura?.punto_venta,
           tipoCmp: factura?.tipo_comprobante ?? AFIP_TIPO_FACTURA_C,
@@ -280,8 +423,10 @@ export function buildFacturaFiscalData(
 
   return {
     factura,
+    notaCredito,
     esMock,
-    fecha: ejemplo?.fecha,
+    refacturada,
+    fecha: refacturada ? fechaQr : ejemplo?.fecha,
     created_at: ejemplo?.created_at,
     cliente: formatClienteFiscalLabel(factura, cliente?.nombre, cliente),
     emisorCuit: emisor.cuitDisplay,
@@ -302,7 +447,8 @@ export function buildFacturaFiscalData(
     descuentoLabel,
     total,
     items,
-    tipoLabel: "Factura C",
+    tipoLabel: refacturada ? "Factura C (vigente)" : "Factura C",
+    modalTitle: refacturada ? "Factura vigente AFIP" : "Factura AFIP",
     comprobanteNumero: formatComprobanteNumero(
       factura?.punto_venta,
       factura?.numero_comprobante,

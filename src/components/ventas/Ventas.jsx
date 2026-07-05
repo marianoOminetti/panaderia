@@ -32,7 +32,7 @@ import {
   afipReceptorFromCliente,
 } from "../../lib/afipReceptor";
 import { getTransaccionIdFromGrupo, facturaPuedeReintentarAfip } from "../../lib/facturaFiscal";
-import { useFacturasElectronicas } from "../../hooks/useFacturasElectronicas";
+import { useAfipComprobanteActions } from "../../hooks/useAfipComprobanteActions";
 import { useVentasAfip } from "../../hooks/useVentasAfip";
 import VentasList from "./VentasList";
 import VentasChargeModal from "./VentasChargeModal";
@@ -86,8 +86,22 @@ function Ventas({
     showToast,
     appendPedidos,
   });
-  const { facturasByTransaccion, refreshFacturas, hydrateFacturas } =
-    useFacturasElectronicas();
+  const afip = useAfipComprobanteActions({
+    ventas,
+    clientes,
+    showToast,
+    updateClienteDatosFiscales,
+  });
+  const {
+    facturasByTransaccion,
+    notasCreditoByTransaccion,
+    hydrateAfipForTransacciones,
+    registrarAfipDesdeVenta,
+    emitirNotaCreditoDesdeVenta,
+    refacturarAfipDesdeVenta,
+    refreshFacturas,
+    persistirDatosFiscalesCliente,
+  } = afip;
 
   const {
     cartItems,
@@ -149,8 +163,10 @@ function Ventas({
   }, [ventas, isVentaRole]);
 
   useEffect(() => {
-    if (ventasTransaccionIds.length) hydrateFacturas(ventasTransaccionIds);
-  }, [ventasTransaccionIds, hydrateFacturas]);
+    if (ventasTransaccionIds.length) {
+      hydrateAfipForTransacciones(ventasTransaccionIds);
+    }
+  }, [ventasTransaccionIds, hydrateAfipForTransacciones]);
 
   useEffect(() => {
     let cancelled = false;
@@ -225,9 +241,7 @@ function Ventas({
     setEditDatosFiscalesAfip,
     editFacturaEstado,
     editPuedeRegistrarAfip,
-    persistirDatosFiscalesCliente,
     runAfipAfterVenta,
-    registrarAfipDesdeVenta,
     prefillDatosFiscalesAfip,
     handleRegistrarEnAfipChange,
     initAfipEdicion,
@@ -859,7 +873,10 @@ function Ventas({
         deletingId={deletingId}
         isVentaRole={isVentaRole}
         facturasByTransaccion={facturasByTransaccion}
+        notasCreditoByTransaccion={notasCreditoByTransaccion}
         onRegistrarAfip={registrarAfipDesdeVenta}
+        onEmitirNotaCredito={emitirNotaCreditoDesdeVenta}
+        onRefacturarAfip={refacturarAfipDesdeVenta}
         confirm={confirm}
       />
 

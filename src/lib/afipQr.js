@@ -14,6 +14,8 @@ export const AFIP_DOC_DNI = 96;
 
 /** CbteTipo FACTURA_C */
 export const AFIP_TIPO_FACTURA_C = 11;
+/** CbteTipo NOTA_CREDITO_C */
+export const AFIP_TIPO_NOTA_CREDITO_C = 13;
 
 function fechaToIso(fecha) {
   if (!fecha) return "";

@@ -382,6 +382,7 @@ Deno.serve(async (req) => {
 
   let body: {
     transaccion_id?: string;
+    refacturar?: boolean;
     receptor?: {
       cuit?: string | null;
       dni?: string | null;
@@ -400,6 +401,7 @@ Deno.serve(async (req) => {
   }
 
   const transaccionId = body?.transaccion_id;
+  const refacturar = body?.refacturar === true;
   if (!transaccionId) {
     return new Response(
       JSON.stringify({ error: "Missing transaccion_id" }),
@@ -439,8 +441,44 @@ Deno.serve(async (req) => {
     .eq("transaccion_id", transaccionId)
     .maybeSingle();
 
-  const respExistente = respuestaComprobanteExistente(existente as FacturaRow | null);
-  if (respExistente) return respExistente;
+  if (refacturar) {
+    const { data: nc, error: ncErr } = await supabaseAdmin
+      .from("notas_credito_afip")
+      .select("estado, cae, factura_punto_venta, factura_numero")
+      .eq("transaccion_id", transaccionId)
+      .maybeSingle();
+
+    if (ncErr) {
+      console.error("[registrar-en-afip/nc-refacturar]", ncErr);
+      return jsonResponse({ error: "No se pudo leer la nota de crédito" }, 500);
+    }
+
+    const facturaRow = existente as FacturaRow | null;
+    if (
+      !facturaRow?.cae ||
+      !["autorizada", "mock", "error"].includes(facturaRow.estado) ||
+      !nc?.cae ||
+      !["autorizada", "mock"].includes(nc.estado)
+    ) {
+      return jsonResponse({
+        ok: false,
+        error: "Para refacturar hace falta factura y nota de crédito autorizadas",
+      });
+    }
+
+    if (
+      Number(nc.factura_punto_venta) !== Number(facturaRow.punto_venta) ||
+      Number(nc.factura_numero) !== Number(facturaRow.numero_comprobante)
+    ) {
+      return jsonResponse({
+        ok: false,
+        error: "La nota de crédito no anula la factura vigente de esta venta",
+      });
+    }
+  } else {
+    const respExistente = respuestaComprobanteExistente(existente as FacturaRow | null);
+    if (respExistente) return respExistente;
+  }
 
   const provider = resolveProvider();
   if (!provider) {
@@ -495,9 +533,11 @@ Deno.serve(async (req) => {
     : null;
 
   // Candado atómico: solo UN request concurrente puede reclamar la emisión.
-  // Si no reclama (0 filas), otro ya está emitiendo o ya hay comprobante.
+  const claimRpc = refacturar
+    ? "claim_factura_para_refacturacion"
+    : "claim_factura_para_emision";
   const { data: claimRows, error: claimErr } = await supabaseAdmin.rpc(
-    "claim_factura_para_emision",
+    claimRpc,
     {
       p_transaccion_id: transaccionId,
       p_importe_total: importeTotal,
@@ -519,8 +559,6 @@ Deno.serve(async (req) => {
     : Boolean(claimRows);
 
   if (!reclamado) {
-    // No ganamos el candado: releer el estado actual y responder en consecuencia
-    // (already_registered / en curso / error con CAE). Nunca re-emitimos.
     const { data: actual } = await supabaseAdmin
       .from("facturas_electronicas")
       .select(
@@ -529,13 +567,17 @@ Deno.serve(async (req) => {
       .eq("transaccion_id", transaccionId)
       .maybeSingle();
 
-    const respActual = respuestaComprobanteExistente(actual as FacturaRow | null);
-    if (respActual) return respActual;
+    if (!refacturar) {
+      const respActual = respuestaComprobanteExistente(actual as FacturaRow | null);
+      if (respActual) return respActual;
+    }
 
     return jsonResponse({
       ok: false,
       estado: "pendiente",
-      error: "Registro en curso. Esperá unos segundos e intentá de nuevo.",
+      error: refacturar
+        ? "Refacturación en curso. Esperá unos segundos e intentá de nuevo."
+        : "Registro en curso. Esperá unos segundos e intentá de nuevo.",
     });
   }
 
@@ -623,6 +665,7 @@ Deno.serve(async (req) => {
       punto_venta: emit.punto_venta,
       provider,
       mock: provider === "mock",
+      refacturado: refacturar,
     }),
     { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
   );
