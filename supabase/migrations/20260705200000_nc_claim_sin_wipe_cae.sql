@@ -1,5 +1,4 @@
--- Permitir emitir una nueva NC cuando la factura vigente fue refacturada
--- (la NC anterior anuló la factura previa, no la actual).
+-- No borrar CAE de NC anterior hasta que la nueva emisión confirme en persistirNcEmitida.
 
 CREATE OR REPLACE FUNCTION public.claim_nota_credito_para_emision(
   p_transaccion_id uuid,
@@ -86,8 +85,5 @@ AS $$
       )
   RETURNING n.estado;
 $$;
-
-COMMENT ON FUNCTION public.claim_nota_credito_para_emision IS
-  'Reclama emisión de NC AFIP. Tras refacturar, permite nueva NC sobre la factura vigente.';
 
 NOTIFY pgrst, 'reload schema';
