@@ -183,34 +183,17 @@ function ClienteDetalleVentas({
           estadoGrupo !== estadoFiltro &&
           !seleccionado;
 
-        const puedeAbrir =
+        const puedeEditar =
           Boolean(onAbrirVenta) && !modoSeleccion && !unificarEnProgreso;
-        const handleAbrir = () => {
-          if (!puedeAbrir) return;
-          onAbrirVenta(grupo);
-        };
+        const mostrarAccionesAfip =
+          afipEnabled && Boolean(transaccionId) && !modoSeleccion;
 
         return (
           <div
             key={grupo.key}
             className={`cliente-historial-item${
               seleccionado ? " cliente-historial-item--activo" : ""
-            }${puedeAbrir ? " cliente-historial-item--clickable" : ""}`}
-            role={puedeAbrir ? "button" : undefined}
-            tabIndex={puedeAbrir ? 0 : undefined}
-            aria-label={puedeAbrir ? "Ver venta" : undefined}
-            onClick={puedeAbrir ? handleAbrir : undefined}
-            onKeyDown={
-              puedeAbrir
-                ? (e) => {
-                    if (e.target !== e.currentTarget) return;
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      handleAbrir();
-                    }
-                  }
-                : undefined
-            }
+            }`}
           >
             {modoSeleccion && (
               <label
@@ -221,7 +204,6 @@ function ClienteDetalleVentas({
                     ? "Solo podés unificar ventas con el mismo estado de pago"
                     : "")
                 }
-                onClick={(e) => e.stopPropagation()}
               >
                 <input
                   type="checkbox"
@@ -236,35 +218,28 @@ function ClienteDetalleVentas({
               </label>
             )}
             <div className="cliente-historial-item-body">
-              <div className="cliente-historial-item-top">
-                <div className="cliente-historial-fecha">
-                  <span className="cliente-historial-fecha-principal">
-                    {fechaRelativa}
+              <div className="cliente-historial-fecha">
+                <span className="cliente-historial-fecha-principal">
+                  {fechaRelativa}
+                </span>
+                {fechaCompleta && fechaRelativa !== fechaCompleta && (
+                  <span className="cliente-historial-fecha-sec">
+                    {fechaCompleta}
                   </span>
-                  {fechaCompleta && fechaRelativa !== fechaCompleta && (
-                    <span className="cliente-historial-fecha-sec">
-                      {fechaCompleta}
-                    </span>
-                  )}
-                  {tieneDeuda && (
-                    <span className="cliente-historial-badge cliente-historial-badge--deuda">
-                      Debe
-                    </span>
-                  )}
-                  {variasFechasEnGrupo && (
-                    <span className="cliente-historial-badge cliente-historial-badge--pendiente">
-                      Varias fechas
-                    </span>
-                  )}
-                  {puedeSeparar && (
-                    <span className="cliente-historial-badge cliente-historial-badge--listo">
-                      Unificada
-                    </span>
-                  )}
-                </div>
-                {puedeAbrir && (
-                  <span className="cliente-historial-chevron" aria-hidden>
-                    ›
+                )}
+                {tieneDeuda && (
+                  <span className="cliente-historial-badge cliente-historial-badge--deuda">
+                    Debe
+                  </span>
+                )}
+                {variasFechasEnGrupo && (
+                  <span className="cliente-historial-badge cliente-historial-badge--pendiente">
+                    Varias fechas
+                  </span>
+                )}
+                {puedeSeparar && (
+                  <span className="cliente-historial-badge cliente-historial-badge--listo">
+                    Unificada
                   </span>
                 )}
               </div>
@@ -336,11 +311,7 @@ function ClienteDetalleVentas({
                 </span>
               </div>
               {puedeSeparar && (
-                <div
-                  className="cliente-historial-separar-row"
-                  onClick={(e) => e.stopPropagation()}
-                  onKeyDown={(e) => e.stopPropagation()}
-                >
+                <div className="cliente-historial-separar-row">
                   <button
                     type="button"
                     className="edit-btn"
@@ -357,26 +328,34 @@ function ClienteDetalleVentas({
               {bloqueo && modoSeleccion && (
                 <p className="form-hint cliente-historial-bloqueo">{bloqueo}</p>
               )}
-              {afipEnabled && transaccionId && !modoSeleccion && (
-                <div
-                  onClick={(e) => e.stopPropagation()}
-                  onKeyDown={(e) => e.stopPropagation()}
-                >
-                  <VentaAfipToolbar
-                    grupo={grupo}
-                    transaccionId={transaccionId}
-                    factura={factura}
-                    notaCredito={notaCredito}
-                    cliente={cliente}
-                    clientes={clientes}
-                    recetas={recetas}
-                    promociones={promociones}
-                    confirm={confirm}
-                    onRegistrarAfip={onRegistrarAfip}
-                    onEmitirNotaCredito={onEmitirNotaCredito}
-                    onRefacturarAfip={onRefacturarAfip}
-                    className="cliente-historial-afip-actions"
-                  />
+              {(mostrarAccionesAfip || puedeEditar) && (
+                <div className="cliente-historial-afip-actions">
+                  {mostrarAccionesAfip && (
+                    <VentaAfipToolbar
+                      inline
+                      grupo={grupo}
+                      transaccionId={transaccionId}
+                      factura={factura}
+                      notaCredito={notaCredito}
+                      cliente={cliente}
+                      clientes={clientes}
+                      recetas={recetas}
+                      promociones={promociones}
+                      confirm={confirm}
+                      onRegistrarAfip={onRegistrarAfip}
+                      onEmitirNotaCredito={onEmitirNotaCredito}
+                      onRefacturarAfip={onRefacturarAfip}
+                    />
+                  )}
+                  {puedeEditar && (
+                    <button
+                      type="button"
+                      className="btn-venta-action"
+                      onClick={() => onAbrirVenta(grupo)}
+                    >
+                      Editar
+                    </button>
+                  )}
                 </div>
               )}
             </div>

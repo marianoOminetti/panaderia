@@ -16,8 +16,8 @@ function PedidoRow({
   marcarPedidoEntregado,
   desentregarPedido,
   onShare,
-  onAbrir,
-  clickable = false,
+  onEditar,
+  puedeEditar = false,
   activo = false,
 }) {
   const unidades = (grupo.items || []).reduce(
@@ -29,55 +29,28 @@ function PedidoRow({
     : null;
   const editable = isPedidoEditable(grupo.estado);
   const desentregable = canDesentregarPedido(grupo.estado);
-  const mostrarAcciones = activo || desentregable;
-
-  const handleOpen = () => {
-    if (!clickable || !onAbrir) return;
-    onAbrir(grupo);
-  };
+  const mostrarAcciones = activo || desentregable || puedeEditar;
 
   return (
     <div
       className={`cliente-historial-item cliente-historial-item--pedido${
         activo ? " cliente-historial-item--activo" : ""
-      }${clickable ? " cliente-historial-item--clickable" : ""}`}
-      role={clickable ? "button" : undefined}
-      tabIndex={clickable ? 0 : undefined}
-      aria-label={clickable ? "Ver venta del pedido" : undefined}
-      onClick={clickable ? handleOpen : undefined}
-      onKeyDown={
-        clickable
-          ? (e) => {
-              if (e.target !== e.currentTarget) return;
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                handleOpen();
-              }
-            }
-          : undefined
-      }
+      }`}
     >
-      <div className="cliente-historial-item-top">
-        <div className="cliente-historial-fecha">
-          <span className="cliente-historial-fecha-principal">
-            {fechaRaw ? formatFechaRelativa(fechaRaw) : "Sin fecha"}
-          </span>
-          {fechaRaw && (
-            <span className="cliente-historial-fecha-sec">
-              {formatFechaLocal(fechaRaw, { weekday: true })}
-            </span>
-          )}
-          <span
-            className={`cliente-historial-badge cliente-historial-badge--${grupo.estado || "pendiente"}`}
-          >
-            {getPedidoEstadoLabel(grupo.estado)}
-          </span>
-        </div>
-        {clickable && (
-          <span className="cliente-historial-chevron" aria-hidden>
-            ›
+      <div className="cliente-historial-fecha">
+        <span className="cliente-historial-fecha-principal">
+          {fechaRaw ? formatFechaRelativa(fechaRaw) : "Sin fecha"}
+        </span>
+        {fechaRaw && (
+          <span className="cliente-historial-fecha-sec">
+            {formatFechaLocal(fechaRaw, { weekday: true })}
           </span>
         )}
+        <span
+          className={`cliente-historial-badge cliente-historial-badge--${grupo.estado || "pendiente"}`}
+        >
+          {getPedidoEstadoLabel(grupo.estado)}
+        </span>
       </div>
       <ul className="cliente-historial-productos">
         {(grupo.items || []).map((it, idx) => {
@@ -111,11 +84,7 @@ function PedidoRow({
         </strong>
       </div>
       {mostrarAcciones && (
-        <div
-          className="cliente-pedido-acciones"
-          onClick={(e) => e.stopPropagation()}
-          onKeyDown={(e) => e.stopPropagation()}
-        >
+        <div className="cliente-pedido-acciones">
           {activo && editable && (
             <select
               className="form-input"
@@ -132,6 +101,15 @@ function PedidoRow({
             </select>
           )}
           <div className="cliente-pedido-acciones-btns">
+            {puedeEditar && (
+              <button
+                type="button"
+                className="btn-venta-action"
+                onClick={() => onEditar?.(grupo)}
+              >
+                Editar
+              </button>
+            )}
             {activo && editable && (
               <button
                 type="button"
@@ -218,7 +196,7 @@ function ClienteDetallePedidos({
     }),
   });
 
-  const puedeAbrir = (g) => {
+  const puedeEditar = (g) => {
     if (!onAbrirPedido) return false;
     if (typeof puedeAbrirPedido === "function") return puedeAbrirPedido(g);
     return canDesentregarPedido(g.estado);
@@ -255,8 +233,8 @@ function ClienteDetallePedidos({
               marcarPedidoEntregado={marcarPedidoEntregado}
               desentregarPedido={desentregarPedido}
               onShare={setSharePedido}
-              onAbrir={onAbrirPedido}
-              clickable={puedeAbrir(g)}
+              onEditar={onAbrirPedido}
+              puedeEditar={puedeEditar(g)}
               activo
             />
           ))}
@@ -275,8 +253,8 @@ function ClienteDetallePedidos({
               grupo={g}
               recetas={recetas}
               desentregarPedido={desentregarPedido}
-              onAbrir={onAbrirPedido}
-              clickable={puedeAbrir(g)}
+              onEditar={onAbrirPedido}
+              puedeEditar={puedeEditar(g)}
             />
           ))}
         </div>
