@@ -8,8 +8,17 @@ import ClienteUnificarModal from "./ClienteUnificarModal";
 import { fmt } from "../../lib/format";
 import { hoyLocalISO } from "../../lib/dates";
 import { agruparPedidos, agruparVentas } from "../../lib/agrupadores";
-import { getTransaccionIdFromGrupo } from "../../lib/facturaFiscal";
+import { getTransaccionIdFromGrupo, facturaListaParaPdf } from "../../lib/facturaFiscal";
 import { reportError } from "../../utils/errorReport";
+import {
+  buildVentaRowsFromPedido,
+  buildStockDeltasFromPedidoItems,
+  getPedidoVentaTransaccionId,
+  resolveVentasParaDesentregar,
+  withPendingVentaIds,
+} from "../../lib/pedidoEntrega";
+import { canDesentregarPedido } from "../../lib/pedidos";
+import { supabase } from "../../lib/supabaseClient";
 import { useClientes } from "../../hooks/useClientes";
 import { useAfipComprobanteActions } from "../../hooks/useAfipComprobanteActions";
 import { useVentas, releaseVentaTransaccionClaim } from "../../hooks/useVentas";
@@ -52,12 +61,14 @@ function ClienteDetalle({
   removeVentas,
   resolveOptimisticVentas,
   updatePedidosEstado,
+  patchPedidosByPedidoId,
   onClienteUpdated,
   clientes,
   removeClienteFromState,
   reassignClienteIdInState,
   replaceVentas,
   promociones = [],
+  onAbrirVenta,
 }) {
   const [editModal, setEditModal] = useState(false);
   const [unificarModal, setUnificarModal] = useState(false);
@@ -74,6 +85,7 @@ function ClienteDetalle({
   const [separandoVentas, setSeparandoVentas] = useState(false);
   const separarInFlightRef = useRef(false);
   const entregaInFlightRef = useRef(new Set());
+  const desentregaInFlightRef = useRef(new Set());
   const clienteId = cliente?.id ?? null;
   const ventasCliente = useMemo(
     () => (clienteId ? ventas.filter((v) => v.cliente_id === clienteId) : []),
@@ -86,10 +98,17 @@ function ClienteDetalle({
   const {
     updatePedidoEstado,
     updatePedidoEntregado,
+    desentregarPedido,
     deleteVentasByIds,
     softDeleteCliente,
     updateClienteDatosFiscales,
-  } = useClientes({ onRefresh, showToast, updateClienteInState, updatePedidosEstado });
+  } = useClientes({
+    onRefresh,
+    showToast,
+    updateClienteInState,
+    updatePedidosEstado,
+    patchPedidosByPedidoId,
+  });
   const {
     facturasByTransaccion,
     notasCreditoByTransaccion,
@@ -103,7 +122,7 @@ function ClienteDetalle({
     showToast,
     updateClienteDatosFiscales,
   });
-  const { insertVentas } = useVentas();
+  const { insertVentas, deleteVentas } = useVentas();
   const {
     unificacionesActivas,
     unificarConAuditoria,
@@ -154,40 +173,20 @@ function ClienteDetalle({
 
     entregaInFlightRef.current.add(grupo.key);
     const hoy = hoyLocalISO();
-    const transaccionId = crypto.randomUUID?.() || `p-${grupo.key}`;
-    const rows = grupo.rawItems.map((p) => {
-      const precio = p.precio_unitario || 0;
-      const cantidad = p.cantidad || 0;
-      const subtotal = precio * cantidad;
-      return {
-        receta_id: p.receta_id,
-        cantidad,
-        precio_unitario: precio,
-        subtotal,
-        descuento: 0,
-        total_final: subtotal,
-        fecha: hoy,
-        transaccion_id: transaccionId,
-        cliente_id: p.cliente_id || null,
-        medio_pago: "efectivo",
-        estado_pago: "pagado",
-      };
-    });
-    const now = new Date().toISOString();
-    const pendingRows = rows.map((r, i) => ({
-      ...r,
-      id: `pending-${transaccionId}-${i}`,
-      created_at: now,
-    }));
+    const transaccionId = grupo.key;
+    const rows = buildVentaRowsFromPedido(grupo, { fecha: hoy, transaccionId });
+    const pendingRows = withPendingVentaIds(rows, transaccionId);
     const pendingIds = pendingRows.map((r) => r.id);
-    const stockDeltas = grupo.rawItems
-      .filter((p) => p.receta_id && (p.cantidad || 0) > 0)
-      .map((p) => ({ receta_id: p.receta_id, delta: -(p.cantidad || 0) }));
+    const stockDeltas = buildStockDeltasFromPedidoItems(grupo.rawItems, -1);
     const estadoAnterior = grupo.estado || "pendiente";
 
     appendVentas?.(pendingRows);
     patchStock?.(stockDeltas);
     updatePedidosEstado?.(grupo.key, "entregado");
+    patchPedidosByPedidoId?.(grupo.key, {
+      estado: "entregado",
+      venta_transaccion_id: transaccionId,
+    });
     showToast("Registrando entrega…");
 
     try {
@@ -197,7 +196,9 @@ function ClienteDetalle({
         try {
           inserted = await insertVentas(rows, { source: "pedido_entrega" });
           insertedIds = (inserted || []).map((r) => r.id).filter(Boolean);
-          await updatePedidoEntregado(grupo.key);
+          await updatePedidoEntregado(grupo.key, {
+            venta_transaccion_id: transaccionId,
+          });
         } catch (ventaErr) {
           if (insertedIds.length > 0) {
             try {
@@ -225,6 +226,10 @@ function ClienteDetalle({
       removeVentas?.(pendingIds);
       patchStock?.(stockDeltas.map((d) => ({ ...d, delta: -d.delta })));
       updatePedidosEstado?.(grupo.key, estadoAnterior);
+      patchPedidosByPedidoId?.(grupo.key, {
+        estado: estadoAnterior,
+        venta_transaccion_id: null,
+      });
       await onRefresh?.();
       reportError(err, {
         action: "marcarPedidoEntregado",
@@ -236,9 +241,188 @@ function ClienteDetalle({
     }
   };
 
+  const desentregarPedidoGrupo = async (grupo) => {
+    if (!grupo?.key) return;
+    if (desentregaInFlightRef.current.has(grupo.key)) {
+      showToast("Revirtiendo entrega anterior…");
+      return;
+    }
+
+    const ventaSelect =
+      "id, receta_id, cantidad, transaccion_id, cliente_id, fecha, created_at, precio_unitario";
+    const fetchByTransaccionId = async (tx) => {
+      const { data, error } = await supabase
+        .from("ventas")
+        .select(ventaSelect)
+        .eq("transaccion_id", tx);
+      if (error) throw error;
+      return data || [];
+    };
+    const fetchByClienteId = async (clienteId) => {
+      const { data, error } = await supabase
+        .from("ventas")
+        .select(ventaSelect)
+        .eq("cliente_id", clienteId)
+        .order("created_at", { ascending: false })
+        .limit(2000);
+      if (error) throw error;
+      return data || [];
+    };
+    const fetchByClienteFechaRango = async (clienteId, desde, hasta) => {
+      const { data, error } = await supabase
+        .from("ventas")
+        .select(ventaSelect)
+        .eq("cliente_id", clienteId)
+        .gte("fecha", desde)
+        .lte("fecha", hasta)
+        .order("fecha", { ascending: false })
+        .limit(2000);
+      if (error) throw error;
+      return data || [];
+    };
+
+    let resolved;
+    try {
+      resolved = await resolveVentasParaDesentregar({
+        grupo,
+        ventasLocales: ventas,
+        fetchByTransaccionId,
+        fetchByClienteId,
+        fetchByClienteFechaRango,
+      });
+    } catch (err) {
+      reportError(err, {
+        action: "resolveVentasParaDesentregarCliente",
+        pedido_id: grupo.key,
+      });
+      showToast("⚠️ No se pudo buscar la venta del pedido");
+      return;
+    }
+
+    let soloEstado = false;
+    if (!resolved.ventas.length) {
+      const okSinVenta = await confirm(
+        "No encontré la venta de esta entrega (puede ser muy vieja o ya borrada).\n\n¿Querés dejar el pedido en Pendiente de todos modos?\nStock y ventas no se van a tocar.",
+      );
+      if (!okSinVenta) return;
+      soloEstado = true;
+    }
+
+    const transaccionId = resolved.transaccionId;
+    if (!soloEstado) {
+      const factura = facturasByTransaccion?.[transaccionId];
+      if (facturaListaParaPdf(factura)) {
+        showToast(
+          "Este pedido tiene factura AFIP. Emití una nota de crédito antes de desentregar.",
+        );
+        return;
+      }
+      if (!factura && transaccionId) {
+        const { data: facturaDb } = await supabase
+          .from("facturas_electronicas")
+          .select("estado, cae")
+          .eq("transaccion_id", transaccionId)
+          .maybeSingle();
+        if (facturaListaParaPdf(facturaDb)) {
+          showToast(
+            "Este pedido tiene factura AFIP. Emití una nota de crédito antes de desentregar.",
+          );
+          return;
+        }
+      }
+
+      const ok = await confirm(
+        "¿Desentregar este pedido?\nSe borrará la venta asociada y se devolverá el stock. El pedido quedará pendiente.",
+      );
+      if (!ok) return;
+    }
+
+    desentregaInFlightRef.current.add(grupo.key);
+    const ventasAsociadas = soloEstado ? [] : resolved.ventas;
+    const ventaIds = ventasAsociadas.map((v) => v.id).filter(Boolean);
+    const stockDeltas = ventasAsociadas.length
+      ? buildStockDeltasFromPedidoItems(ventasAsociadas, 1)
+      : [];
+
+    if (ventaIds.length) removeVentas?.(ventaIds);
+    if (stockDeltas.length) patchStock?.(stockDeltas);
+    updatePedidosEstado?.(grupo.key, "pendiente");
+    patchPedidosByPedidoId?.(grupo.key, {
+      estado: "pendiente",
+      venta_transaccion_id: null,
+    });
+    showToast("Desentregando…");
+
+    try {
+      await enqueueVentaWrite(async () => {
+        if (ventaIds.length) {
+          await deleteVentas(ventaIds);
+        }
+        if (!soloEstado && transaccionId) {
+          await releaseVentaTransaccionClaim(transaccionId);
+        }
+        await desentregarPedido(grupo.key);
+        if (actualizarStockBatch && stockDeltas.length) {
+          await actualizarStockBatch(stockDeltas, { useLocalBase: true });
+        }
+      });
+      showToast(
+        soloEstado
+          ? "✅ Pedido pasado a pendiente (sin tocar ventas/stock)"
+          : "✅ Pedido desentregado",
+      );
+    } catch (err) {
+      await onRefresh?.();
+      reportError(err, {
+        action: "desentregarPedidoDesdeCliente",
+        pedido_id: grupo?.key,
+      });
+      showToast("⚠️ No se pudo desentregar el pedido");
+    } finally {
+      desentregaInFlightRef.current.delete(grupo.key);
+    }
+  };
+
   const pedidosClienteAgrupados = agruparPedidos(
     (pedidos || []).filter((p) => p.cliente_id === cliente.id),
   );
+
+  const findVentaKeyParaPedido = (grupo) => {
+    const linked = getPedidoVentaTransaccionId(grupo);
+    if (
+      linked &&
+      (ventas || []).some((v) => v.transaccion_id && v.transaccion_id === linked)
+    ) {
+      return linked;
+    }
+    if (
+      grupo?.key &&
+      (ventas || []).some(
+        (v) => v.transaccion_id && v.transaccion_id === grupo.key,
+      )
+    ) {
+      return grupo.key;
+    }
+    return null;
+  };
+
+  const abrirVentaGrupo = (grupo) => {
+    if (!grupo?.key || !onAbrirVenta) return;
+    onAbrirVenta(grupo);
+  };
+
+  const abrirPedidoAsociado = (grupo) => {
+    if (!onAbrirVenta) return;
+    const transaccionId = findVentaKeyParaPedido(grupo);
+    if (!transaccionId) {
+      showToast?.("No se encontró la venta de este pedido");
+      return;
+    }
+    onAbrirVenta({ key: transaccionId });
+  };
+
+  const puedeAbrirPedido = (grupo) =>
+    canDesentregarPedido(grupo.estado) && Boolean(findVentaKeyParaPedido(grupo));
 
   const handleUnificarRequest = (grupos, resumen) => {
     const validacion = validarUnificacion({
@@ -409,10 +593,10 @@ function ClienteDetalle({
         <span className="screen-title">{cliente.nombre}</span>
       </div>
       <div className="screen-content">
-        <div className="card" style={{ marginBottom: 16 }}>
+        <div className="card cliente-resumen-card" style={{ marginBottom: 16 }}>
           <div className="card-header">
             <span className="card-title">Resumen</span>
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <div className="cliente-resumen-acciones">
               {cliente.telefono?.trim() && (
                 <ClienteWhatsAppButton
                   cliente={cliente}
@@ -515,7 +699,10 @@ function ClienteDetalle({
           savingEntrega={false}
           actualizarEstadoPedido={actualizarEstadoPedido}
           marcarPedidoEntregado={marcarPedidoEntregado}
+          desentregarPedido={desentregarPedidoGrupo}
           clienteNombre={cliente.nombre}
+          onAbrirPedido={onAbrirVenta ? abrirPedidoAsociado : undefined}
+          puedeAbrirPedido={onAbrirVenta ? puedeAbrirPedido : undefined}
         />
 
         <ClienteDetalleVentas
@@ -536,6 +723,7 @@ function ClienteDetalle({
           unificacionesByTransaccion={unificacionesByTransaccion}
           onSepararRequest={handleSepararRequest}
           separarEnProgreso={separandoVentas}
+          onAbrirVenta={onAbrirVenta ? abrirVentaGrupo : undefined}
         />
 
         <ClientePerfilCompra perfil={perfil} />

@@ -32,6 +32,7 @@ export default function Clientes({
   appendPedidos,
   updatePedidosEstado,
   removePedidosByPedidoIdInState,
+  patchPedidosByPedidoId,
   appendVentas,
   removeVentas,
   resolveOptimisticVentas,
@@ -44,6 +45,7 @@ export default function Clientes({
   ventasSyncing = false,
   replaceVentas,
   promociones = [],
+  onAbrirVenta,
 }) {
   useClientes({
     onRefresh,
@@ -169,8 +171,10 @@ export default function Clientes({
           removeVentas={removeVentas}
           resolveOptimisticVentas={resolveOptimisticVentas}
           updatePedidosEstado={updatePedidosEstado}
+          patchPedidosByPedidoId={patchPedidosByPedidoId}
           replaceVentas={replaceVentas}
           promociones={promociones}
+          onAbrirVenta={onAbrirVenta}
         />
       )}
 

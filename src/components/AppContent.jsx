@@ -108,6 +108,8 @@ export default function AppContent({
   appendPedidos,
   updatePedidosEstado,
   removePedidosByPedidoIdInState,
+  replacePedidosInState,
+  patchPedidosByPedidoId,
   upsertInsumoComposicionInState,
   removeInsumoComposicionInState,
   showToast,
@@ -304,6 +306,8 @@ export default function AppContent({
           pedidos={pedidos}
           clientes={clientes}
           stock={stock}
+          ventas={ventas}
+          promociones={promociones}
           actualizarStock={actualizarStock}
           actualizarStockBatch={actualizarStockBatch}
           onRefresh={loadData}
@@ -311,8 +315,11 @@ export default function AppContent({
           removeVentas={removeVentas}
           resolveOptimisticVentas={resolveOptimisticVentas}
           patchStock={patchStock}
+          appendPedidos={appendPedidos}
           updatePedidosEstado={updatePedidosEstado}
           removePedidosByPedidoIdInState={removePedidosByPedidoIdInState}
+          replacePedidosInState={replacePedidosInState}
+          patchPedidosByPedidoId={patchPedidosByPedidoId}
           showToast={showToast}
           confirm={confirm}
           onOpenNuevoPedido={onOpenNuevoPedido}
@@ -381,6 +388,7 @@ export default function AppContent({
           appendPedidos={appendPedidos}
           updatePedidosEstado={updatePedidosEstado}
           removePedidosByPedidoIdInState={removePedidosByPedidoIdInState}
+          patchPedidosByPedidoId={patchPedidosByPedidoId}
           appendVentas={appendVentas}
           removeVentas={removeVentas}
           resolveOptimisticVentas={resolveOptimisticVentas}
@@ -393,6 +401,7 @@ export default function AppContent({
           ventasSyncing={ventasSyncing}
           replaceVentas={replaceVentas}
           promociones={promociones}
+          onAbrirVenta={onOpenGrupoDeuda}
         />
         </LazyTab>
       )}

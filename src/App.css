@@ -469,8 +469,61 @@ body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--cream); c
   align-items: flex-start;
 }
 
+.cliente-historial-item--pedido {
+  flex-direction: column;
+  gap: 0;
+}
+
+.cliente-historial-item--pedido .cliente-historial-productos,
+.cliente-historial-item--pedido .cliente-historial-pie,
+.cliente-historial-item--pedido .cliente-pedido-acciones {
+  width: 100%;
+}
+
+.cliente-historial-item--clickable {
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.cliente-historial-item--clickable:hover,
+.cliente-historial-item--clickable:focus-visible {
+  background: rgba(124, 111, 205, 0.06);
+  outline: none;
+}
+
+.cliente-historial-item-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+}
+
+.cliente-historial-chevron {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-size: 18px;
+  line-height: 1;
+  padding-top: 2px;
+}
+
 .cliente-historial-item--activo {
   background: rgba(124, 111, 205, 0.04);
+}
+
+.cliente-resumen-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+  max-width: 100%;
+}
+
+.cliente-resumen-card .card-header {
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-start;
 }
 
 .cliente-historial-check {

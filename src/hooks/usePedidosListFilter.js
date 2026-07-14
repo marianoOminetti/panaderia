@@ -5,16 +5,24 @@ import { agruparPedidos } from "../lib/pedidos";
 function matchesPedidoSearch(g, search, clientes, recetas) {
   if (!search.trim()) return true;
   const lower = search.toLowerCase();
-  const cliente = (clientes || []).find((c) => c.id === g.cliente_id);
+  const cliente =
+    (clientes || []).find(
+      (c) => c?.id != null && String(c.id) === String(g.cliente_id),
+    ) || null;
   const clienteMatch =
-    cliente &&
-    `${cliente.nombre || ""} ${cliente.telefono || ""}`.toLowerCase().includes(lower);
+    `${cliente?.nombre || g.cliente_nombre || ""} ${cliente?.telefono || ""}`
+      .toLowerCase()
+      .includes(lower);
   const productosMatch = (g.items || []).some((it) => {
-    const receta = (recetas || []).find((r) => r.id === it.receta_id);
-    return (
-      receta &&
-      `${receta.nombre || ""} ${receta.emoji || ""}`.toLowerCase().includes(lower)
-    );
+    const receta =
+      (recetas || []).find(
+        (r) => r?.id != null && String(r.id) === String(it.receta_id),
+      ) || null;
+    const nombre =
+      receta?.nombre || it.receta_nombre || it.receta?.nombre || "";
+    return `${nombre} ${receta?.emoji || it.receta_emoji || ""}`
+      .toLowerCase()
+      .includes(lower);
   });
   return clienteMatch || productosMatch;
 }
