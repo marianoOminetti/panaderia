@@ -248,11 +248,23 @@ function ClienteDetalle({
       return;
     }
 
+    const ventaSelect =
+      "id, receta_id, cantidad, transaccion_id, cliente_id, fecha, created_at, precio_unitario";
     const fetchByTransaccionId = async (tx) => {
       const { data, error } = await supabase
         .from("ventas")
-        .select("id, receta_id, cantidad, transaccion_id")
+        .select(ventaSelect)
         .eq("transaccion_id", tx);
+      if (error) throw error;
+      return data || [];
+    };
+    const fetchByClienteId = async (clienteId) => {
+      const { data, error } = await supabase
+        .from("ventas")
+        .select(ventaSelect)
+        .eq("cliente_id", clienteId)
+        .order("created_at", { ascending: false })
+        .limit(300);
       if (error) throw error;
       return data || [];
     };
@@ -263,6 +275,7 @@ function ClienteDetalle({
         grupo,
         ventasLocales: ventas,
         fetchByTransaccionId,
+        fetchByClienteId,
       });
     } catch (err) {
       reportError(err, {
@@ -275,7 +288,7 @@ function ClienteDetalle({
 
     if (!resolved.ventas.length) {
       showToast(
-        "No se encontró la venta de esta entrega; no se puede desentregar automáticamente.",
+        "No se encontró una venta con los mismos productos de este pedido para desentregar.",
       );
       return;
     }
