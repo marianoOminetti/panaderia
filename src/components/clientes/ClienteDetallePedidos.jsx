@@ -2,7 +2,7 @@ import { useState } from "react";
 import { fmt } from "../../lib/format";
 import { formatFechaLocal, formatFechaRelativa, hoyLocalISO } from "../../lib/dates";
 import ShareTicketModal from "../shared/ShareTicketModal";
-import { getPedidoEstadoLabel } from "../../lib/pedidos";
+import { getPedidoEstadoLabel, canDesentregarPedido } from "../../lib/pedidos";
 
 function PedidoRow({
   grupo,
@@ -10,6 +10,7 @@ function PedidoRow({
   savingEntrega,
   actualizarEstadoPedido,
   marcarPedidoEntregado,
+  desentregarPedido,
   onShare,
   activo = false,
 }) {
@@ -20,6 +21,7 @@ function PedidoRow({
   const fechaRaw = grupo.fecha_entrega
     ? String(grupo.fecha_entrega).slice(0, 10)
     : null;
+  const desentregable = canDesentregarPedido(grupo.estado);
 
   return (
     <div
@@ -45,7 +47,9 @@ function PedidoRow({
       <ul className="cliente-historial-productos">
         {(grupo.items || []).map((it, idx) => {
           const receta = recetas.find((r) => r.id === it.receta_id);
-          const linea = (it.precio_unitario || 0) * (it.cantidad || 0);
+          const bruto = (it.precio_unitario || 0) * (it.cantidad || 0);
+          const descuento = Number(it.descuento) || 0;
+          const linea = Math.max(0, bruto - descuento);
           return (
             <li
               key={`${grupo.key}-${it.receta_id}-${idx}`}
@@ -110,6 +114,20 @@ function PedidoRow({
           </div>
         </div>
       )}
+      {!activo && desentregable && (
+        <div className="cliente-pedido-acciones">
+          <div className="cliente-pedido-acciones-btns">
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => desentregarPedido?.(grupo)}
+              disabled={savingEntrega}
+            >
+              Desentregar
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -120,6 +138,7 @@ function ClienteDetallePedidos({
   savingEntrega,
   actualizarEstadoPedido,
   marcarPedidoEntregado,
+  desentregarPedido,
   clienteNombre,
 }) {
   const [sharePedido, setSharePedido] = useState(null);
@@ -188,6 +207,7 @@ function ClienteDetallePedidos({
               savingEntrega={savingEntrega}
               actualizarEstadoPedido={actualizarEstadoPedido}
               marcarPedidoEntregado={marcarPedidoEntregado}
+              desentregarPedido={desentregarPedido}
               onShare={setSharePedido}
               activo
             />
@@ -202,7 +222,12 @@ function ClienteDetallePedidos({
             <span className="card-meta">{historial.length}</span>
           </div>
           {historial.map((g) => (
-            <PedidoRow key={g.key} grupo={g} recetas={recetas} />
+            <PedidoRow
+              key={g.key}
+              grupo={g}
+              recetas={recetas}
+              desentregarPedido={desentregarPedido}
+            />
           ))}
         </div>
       )}

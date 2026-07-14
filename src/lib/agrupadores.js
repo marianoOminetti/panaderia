@@ -119,10 +119,11 @@ export function agruparPedidos(pedidos) {
   const grupos = Object.entries(porPedido).map(([pid, items]) => {
     const agregados = agregarItemsPorReceta(items);
     const base = items[0] || {};
-    const total = items.reduce(
-      (s, i) => s + (i.precio_unitario || 0) * (i.cantidad || 0),
-      0
-    );
+    const total = items.reduce((s, i) => {
+      const bruto = (i.precio_unitario || 0) * (i.cantidad || 0);
+      const descuento = Number(i.descuento) || 0;
+      return s + Math.max(0, bruto - descuento);
+    }, 0);
     const senia = base.senia || 0;
     return {
       key: pid,
@@ -132,7 +133,10 @@ export function agruparPedidos(pedidos) {
       senia,
       estado: base.estado || "pendiente",
       fecha_entrega: base.fecha_entrega || null,
+      hora_entrega: base.hora_entrega || null,
+      notas: base.notas || null,
       cliente_id: base.cliente_id,
+      venta_transaccion_id: base.venta_transaccion_id || null,
     };
   });
   return grupos.sort((a, b) => {

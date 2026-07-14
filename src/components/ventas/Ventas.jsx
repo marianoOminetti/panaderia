@@ -11,6 +11,7 @@ import { useVentasCart } from "../../hooks/useVentasCart";
 import { useCartConPromos } from "../../hooks/useCartConPromos";
 import { useVentasChargeModal } from "../../hooks/useVentasChargeModal";
 import { buildVentaRowsConPromos } from "../../lib/buildVentaRowsConPromos";
+import { buildPedidoRowsConPromos } from "../../lib/buildPedidoRowsConPromos";
 import { useVentasEdit } from "../../hooks/useVentasEdit";
 import { hoyLocalISO } from "../../lib/dates";
 import { saveVentaPendiente } from "../../lib/offlineVentas";
@@ -660,33 +661,22 @@ function Ventas({
     perfMark("venta:register:start");
 
     try {
-      const subtotalLista = cobroPorDefecto
-        ? cartItems.reduce(
-            (s, item) =>
-              s + (item.precio_unitario || 0) * (toCantidadNumber(item.cantidad) || 0),
-            0,
-          )
-        : cartPromos.subtotalLista;
-
       if (esPedido) {
         const pedidoId = generateTransaccionId();
         const seniaNum = parseFloat(String(seniaEff || "").replace(",", ".")) || 0;
-        const rows = cartItems.map(({ receta, cantidad, precio_unitario }, index) => {
-          const cantNum = toCantidadNumber(cantidad) || 0;
-          const precio = precio_unitario || 0;
-          return {
-            pedido_id: pedidoId,
-            cliente_id: clienteEff,
-            receta_id: receta.id,
-            cantidad: cantNum,
-            precio_unitario: precio,
-            senia: index === 0 ? seniaNum : 0,
-            hora_entrega: index === 0 ? (horaEntregaEff || null) : null,
-            notas: index === 0 ? (notasEff || null) : null,
-            estado: "pendiente",
-            fecha_entrega: fechaFinal,
-          };
+        const builtPedido = buildPedidoRowsConPromos({
+          cartItems,
+          promociones,
+          excludePromoIds: promosExclEff,
+          chargeTotalOverride: chargeOverrideEff,
+          pedidoId,
+          clienteId: clienteEff,
+          fechaEntrega: fechaFinal,
+          senia: seniaNum,
+          horaEntrega: horaEntregaEff || null,
+          notas: notasEff || null,
         });
+        const { rows, totalCobrado } = builtPedido;
         const fechaDisplay = new Date(fechaFinal).toLocaleDateString("es-AR");
         if (!beginRegisterGuard()) return;
         resetNuevaVenta();
@@ -695,7 +685,7 @@ function Ventas({
           await enqueueVentaWrite(() =>
             insertPedidos(rows, { skipToast: true }),
           );
-          showToast(`✅ Pedido guardado para ${fechaDisplay}: ${fmt(subtotalLista)}`);
+          showToast(`✅ Pedido guardado para ${fechaDisplay}: ${fmt(totalCobrado)}`);
         } catch (err) {
           reportError(err, { action: "registrarPedido" });
           showToast("⚠️ Error al guardar pedido");

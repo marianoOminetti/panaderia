@@ -3,6 +3,7 @@ import {
   getPedidoEstadoLabel,
   isPedidoEditable,
   canDeletePedido,
+  canDesentregarPedido,
 } from "../../lib/pedidos";
 
 function formatFecha(value) {
@@ -19,11 +20,15 @@ export default function PedidosListItem({
   cliente,
   recetas,
   onMarcarEntregado,
+  onDesentregar,
+  onEditar,
   onCancelar,
   onShare,
 }) {
   const unidades = (grupo.items || []).reduce((s, it) => s + (it.cantidad || 0), 0);
   const estado = grupo.estado || "pendiente";
+  const editable = isPedidoEditable(estado);
+  const desentregable = canDesentregarPedido(estado);
 
   return (
     <div className="card venta-card" style={{ marginBottom: 8 }}>
@@ -71,28 +76,35 @@ export default function PedidosListItem({
             Seña {fmt(grupo.senia)}
           </div>
         )}
-        <div
-          className="form-input"
-          style={{
-            marginTop: 6,
-            fontSize: 11,
-            padding: "6px 10px",
-            opacity: 0.7,
-            cursor: "default",
-            textAlign: "left",
-          }}
-        >
-          {getPedidoEstadoLabel(estado)}
-        </div>
-        <div style={{ display: "flex", gap: 4, marginTop: 6 }}>
-          {isPedidoEditable(estado) && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 6 }}>
+          {editable && (
+            <>
+              <button
+                type="button"
+                className="btn-secondary"
+                style={{ fontSize: 11, padding: "4px 8px", flex: 1 }}
+                onClick={() => onEditar?.(grupo)}
+              >
+                Editar
+              </button>
+              <button
+                type="button"
+                className="btn-secondary"
+                style={{ fontSize: 11, padding: "4px 8px", flex: 1 }}
+                onClick={() => onMarcarEntregado?.(grupo)}
+              >
+                Marcar entregado
+              </button>
+            </>
+          )}
+          {desentregable && (
             <button
               type="button"
               className="btn-secondary"
               style={{ fontSize: 11, padding: "4px 8px", flex: 1 }}
-              onClick={() => onMarcarEntregado?.(grupo)}
+              onClick={() => onDesentregar?.(grupo)}
             >
-              Marcar entregado
+              Desentregar
             </button>
           )}
           <button

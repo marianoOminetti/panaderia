@@ -9,6 +9,8 @@ export default function PedidosList({
   clientes,
   search,
   onMarcarEntregado,
+  onDesentregar,
+  onEditar,
   onCancelar,
 }) {
   const [sharePedido, setSharePedido] = useState(null);
@@ -56,6 +58,8 @@ export default function PedidosList({
             cliente={cliente}
             recetas={recetas}
             onMarcarEntregado={onMarcarEntregado}
+            onDesentregar={onDesentregar}
+            onEditar={onEditar}
             onCancelar={onCancelar}
             onShare={setSharePedido}
           />

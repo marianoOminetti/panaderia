@@ -13,6 +13,11 @@ export function isPedidoEditable(estado) {
   return estado === "pendiente";
 }
 
+/** Desentregar: volver a pendiente y revertir la venta generada. */
+export function canDesentregarPedido(estado) {
+  return estado === "entregado";
+}
+
 // Cancelar (borrar) solo si está pendiente
 export function canDeletePedido(estado) {
   return estado === "pendiente";

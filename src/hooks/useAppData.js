@@ -843,6 +843,21 @@ export function useAppData({ showToast, role, onCachePatch, onPersistCache } = {
     setPedidos((prev) => prev.filter((p) => p.pedido_id !== pedido_id));
   }, []);
 
+  const replacePedidosInState = useCallback((pedido_id, rows) => {
+    if (!pedido_id) return;
+    setPedidos((prev) => [
+      ...(rows || []),
+      ...prev.filter((p) => p.pedido_id !== pedido_id),
+    ]);
+  }, []);
+
+  const patchPedidosByPedidoId = useCallback((pedido_id, patch) => {
+    if (!pedido_id || !patch) return;
+    setPedidos((prev) =>
+      prev.map((p) => (p.pedido_id === pedido_id ? { ...p, ...patch } : p)),
+    );
+  }, []);
+
   const removeClienteFromState = useCallback(
     (id) => {
       if (!id) return;
@@ -987,6 +1002,8 @@ export function useAppData({ showToast, role, onCachePatch, onPersistCache } = {
     appendPedidos,
     updatePedidosEstado,
     removePedidosByPedidoIdInState,
+    replacePedidosInState,
+    patchPedidosByPedidoId,
     upsertInsumoComposicionInState,
     removeInsumoComposicionInState,
     loadVentasHistoricas,
