@@ -264,7 +264,19 @@ function ClienteDetalle({
         .select(ventaSelect)
         .eq("cliente_id", clienteId)
         .order("created_at", { ascending: false })
-        .limit(300);
+        .limit(2000);
+      if (error) throw error;
+      return data || [];
+    };
+    const fetchByClienteFechaRango = async (clienteId, desde, hasta) => {
+      const { data, error } = await supabase
+        .from("ventas")
+        .select(ventaSelect)
+        .eq("cliente_id", clienteId)
+        .gte("fecha", desde)
+        .lte("fecha", hasta)
+        .order("fecha", { ascending: false })
+        .limit(2000);
       if (error) throw error;
       return data || [];
     };
@@ -276,6 +288,7 @@ function ClienteDetalle({
         ventasLocales: ventas,
         fetchByTransaccionId,
         fetchByClienteId,
+        fetchByClienteFechaRango,
       });
     } catch (err) {
       reportError(err, {
@@ -286,47 +299,53 @@ function ClienteDetalle({
       return;
     }
 
+    let soloEstado = false;
     if (!resolved.ventas.length) {
-      showToast(
-        "No se encontró una venta con los mismos productos de este pedido para desentregar.",
+      const okSinVenta = await confirm(
+        "No encontré la venta de esta entrega (puede ser muy vieja o ya borrada).\n\n¿Querés dejar el pedido en Pendiente de todos modos?\nStock y ventas no se van a tocar.",
       );
-      return;
+      if (!okSinVenta) return;
+      soloEstado = true;
     }
 
     const transaccionId = resolved.transaccionId;
-    const factura = facturasByTransaccion?.[transaccionId];
-    if (facturaListaParaPdf(factura)) {
-      showToast(
-        "Este pedido tiene factura AFIP. Emití una nota de crédito antes de desentregar.",
-      );
-      return;
-    }
-    if (!factura && transaccionId) {
-      const { data: facturaDb } = await supabase
-        .from("facturas_electronicas")
-        .select("estado, cae")
-        .eq("transaccion_id", transaccionId)
-        .maybeSingle();
-      if (facturaListaParaPdf(facturaDb)) {
+    if (!soloEstado) {
+      const factura = facturasByTransaccion?.[transaccionId];
+      if (facturaListaParaPdf(factura)) {
         showToast(
           "Este pedido tiene factura AFIP. Emití una nota de crédito antes de desentregar.",
         );
         return;
       }
+      if (!factura && transaccionId) {
+        const { data: facturaDb } = await supabase
+          .from("facturas_electronicas")
+          .select("estado, cae")
+          .eq("transaccion_id", transaccionId)
+          .maybeSingle();
+        if (facturaListaParaPdf(facturaDb)) {
+          showToast(
+            "Este pedido tiene factura AFIP. Emití una nota de crédito antes de desentregar.",
+          );
+          return;
+        }
+      }
+
+      const ok = await confirm(
+        "¿Desentregar este pedido?\nSe borrará la venta asociada y se devolverá el stock. El pedido quedará pendiente.",
+      );
+      if (!ok) return;
     }
 
-    const ok = await confirm(
-      "¿Desentregar este pedido?\nSe borrará la venta asociada y se devolverá el stock. El pedido quedará pendiente.",
-    );
-    if (!ok) return;
-
     desentregaInFlightRef.current.add(grupo.key);
-    const ventasAsociadas = resolved.ventas;
+    const ventasAsociadas = soloEstado ? [] : resolved.ventas;
     const ventaIds = ventasAsociadas.map((v) => v.id).filter(Boolean);
-    const stockDeltas = buildStockDeltasFromPedidoItems(ventasAsociadas, 1);
+    const stockDeltas = ventasAsociadas.length
+      ? buildStockDeltasFromPedidoItems(ventasAsociadas, 1)
+      : [];
 
-    removeVentas?.(ventaIds);
-    patchStock?.(stockDeltas);
+    if (ventaIds.length) removeVentas?.(ventaIds);
+    if (stockDeltas.length) patchStock?.(stockDeltas);
     updatePedidosEstado?.(grupo.key, "pendiente");
     patchPedidosByPedidoId?.(grupo.key, {
       estado: "pendiente",
@@ -339,7 +358,7 @@ function ClienteDetalle({
         if (ventaIds.length) {
           await deleteVentas(ventaIds);
         }
-        if (transaccionId) {
+        if (!soloEstado && transaccionId) {
           await releaseVentaTransaccionClaim(transaccionId);
         }
         await desentregarPedido(grupo.key);
@@ -347,7 +366,11 @@ function ClienteDetalle({
           await actualizarStockBatch(stockDeltas, { useLocalBase: true });
         }
       });
-      showToast("✅ Pedido desentregado");
+      showToast(
+        soloEstado
+          ? "✅ Pedido pasado a pendiente (sin tocar ventas/stock)"
+          : "✅ Pedido desentregado",
+      );
     } catch (err) {
       await onRefresh?.();
       reportError(err, {
