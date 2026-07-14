@@ -10,3 +10,5 @@ COMMENT ON COLUMN pedidos.venta_transaccion_id IS 'transaccion_id de las ventas 
 
 CREATE INDEX IF NOT EXISTS idx_pedidos_promocion_id ON pedidos(promocion_id);
 CREATE INDEX IF NOT EXISTS idx_pedidos_venta_transaccion_id ON pedidos(venta_transaccion_id);
+
+NOTIFY pgrst, 'reload schema';

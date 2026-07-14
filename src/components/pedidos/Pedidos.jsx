@@ -303,7 +303,7 @@ export default function Pedidos({
             }}
           >
             Editá pedidos pendientes, aplicá promociones, marcá entregas o
-            desentregá si hace falta. Cancelá los que no se van a hacer.
+            desentregá si hace falta. Abajo ves el historial de entregados.
           </p>
         </div>
 
