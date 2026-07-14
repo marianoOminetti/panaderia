@@ -2,7 +2,11 @@ import { useState } from "react";
 import { fmt } from "../../lib/format";
 import { formatFechaLocal, formatFechaRelativa, hoyLocalISO } from "../../lib/dates";
 import ShareTicketModal from "../shared/ShareTicketModal";
-import { getPedidoEstadoLabel, canDesentregarPedido } from "../../lib/pedidos";
+import {
+  getPedidoEstadoLabel,
+  isPedidoEditable,
+  canDesentregarPedido,
+} from "../../lib/pedidos";
 
 function PedidoRow({
   grupo,
@@ -12,6 +16,8 @@ function PedidoRow({
   marcarPedidoEntregado,
   desentregarPedido,
   onShare,
+  onAbrir,
+  clickable = false,
   activo = false,
 }) {
   const unidades = (grupo.items || []).reduce(
@@ -21,28 +27,57 @@ function PedidoRow({
   const fechaRaw = grupo.fecha_entrega
     ? String(grupo.fecha_entrega).slice(0, 10)
     : null;
+  const editable = isPedidoEditable(grupo.estado);
   const desentregable = canDesentregarPedido(grupo.estado);
+  const mostrarAcciones = activo || desentregable;
+
+  const handleOpen = () => {
+    if (!clickable || !onAbrir) return;
+    onAbrir(grupo);
+  };
 
   return (
     <div
       className={`cliente-historial-item cliente-historial-item--pedido${
         activo ? " cliente-historial-item--activo" : ""
-      }`}
+      }${clickable ? " cliente-historial-item--clickable" : ""}`}
+      role={clickable ? "button" : undefined}
+      tabIndex={clickable ? 0 : undefined}
+      aria-label={clickable ? "Ver venta del pedido" : undefined}
+      onClick={clickable ? handleOpen : undefined}
+      onKeyDown={
+        clickable
+          ? (e) => {
+              if (e.target !== e.currentTarget) return;
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                handleOpen();
+              }
+            }
+          : undefined
+      }
     >
-      <div className="cliente-historial-fecha">
-        <span className="cliente-historial-fecha-principal">
-          {fechaRaw ? formatFechaRelativa(fechaRaw) : "Sin fecha"}
-        </span>
-        {fechaRaw && (
-          <span className="cliente-historial-fecha-sec">
-            {formatFechaLocal(fechaRaw, { weekday: true })}
+      <div className="cliente-historial-item-top">
+        <div className="cliente-historial-fecha">
+          <span className="cliente-historial-fecha-principal">
+            {fechaRaw ? formatFechaRelativa(fechaRaw) : "Sin fecha"}
+          </span>
+          {fechaRaw && (
+            <span className="cliente-historial-fecha-sec">
+              {formatFechaLocal(fechaRaw, { weekday: true })}
+            </span>
+          )}
+          <span
+            className={`cliente-historial-badge cliente-historial-badge--${grupo.estado || "pendiente"}`}
+          >
+            {getPedidoEstadoLabel(grupo.estado)}
+          </span>
+        </div>
+        {clickable && (
+          <span className="cliente-historial-chevron" aria-hidden>
+            ›
           </span>
         )}
-        <span
-          className={`cliente-historial-badge cliente-historial-badge--${grupo.estado || "pendiente"}`}
-        >
-          {getPedidoEstadoLabel(grupo.estado)}
-        </span>
       </div>
       <ul className="cliente-historial-productos">
         {(grupo.items || []).map((it, idx) => {
@@ -67,64 +102,67 @@ function PedidoRow({
         })}
       </ul>
       <div className="cliente-historial-pie">
-        <span>{unidades} unidad{unidades !== 1 ? "es" : ""}</span>
+        <span>
+          {unidades} unidad{unidades !== 1 ? "es" : ""}
+        </span>
         <strong>
           {fmt(grupo.total)}
           {grupo.senia > 0 ? ` · Seña ${fmt(grupo.senia)}` : ""}
         </strong>
       </div>
-      {activo && (
-        <div className="cliente-pedido-acciones">
-          <select
-            className="form-input"
-            value={grupo.estado || "pendiente"}
-            onChange={(e) => actualizarEstadoPedido(grupo, e.target.value)}
-            aria-label="Estado del pedido"
-            disabled={grupo.estado === "entregado"}
-          >
-            <option value="pendiente">
-              {getPedidoEstadoLabel("pendiente")}
-            </option>
-            <option value="en_preparacion">
-              {getPedidoEstadoLabel("en_preparacion")}
-            </option>
-            <option value="listo">{getPedidoEstadoLabel("listo")}</option>
-            <option value="entregado">
-              {getPedidoEstadoLabel("entregado")}
-            </option>
-          </select>
+      {mostrarAcciones && (
+        <div
+          className="cliente-pedido-acciones"
+          onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => e.stopPropagation()}
+        >
+          {activo && editable && (
+            <select
+              className="form-input"
+              value={grupo.estado || "pendiente"}
+              onChange={(e) => actualizarEstadoPedido(grupo, e.target.value)}
+              aria-label="Estado del pedido"
+            >
+              <option value="pendiente">
+                {getPedidoEstadoLabel("pendiente")}
+              </option>
+              <option value="entregado">
+                {getPedidoEstadoLabel("entregado")}
+              </option>
+            </select>
+          )}
           <div className="cliente-pedido-acciones-btns">
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={() => marcarPedidoEntregado(grupo)}
-              disabled={savingEntrega}
-            >
-              Marcar entregado
-            </button>
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={() => onShare?.(grupo)}
-              title="Compartir"
-              aria-label="Compartir pedido"
-            >
-              📤
-            </button>
-          </div>
-        </div>
-      )}
-      {!activo && desentregable && (
-        <div className="cliente-pedido-acciones">
-          <div className="cliente-pedido-acciones-btns">
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={() => desentregarPedido?.(grupo)}
-              disabled={savingEntrega}
-            >
-              Desentregar
-            </button>
+            {activo && editable && (
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => marcarPedidoEntregado(grupo)}
+                disabled={savingEntrega}
+              >
+                Marcar entregado
+              </button>
+            )}
+            {desentregable && (
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => desentregarPedido?.(grupo)}
+                disabled={savingEntrega}
+              >
+                Desentregar
+              </button>
+            )}
+            {activo && (
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => onShare?.(grupo)}
+                title="Compartir"
+                aria-label="Compartir pedido"
+              >
+                📤
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -140,6 +178,8 @@ function ClienteDetallePedidos({
   marcarPedidoEntregado,
   desentregarPedido,
   clienteNombre,
+  onAbrirPedido,
+  puedeAbrirPedido,
 }) {
   const [sharePedido, setSharePedido] = useState(null);
   const hoyStr = hoyLocalISO();
@@ -178,6 +218,12 @@ function ClienteDetallePedidos({
     }),
   });
 
+  const puedeAbrir = (g) => {
+    if (!onAbrirPedido) return false;
+    if (typeof puedeAbrirPedido === "function") return puedeAbrirPedido(g);
+    return canDesentregarPedido(g.estado);
+  };
+
   if (activos.length === 0 && historial.length === 0) {
     return (
       <div className="card" style={{ marginBottom: 16 }}>
@@ -209,6 +255,8 @@ function ClienteDetallePedidos({
               marcarPedidoEntregado={marcarPedidoEntregado}
               desentregarPedido={desentregarPedido}
               onShare={setSharePedido}
+              onAbrir={onAbrirPedido}
+              clickable={puedeAbrir(g)}
               activo
             />
           ))}
@@ -227,6 +275,8 @@ function ClienteDetallePedidos({
               grupo={g}
               recetas={recetas}
               desentregarPedido={desentregarPedido}
+              onAbrir={onAbrirPedido}
+              clickable={puedeAbrir(g)}
             />
           ))}
         </div>

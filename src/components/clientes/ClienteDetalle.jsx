@@ -13,9 +13,11 @@ import { reportError } from "../../utils/errorReport";
 import {
   buildVentaRowsFromPedido,
   buildStockDeltasFromPedidoItems,
+  getPedidoVentaTransaccionId,
   resolveVentasParaDesentregar,
   withPendingVentaIds,
 } from "../../lib/pedidoEntrega";
+import { canDesentregarPedido } from "../../lib/pedidos";
 import { supabase } from "../../lib/supabaseClient";
 import { useClientes } from "../../hooks/useClientes";
 import { useAfipComprobanteActions } from "../../hooks/useAfipComprobanteActions";
@@ -66,6 +68,7 @@ function ClienteDetalle({
   reassignClienteIdInState,
   replaceVentas,
   promociones = [],
+  onAbrirVenta,
 }) {
   const [editModal, setEditModal] = useState(false);
   const [unificarModal, setUnificarModal] = useState(false);
@@ -348,6 +351,43 @@ function ClienteDetalle({
     (pedidos || []).filter((p) => p.cliente_id === cliente.id),
   );
 
+  const findVentaKeyParaPedido = (grupo) => {
+    const linked = getPedidoVentaTransaccionId(grupo);
+    if (
+      linked &&
+      (ventas || []).some((v) => v.transaccion_id && v.transaccion_id === linked)
+    ) {
+      return linked;
+    }
+    if (
+      grupo?.key &&
+      (ventas || []).some(
+        (v) => v.transaccion_id && v.transaccion_id === grupo.key,
+      )
+    ) {
+      return grupo.key;
+    }
+    return null;
+  };
+
+  const abrirVentaGrupo = (grupo) => {
+    if (!grupo?.key || !onAbrirVenta) return;
+    onAbrirVenta(grupo);
+  };
+
+  const abrirPedidoAsociado = (grupo) => {
+    if (!onAbrirVenta) return;
+    const transaccionId = findVentaKeyParaPedido(grupo);
+    if (!transaccionId) {
+      showToast?.("No se encontró la venta de este pedido");
+      return;
+    }
+    onAbrirVenta({ key: transaccionId });
+  };
+
+  const puedeAbrirPedido = (grupo) =>
+    canDesentregarPedido(grupo.estado) && Boolean(findVentaKeyParaPedido(grupo));
+
   const handleUnificarRequest = (grupos, resumen) => {
     const validacion = validarUnificacion({
       grupos,
@@ -517,10 +557,10 @@ function ClienteDetalle({
         <span className="screen-title">{cliente.nombre}</span>
       </div>
       <div className="screen-content">
-        <div className="card" style={{ marginBottom: 16 }}>
+        <div className="card cliente-resumen-card" style={{ marginBottom: 16 }}>
           <div className="card-header">
             <span className="card-title">Resumen</span>
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <div className="cliente-resumen-acciones">
               {cliente.telefono?.trim() && (
                 <ClienteWhatsAppButton
                   cliente={cliente}
@@ -625,6 +665,8 @@ function ClienteDetalle({
           marcarPedidoEntregado={marcarPedidoEntregado}
           desentregarPedido={desentregarPedidoGrupo}
           clienteNombre={cliente.nombre}
+          onAbrirPedido={onAbrirVenta ? abrirPedidoAsociado : undefined}
+          puedeAbrirPedido={onAbrirVenta ? puedeAbrirPedido : undefined}
         />
 
         <ClienteDetalleVentas
@@ -645,6 +687,7 @@ function ClienteDetalle({
           unificacionesByTransaccion={unificacionesByTransaccion}
           onSepararRequest={handleSepararRequest}
           separarEnProgreso={separandoVentas}
+          onAbrirVenta={onAbrirVenta ? abrirVentaGrupo : undefined}
         />
 
         <ClientePerfilCompra perfil={perfil} />
