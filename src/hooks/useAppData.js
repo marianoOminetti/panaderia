@@ -233,7 +233,9 @@ export function useAppData({ showToast, role, onCachePatch, onPersistCache } = {
         ? Promise.resolve({ data: [], error: null })
         : supabase
             .from("pedidos")
-            .select("*")
+            .select(
+              "*, cliente:clientes(id, nombre), receta:recetas(id, nombre, emoji)",
+            )
             .order("fecha_entrega", { ascending: true })
             .limit(1000);
 
@@ -326,7 +328,22 @@ export function useAppData({ showToast, role, onCachePatch, onPersistCache } = {
             "ℹ️ Configurá la tabla 'pedidos' en Supabase para usar pedidos futuros",
           );
         } else {
-          showToast?.("⚠️ Error al cargar pedidos");
+          // Fallback: sin embed (por si PostgREST no resuelve el join)
+          try {
+            const plain = await supabase
+              .from("pedidos")
+              .select("*")
+              .order("fecha_entrega", { ascending: true })
+              .limit(1000);
+            if (!plain.error && plain.data) {
+              pedRes.data = plain.data;
+              pedRes.error = null;
+            } else {
+              showToast?.("⚠️ Error al cargar pedidos");
+            }
+          } catch {
+            showToast?.("⚠️ Error al cargar pedidos");
+          }
         }
       }
       if (gastosRes && gastosRes.error && !isVenta) {

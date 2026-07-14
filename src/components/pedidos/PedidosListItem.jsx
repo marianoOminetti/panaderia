@@ -15,6 +15,12 @@ function formatFecha(value) {
   }
 }
 
+function findById(list, id) {
+  if (id == null || !list?.length) return null;
+  const target = String(id);
+  return list.find((row) => row?.id != null && String(row.id) === target) || null;
+}
+
 export default function PedidosListItem({
   grupo,
   cliente,
@@ -29,11 +35,12 @@ export default function PedidosListItem({
   const estado = grupo.estado || "pendiente";
   const editable = isPedidoEditable(estado);
   const desentregable = canDesentregarPedido(estado);
+  const nombreCliente = cliente?.nombre || grupo.cliente_nombre || "Cliente";
 
   return (
     <div className="card venta-card" style={{ marginBottom: 8 }}>
       <div className="venta-grupo-cliente">
-        {cliente?.nombre || "Cliente"} · {formatFecha(grupo.fecha_entrega)}
+        {nombreCliente} · {formatFecha(grupo.fecha_entrega)}
       </div>
       <div
         style={{
@@ -49,8 +56,13 @@ export default function PedidosListItem({
           {unidades} u ·{" "}
           {(grupo.items || [])
             .map((it) => {
-              const receta = (recetas || []).find((r) => r.id === it.receta_id);
-              return `${it.cantidad || 0}x ${receta?.nombre || "Producto"}`;
+              const receta = findById(recetas, it.receta_id);
+              const nombre =
+                receta?.nombre ||
+                it.receta_nombre ||
+                it.receta?.nombre ||
+                "Producto";
+              return `${it.cantidad || 0}x ${nombre}`;
             })
             .join(" · ")}
         </span>

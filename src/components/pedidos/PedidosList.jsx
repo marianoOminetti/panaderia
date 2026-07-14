@@ -38,20 +38,29 @@ export default function PedidosList({
   const entregados = filtered.filter((g) => (g.estado || "pendiente") === "entregado");
 
   const buildShareData = (g) => {
-    const cliente = (clientes || []).find((c) => c.id === g.cliente_id);
+    const cliente =
+      (clientes || []).find((c) => c?.id != null && String(c.id) === String(g.cliente_id)) ||
+      null;
     return {
       fecha_entrega: g.fecha_entrega,
       hora_entrega: g.hora_entrega,
       estado: g.estado,
-      cliente: cliente?.nombre || "Cliente",
+      cliente: cliente?.nombre || g.cliente_nombre || "Cliente",
       senia: g.senia || 0,
       total: g.total || 0,
       notas: g.notas,
       items: (g.items || []).map((it) => {
-        const r = recetas.find((rec) => rec.id === it.receta_id);
+        const r =
+          (recetas || []).find(
+            (rec) => rec?.id != null && String(rec.id) === String(it.receta_id),
+          ) || null;
         return {
           receta_id: it.receta_id,
-          receta: r ? { nombre: r.nombre, emoji: r.emoji } : null,
+          receta: r
+            ? { nombre: r.nombre, emoji: r.emoji }
+            : it.receta_nombre
+              ? { nombre: it.receta_nombre, emoji: it.receta_emoji }
+              : null,
           cantidad: it.cantidad,
           precio_unitario: it.precio_unitario,
         };
@@ -60,7 +69,9 @@ export default function PedidosList({
   };
 
   const renderItem = (g) => {
-    const cliente = (clientes || []).find((c) => c.id === g.cliente_id);
+    const cliente =
+      (clientes || []).find((c) => c?.id != null && String(c.id) === String(g.cliente_id)) ||
+      null;
     return (
       <PedidosListItem
         key={g.key}

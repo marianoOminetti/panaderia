@@ -8,12 +8,24 @@ export function agregarItemsPorReceta(items) {
   const porReceta = {};
   for (const v of items) {
     if (!v || v.receta_id == null) continue;
-    const rid = v.receta_id;
+    const rid = String(v.receta_id);
     if (!porReceta[rid]) {
-      porReceta[rid] = { ...v, cantidad: 0, id: v.id };
+      porReceta[rid] = {
+        ...v,
+        receta_id: v.receta_id,
+        cantidad: 0,
+        id: v.id,
+        // Preservar join de Supabase si vino en el select
+        receta_nombre: v.receta?.nombre || v.receta_nombre || null,
+        receta_emoji: v.receta?.emoji || v.receta_emoji || null,
+      };
     }
     porReceta[rid].cantidad += Number(v.cantidad) || 0;
     if (v.estado_pago === "debe") porReceta[rid].estado_pago = "debe";
+    if (!porReceta[rid].receta_nombre && v.receta?.nombre) {
+      porReceta[rid].receta_nombre = v.receta.nombre;
+      porReceta[rid].receta_emoji = v.receta.emoji || null;
+    }
   }
   return Object.values(porReceta);
 }
@@ -125,6 +137,7 @@ export function agruparPedidos(pedidos) {
       return s + Math.max(0, bruto - descuento);
     }, 0);
     const senia = base.senia || 0;
+    const clienteJoin = base.cliente || null;
     return {
       key: pid,
       items: agregados.length > 0 ? agregados : items,
@@ -135,7 +148,8 @@ export function agruparPedidos(pedidos) {
       fecha_entrega: base.fecha_entrega || null,
       hora_entrega: base.hora_entrega || null,
       notas: base.notas || null,
-      cliente_id: base.cliente_id,
+      cliente_id: base.cliente_id ?? clienteJoin?.id ?? null,
+      cliente_nombre: clienteJoin?.nombre || null,
       venta_transaccion_id: base.venta_transaccion_id || null,
     };
   });
