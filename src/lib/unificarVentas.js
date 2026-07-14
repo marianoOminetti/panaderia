@@ -138,40 +138,71 @@ function ventaFechaDia(venta) {
   return null;
 }
 
-function lineaMonto(item) {
+/** Precio de lista (como ticket de ventas), no total_final post-promo. */
+function lineaMontoLista(item) {
+  return (Number(item.precio_unitario) || 0) * (Number(item.cantidad) || 0);
+}
+
+function montoCobrado(item) {
   return item.total_final != null
-    ? item.total_final
-    : (item.precio_unitario || 0) * (item.cantidad || 0);
+    ? Number(item.total_final) || 0
+    : lineaMontoLista(item);
 }
 
 function buildLineaItem(item, recetas) {
   const receta = recetas?.find((r) => r.id === item.receta_id);
-  const linea = lineaMonto(item);
+  const precio = Number(item.precio_unitario) || 0;
   return {
     receta_id: item.receta_id,
     receta: receta ? { nombre: receta.nombre, emoji: receta.emoji } : null,
     nombre: receta?.nombre || "Producto",
     cantidad: item.cantidad,
-    precio_unitario: item.precio_unitario,
-    _lineTotal: linea,
+    precio_unitario: precio,
+    _lineTotal: precio * (Number(item.cantidad) || 0),
     fechaDia: ventaFechaDia(item),
   };
 }
 
-/** Resumen para modal y ticket: ítems con montos cobrados y secciones por día si aplica. */
-export function buildResumenUnificacion(grupos, recetas) {
+function descuentoLabelUnificado(rawItems, promociones, descuento) {
+  if (!(descuento > 0)) return undefined;
+  const promoIds = [
+    ...new Set(
+      (rawItems || []).map((r) => r.promocion_id).filter(Boolean).map(String),
+    ),
+  ];
+  const nombres = promoIds
+    .map((id) => (promociones || []).find((p) => String(p.id) === id)?.nombre)
+    .filter(Boolean);
+  if (nombres.length === 1) return `Promo: ${nombres[0]}`;
+  if (nombres.length > 1) return `Promos: ${nombres.join(", ")}`;
+  return "Descuento";
+}
+
+/** Resumen para modal y ticket: ítems a precio lista + descuento agregado (como el resto de la app). */
+export function buildResumenUnificacion(grupos, recetas, promociones = []) {
   const items = [];
   const fechaSet = new Set();
+  const rawItems = [];
+  let totalCobrado = 0;
 
   for (const grupo of grupos) {
     for (const raw of grupo.rawItems || []) {
+      rawItems.push(raw);
       const linea = buildLineaItem(raw, recetas);
       items.push(linea);
+      totalCobrado += montoCobrado(raw);
       if (linea.fechaDia) fechaSet.add(linea.fechaDia);
     }
   }
 
-  const total = items.reduce((s, it) => s + (Number(it._lineTotal) || 0), 0);
+  const subtotal = items.reduce((s, it) => s + (Number(it._lineTotal) || 0), 0);
+  const total = totalCobrado;
+  const descuento = Math.max(0, subtotal - total);
+  const descuentoLabel = descuentoLabelUnificado(
+    rawItems,
+    promociones,
+    descuento,
+  );
   const multipleFechas = fechaSet.size > 1;
   const fechasOrdenadas = [...fechaSet].sort();
 
@@ -199,6 +230,9 @@ export function buildResumenUnificacion(grupos, recetas) {
     seccionesPorFecha,
     multipleFechas,
     fechaUnica,
+    subtotal,
+    descuento,
+    descuentoLabel,
     total,
     ventaIds,
     transaccionIds,
@@ -214,8 +248,9 @@ export function buildShareDataUnificado({ clienteNombre, resumen }) {
     multipleFechas: resumen.multipleFechas,
     seccionesPorFecha: resumen.seccionesPorFecha,
     items: resumen.items,
-    subtotal: resumen.total,
-    descuento: 0,
+    subtotal: resumen.subtotal ?? resumen.total,
+    descuento: resumen.descuento || 0,
+    descuentoLabel: resumen.descuentoLabel,
     total: resumen.total,
   };
 }

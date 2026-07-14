@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { fmt } from "../../lib/format";
 import { formatFechaLocal, formatFechaRelativa } from "../../lib/dates";
 import { agruparVentas } from "../../lib/agrupadores";
-import { getTransaccionIdFromGrupo } from "../../lib/facturaFiscal";
+import { getTransaccionIdFromGrupo, buildGrupoLineasLista, buildGrupoTotalesConPromo } from "../../lib/facturaFiscal";
 import {
   grupoEstadoPago,
   motivoBloqueoUnificar,
@@ -57,8 +57,8 @@ function ClienteDetalleVentas({
 
   const resumenSeleccion = useMemo(() => {
     if (gruposSeleccionados.length < 2) return null;
-    return buildResumenUnificacion(gruposSeleccionados, recetas);
-  }, [gruposSeleccionados, recetas]);
+    return buildResumenUnificacion(gruposSeleccionados, recetas, promociones);
+  }, [gruposSeleccionados, recetas, promociones]);
 
   const salirModoSeleccion = () => {
     setModoSeleccion(false);
@@ -244,24 +244,53 @@ function ClienteDetalleVentas({
                 )}
               </div>
               <ul className="cliente-historial-productos">
-                {(grupo.rawItems || []).map((item) => {
-                  const receta = recetas?.find((r) => r.id === item.receta_id);
-                  const linea =
-                    item.total_final != null
-                      ? item.total_final
-                      : (item.precio_unitario || 0) * (item.cantidad || 0);
+                {(() => {
+                  const lineasLista = buildGrupoLineasLista(grupo, recetas);
+                  const { descuento, descuentoLabel } =
+                    buildGrupoTotalesConPromo(
+                      grupo,
+                      lineasLista,
+                      promociones,
+                      grupo.total,
+                    );
                   return (
-                    <li key={item.id} className="cliente-historial-linea">
-                      <span className="cliente-historial-emoji">
-                        {receta?.emoji || "🍞"}
-                      </span>
-                      <span className="cliente-historial-nombre">
-                        {receta?.nombre || "Producto"} × {item.cantidad || 0}
-                      </span>
-                      <span className="cliente-historial-precio">{fmt(linea)}</span>
-                    </li>
+                    <>
+                      {lineasLista.map((item, idx) => (
+                        <li
+                          key={grupo.rawItems?.[idx]?.id || `${item.receta_id}-${idx}`}
+                          className="cliente-historial-linea"
+                        >
+                          <span className="cliente-historial-emoji">
+                            {item.receta?.emoji || "🍞"}
+                          </span>
+                          <span className="cliente-historial-nombre">
+                            {item.receta?.nombre || "Producto"} ×{" "}
+                            {item.cantidad || 0}
+                          </span>
+                          <span className="cliente-historial-precio">
+                            {fmt(item._lineTotal)}
+                          </span>
+                        </li>
+                      ))}
+                      {descuento > 0 && (
+                        <li className="cliente-historial-linea cliente-historial-linea--descuento">
+                          <span className="cliente-historial-emoji" aria-hidden>
+                            {" "}
+                          </span>
+                          <span className="cliente-historial-nombre">
+                            {descuentoLabel || "Descuento"}
+                          </span>
+                          <span
+                            className="cliente-historial-precio"
+                            style={{ color: "var(--success, #4a7c59)" }}
+                          >
+                            -{fmt(descuento)}
+                          </span>
+                        </li>
+                      )}
+                    </>
                   );
-                })}
+                })()}
               </ul>
               <div className="cliente-historial-pie">
                 <span>

@@ -116,17 +116,50 @@ export default function VentasUnificarModal({
 
         <div
           style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
             marginTop: 12,
             marginBottom: 16,
-            fontSize: 16,
-            fontWeight: 600,
+            fontSize: 14,
+            display: "flex",
+            flexDirection: "column",
+            gap: 6,
           }}
         >
-          <span>Total</span>
-          <span>{fmt(resumen.total)}</span>
+          {(resumen.descuento || 0) > 0 && (
+            <>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  color: "var(--text-muted)",
+                }}
+              >
+                <span>Subtotal</span>
+                <span>{fmt(resumen.subtotal)}</span>
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  color: "var(--success, #4a7c59)",
+                }}
+              >
+                <span>{resumen.descuentoLabel || "Descuento"}</span>
+                <span>-{fmt(resumen.descuento)}</span>
+              </div>
+            </>
+          )}
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              fontSize: 16,
+              fontWeight: 600,
+            }}
+          >
+            <span>Total</span>
+            <span>{fmt(resumen.total)}</span>
+          </div>
         </div>
 
         {esDebe && (
