@@ -77,10 +77,14 @@ function daysBetweenFecha(a, b) {
 /**
  * Matching heurístico para entregas previas (sin venta_transaccion_id):
  * misma firma de productos/cantidades + mismo cliente, priorizando fecha cercana a entrega.
+ * @param {{ maxDeltaDays?: number|null }} [opciones] — si hay fecha_entrega, descarta candidatos más lejanos.
  */
-export function matchVentasLegacyAPedido(grupo, ventasCandidatas) {
+export function matchVentasLegacyAPedido(grupo, ventasCandidatas, opciones = {}) {
   const target = fingerprintCantidadesPorReceta(grupo?.rawItems || grupo?.items);
   if (!target) return null;
+
+  const maxDeltaDays =
+    opciones.maxDeltaDays === undefined ? null : opciones.maxDeltaDays;
 
   const clienteId = grupo?.cliente_id || null;
   const byTx = new Map();
@@ -105,9 +109,15 @@ export function matchVentasLegacyAPedido(grupo, ventasCandidatas) {
     let score = 0;
     if (fechaEntrega && fecha) {
       const delta = daysBetweenFecha(fecha, fechaEntrega);
-      if (delta != null) score -= delta;
+      if (delta != null) {
+        if (maxDeltaDays != null && delta > maxDeltaDays) continue;
+        score -= delta;
+      }
       if (fecha === fechaEntrega) score += 10;
       if (fecha >= fechaEntrega) score += 2;
+    } else if (fechaEntrega && maxDeltaDays != null) {
+      // Sin fecha en la venta no podemos validar cercanía: no entra con umbral estricto.
+      continue;
     }
     scored.push({
       transaccionId: tx,
@@ -159,39 +169,48 @@ export async function resolveVentasParaDesentregar({
     }
   }
 
-  const localLegacy = matchVentasLegacyAPedido(grupo, ventasLocales);
-  if (localLegacy) {
+  let remoteVentas = [];
+  if (fetchByClienteId && grupo?.cliente_id) {
+    remoteVentas = (await fetchByClienteId(grupo.cliente_id)) || [];
+  }
+
+  // Unir local + remotas antes de scorear (evita preferir una venta nueva en memoria
+  // cuando la entrega legacy está en DB con mejor fecha).
+  const byId = new Map();
+  for (const v of [...(ventasLocales || []), ...remoteVentas]) {
+    if (v?.id != null) byId.set(String(v.id), v);
+    else if (v?.transaccion_id && v?.receta_id != null) {
+      byId.set(`${v.transaccion_id}:${v.receta_id}:${v.cantidad}`, v);
+    }
+  }
+  const merged = [...byId.values()];
+
+  const cerca = matchVentasLegacyAPedido(grupo, merged, { maxDeltaDays: 45 });
+  if (cerca) {
     return {
-      transaccionId: localLegacy.transaccionId,
-      ventas: localLegacy.ventas,
+      transaccionId: cerca.transaccionId,
+      ventas: cerca.ventas,
       legacy: true,
     };
   }
 
-  if (fetchByClienteId && grupo?.cliente_id) {
-    const remotas = await fetchByClienteId(grupo.cliente_id);
-    const remoteLegacy = matchVentasLegacyAPedido(grupo, remotas);
-    if (remoteLegacy) {
-      return {
-        transaccionId: remoteLegacy.transaccionId,
-        ventas: remoteLegacy.ventas,
-        legacy: true,
-      };
+  // Sin match cercano: solo aceptar si hay un único grupo con la misma firma.
+  const target = fingerprintCantidadesPorReceta(grupo?.rawItems || grupo?.items);
+  if (target && grupo?.cliente_id) {
+    const byTx = new Map();
+    for (const v of merged) {
+      if (!v?.transaccion_id || v.cliente_id !== grupo.cliente_id) continue;
+      if (!byTx.has(v.transaccion_id)) byTx.set(v.transaccion_id, []);
+      byTx.get(v.transaccion_id).push(v);
     }
-  }
-
-  // Último recurso: mismas cantidades sin filtrar por cliente (solo si hay un match).
-  if (fetchByClienteId == null && !grupo?.cliente_id) {
-    const loose = matchVentasLegacyAPedido(
-      { ...grupo, cliente_id: null },
-      ventasLocales,
-    );
-    if (loose) {
-      return {
-        transaccionId: loose.transaccionId,
-        ventas: loose.ventas,
-        legacy: true,
-      };
+    const unicos = [];
+    for (const [tx, rows] of byTx.entries()) {
+      if (fingerprintCantidadesPorReceta(rows) === target) {
+        unicos.push({ transaccionId: tx, ventas: rows });
+      }
+    }
+    if (unicos.length === 1) {
+      return { ...unicos[0], legacy: true };
     }
   }
 

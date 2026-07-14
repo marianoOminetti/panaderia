@@ -155,29 +155,42 @@ describe("resolveVentasParaDesentregar", () => {
     expect(resolved.ventas).toHaveLength(1);
   });
 
-  it("consulta por cliente si no hay match local", async () => {
+  it("consulta por cliente y elige la fecha cercana aunque haya una venta nueva local", async () => {
     const grupo = {
       key: "pedido-uuid",
       cliente_id: "cli-1",
-      fecha_entrega: "2026-07-10",
+      fecha_entrega: "2026-07-01",
       rawItems: [{ receta_id: "r1", cantidad: 1 }],
     };
-    const fetchByClienteId = jest.fn(async () => [
+    const ventasLocales = [
       {
-        id: "v9",
-        transaccion_id: "from-db",
+        id: "v-new",
+        transaccion_id: "tx-new",
         cliente_id: "cli-1",
         receta_id: "r1",
         cantidad: 1,
-        fecha: "2026-07-10",
+        fecha: "2026-07-14",
+        created_at: "2026-07-14T10:00:00Z",
+      },
+    ];
+    const fetchByClienteId = jest.fn(async () => [
+      ...ventasLocales,
+      {
+        id: "v-old",
+        transaccion_id: "tx-old",
+        cliente_id: "cli-1",
+        receta_id: "r1",
+        cantidad: 1,
+        fecha: "2026-07-01",
+        created_at: "2026-07-01T10:00:00Z",
       },
     ]);
     const resolved = await resolveVentasParaDesentregar({
       grupo,
-      ventasLocales: [],
+      ventasLocales,
       fetchByClienteId,
     });
     expect(fetchByClienteId).toHaveBeenCalledWith("cli-1");
-    expect(resolved.transaccionId).toBe("from-db");
+    expect(resolved.transaccionId).toBe("tx-old");
   });
 });
