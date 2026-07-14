@@ -209,6 +209,8 @@ export default function App() {
     appendPedidos,
     updatePedidosEstado,
     removePedidosByPedidoIdInState,
+    replacePedidosInState,
+    patchPedidosByPedidoId,
     upsertInsumoComposicionInState,
     removeInsumoComposicionInState,
     loadVentasHistoricas,
@@ -718,6 +720,8 @@ export default function App() {
         appendPedidos={appendPedidos}
         updatePedidosEstado={updatePedidosEstado}
         removePedidosByPedidoIdInState={removePedidosByPedidoIdInState}
+        replacePedidosInState={replacePedidosInState}
+        patchPedidosByPedidoId={patchPedidosByPedidoId}
         upsertInsumoComposicionInState={upsertInsumoComposicionInState}
         removeInsumoComposicionInState={removeInsumoComposicionInState}
         showToast={showToast}

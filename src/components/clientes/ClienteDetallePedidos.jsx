@@ -2,7 +2,11 @@ import { useState } from "react";
 import { fmt } from "../../lib/format";
 import { formatFechaLocal, formatFechaRelativa, hoyLocalISO } from "../../lib/dates";
 import ShareTicketModal from "../shared/ShareTicketModal";
-import { getPedidoEstadoLabel } from "../../lib/pedidos";
+import {
+  getPedidoEstadoLabel,
+  isPedidoEditable,
+  canDesentregarPedido,
+} from "../../lib/pedidos";
 
 function PedidoRow({
   grupo,
@@ -10,7 +14,10 @@ function PedidoRow({
   savingEntrega,
   actualizarEstadoPedido,
   marcarPedidoEntregado,
+  desentregarPedido,
   onShare,
+  onEditar,
+  puedeEditar = false,
   activo = false,
 }) {
   const unidades = (grupo.items || []).reduce(
@@ -20,6 +27,9 @@ function PedidoRow({
   const fechaRaw = grupo.fecha_entrega
     ? String(grupo.fecha_entrega).slice(0, 10)
     : null;
+  const editable = isPedidoEditable(grupo.estado);
+  const desentregable = canDesentregarPedido(grupo.estado);
+  const mostrarAcciones = activo || desentregable || puedeEditar;
 
   return (
     <div
@@ -45,7 +55,9 @@ function PedidoRow({
       <ul className="cliente-historial-productos">
         {(grupo.items || []).map((it, idx) => {
           const receta = recetas.find((r) => r.id === it.receta_id);
-          const linea = (it.precio_unitario || 0) * (it.cantidad || 0);
+          const bruto = (it.precio_unitario || 0) * (it.cantidad || 0);
+          const descuento = Number(it.descuento) || 0;
+          const linea = Math.max(0, bruto - descuento);
           return (
             <li
               key={`${grupo.key}-${it.receta_id}-${idx}`}
@@ -63,50 +75,72 @@ function PedidoRow({
         })}
       </ul>
       <div className="cliente-historial-pie">
-        <span>{unidades} unidad{unidades !== 1 ? "es" : ""}</span>
+        <span>
+          {unidades} unidad{unidades !== 1 ? "es" : ""}
+        </span>
         <strong>
           {fmt(grupo.total)}
           {grupo.senia > 0 ? ` · Seña ${fmt(grupo.senia)}` : ""}
         </strong>
       </div>
-      {activo && (
+      {mostrarAcciones && (
         <div className="cliente-pedido-acciones">
-          <select
-            className="form-input"
-            value={grupo.estado || "pendiente"}
-            onChange={(e) => actualizarEstadoPedido(grupo, e.target.value)}
-            aria-label="Estado del pedido"
-            disabled={grupo.estado === "entregado"}
-          >
-            <option value="pendiente">
-              {getPedidoEstadoLabel("pendiente")}
-            </option>
-            <option value="en_preparacion">
-              {getPedidoEstadoLabel("en_preparacion")}
-            </option>
-            <option value="listo">{getPedidoEstadoLabel("listo")}</option>
-            <option value="entregado">
-              {getPedidoEstadoLabel("entregado")}
-            </option>
-          </select>
+          {activo && editable && (
+            <select
+              className="form-input"
+              value={grupo.estado || "pendiente"}
+              onChange={(e) => actualizarEstadoPedido(grupo, e.target.value)}
+              aria-label="Estado del pedido"
+            >
+              <option value="pendiente">
+                {getPedidoEstadoLabel("pendiente")}
+              </option>
+              <option value="entregado">
+                {getPedidoEstadoLabel("entregado")}
+              </option>
+            </select>
+          )}
           <div className="cliente-pedido-acciones-btns">
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={() => marcarPedidoEntregado(grupo)}
-              disabled={savingEntrega}
-            >
-              Marcar entregado
-            </button>
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={() => onShare?.(grupo)}
-              title="Compartir"
-              aria-label="Compartir pedido"
-            >
-              📤
-            </button>
+            {puedeEditar && (
+              <button
+                type="button"
+                className="btn-venta-action"
+                onClick={() => onEditar?.(grupo)}
+              >
+                Editar
+              </button>
+            )}
+            {activo && editable && (
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => marcarPedidoEntregado(grupo)}
+                disabled={savingEntrega}
+              >
+                Marcar entregado
+              </button>
+            )}
+            {desentregable && (
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => desentregarPedido?.(grupo)}
+                disabled={savingEntrega}
+              >
+                Desentregar
+              </button>
+            )}
+            {activo && (
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => onShare?.(grupo)}
+                title="Compartir"
+                aria-label="Compartir pedido"
+              >
+                📤
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -120,7 +154,10 @@ function ClienteDetallePedidos({
   savingEntrega,
   actualizarEstadoPedido,
   marcarPedidoEntregado,
+  desentregarPedido,
   clienteNombre,
+  onAbrirPedido,
+  puedeAbrirPedido,
 }) {
   const [sharePedido, setSharePedido] = useState(null);
   const hoyStr = hoyLocalISO();
@@ -159,6 +196,12 @@ function ClienteDetallePedidos({
     }),
   });
 
+  const puedeEditar = (g) => {
+    if (!onAbrirPedido) return false;
+    if (typeof puedeAbrirPedido === "function") return puedeAbrirPedido(g);
+    return canDesentregarPedido(g.estado);
+  };
+
   if (activos.length === 0 && historial.length === 0) {
     return (
       <div className="card" style={{ marginBottom: 16 }}>
@@ -188,7 +231,10 @@ function ClienteDetallePedidos({
               savingEntrega={savingEntrega}
               actualizarEstadoPedido={actualizarEstadoPedido}
               marcarPedidoEntregado={marcarPedidoEntregado}
+              desentregarPedido={desentregarPedido}
               onShare={setSharePedido}
+              onEditar={onAbrirPedido}
+              puedeEditar={puedeEditar(g)}
               activo
             />
           ))}
@@ -202,7 +248,14 @@ function ClienteDetallePedidos({
             <span className="card-meta">{historial.length}</span>
           </div>
           {historial.map((g) => (
-            <PedidoRow key={g.key} grupo={g} recetas={recetas} />
+            <PedidoRow
+              key={g.key}
+              grupo={g}
+              recetas={recetas}
+              desentregarPedido={desentregarPedido}
+              onEditar={onAbrirPedido}
+              puedeEditar={puedeEditar(g)}
+            />
           ))}
         </div>
       )}

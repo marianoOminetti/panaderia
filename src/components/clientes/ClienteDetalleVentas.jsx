@@ -37,6 +37,7 @@ function ClienteDetalleVentas({
   unificacionesByTransaccion,
   onSepararRequest,
   separarEnProgreso = false,
+  onAbrirVenta,
   title = "Historial de compras",
   emptyMessage = "No hay compras registradas para este cliente.",
   style,
@@ -182,6 +183,11 @@ function ClienteDetalleVentas({
           estadoGrupo !== estadoFiltro &&
           !seleccionado;
 
+        const puedeEditar =
+          Boolean(onAbrirVenta) && !modoSeleccion && !unificarEnProgreso;
+        const mostrarAccionesAfip =
+          afipEnabled && Boolean(transaccionId) && !modoSeleccion;
+
         return (
           <div
             key={grupo.key}
@@ -322,22 +328,35 @@ function ClienteDetalleVentas({
               {bloqueo && modoSeleccion && (
                 <p className="form-hint cliente-historial-bloqueo">{bloqueo}</p>
               )}
-              {afipEnabled && transaccionId && !modoSeleccion && (
-                <VentaAfipToolbar
-                  grupo={grupo}
-                  transaccionId={transaccionId}
-                  factura={factura}
-                  notaCredito={notaCredito}
-                  cliente={cliente}
-                  clientes={clientes}
-                  recetas={recetas}
-                  promociones={promociones}
-                  confirm={confirm}
-                  onRegistrarAfip={onRegistrarAfip}
-                  onEmitirNotaCredito={onEmitirNotaCredito}
-                  onRefacturarAfip={onRefacturarAfip}
-                  className="cliente-historial-afip-actions"
-                />
+              {(mostrarAccionesAfip || puedeEditar) && (
+                <div className="cliente-historial-afip-actions">
+                  {mostrarAccionesAfip && (
+                    <VentaAfipToolbar
+                      inline
+                      grupo={grupo}
+                      transaccionId={transaccionId}
+                      factura={factura}
+                      notaCredito={notaCredito}
+                      cliente={cliente}
+                      clientes={clientes}
+                      recetas={recetas}
+                      promociones={promociones}
+                      confirm={confirm}
+                      onRegistrarAfip={onRegistrarAfip}
+                      onEmitirNotaCredito={onEmitirNotaCredito}
+                      onRefacturarAfip={onRefacturarAfip}
+                    />
+                  )}
+                  {puedeEditar && (
+                    <button
+                      type="button"
+                      className="btn-venta-action"
+                      onClick={() => onAbrirVenta(grupo)}
+                    >
+                      Editar
+                    </button>
+                  )}
+                </div>
               )}
             </div>
           </div>

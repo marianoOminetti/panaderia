@@ -16,6 +16,8 @@ export function useClientes({
   appendPedidos,
   updatePedidosEstado,
   removePedidosByPedidoIdInState,
+  replacePedidosInState,
+  patchPedidosByPedidoId,
 } = {}) {
   const updateClienteDatosFiscales = useCallback(
     async (id, { cuit, dni, razon_social }) => {
@@ -185,7 +187,17 @@ export function useClientes({
       if (appendPedidos && rows?.length) {
         appendPedidos(rows);
       }
-      const { error } = await supabase.from("pedidos").insert(rows);
+      let { error } = await supabase.from("pedidos").insert(rows);
+      if (error?.code === "42703") {
+        const stripped = (rows || []).map((r) => {
+          const next = { ...r };
+          delete next.descuento;
+          delete next.promocion_id;
+          delete next.venta_transaccion_id;
+          return next;
+        });
+        ({ error } = await supabase.from("pedidos").insert(stripped));
+      }
       if (error) {
         console.error("[clientes/insertPedidos]", error);
         if (rows?.[0]?.pedido_id) {
@@ -230,12 +242,21 @@ export function useClientes({
   }, []);
 
   const updatePedidoEntregado = useCallback(
-    async (pedido_id) => {
+    async (pedido_id, { venta_transaccion_id } = {}) => {
+      const patch = { estado: "entregado" };
+      if (venta_transaccion_id) patch.venta_transaccion_id = venta_transaccion_id;
       updatePedidosEstado?.(pedido_id, "entregado");
-      const { error } = await supabase
+      patchPedidosByPedidoId?.(pedido_id, patch);
+      let { error } = await supabase
         .from("pedidos")
-        .update({ estado: "entregado" })
+        .update(patch)
         .eq("pedido_id", pedido_id);
+      if (error?.code === "42703" && venta_transaccion_id) {
+        ({ error } = await supabase
+          .from("pedidos")
+          .update({ estado: "entregado" })
+          .eq("pedido_id", pedido_id));
+      }
       if (error) {
         console.error("[clientes/updatePedidoEntregado]", error);
         await onRefresh?.();
@@ -244,7 +265,82 @@ export function useClientes({
       showToast?.("✅ Pedido entregado registrado como venta");
       if (!updatePedidosEstado) await onRefresh?.();
     },
-    [onRefresh, showToast, updatePedidosEstado],
+    [onRefresh, showToast, updatePedidosEstado, patchPedidosByPedidoId],
+  );
+
+  const desentregarPedido = useCallback(
+    async (pedido_id) => {
+      const patch = { estado: "pendiente", venta_transaccion_id: null };
+      updatePedidosEstado?.(pedido_id, "pendiente");
+      patchPedidosByPedidoId?.(pedido_id, patch);
+      let { error } = await supabase
+        .from("pedidos")
+        .update(patch)
+        .eq("pedido_id", pedido_id);
+      if (error?.code === "42703") {
+        ({ error } = await supabase
+          .from("pedidos")
+          .update({ estado: "pendiente" })
+          .eq("pedido_id", pedido_id));
+      }
+      if (error) {
+        console.error("[clientes/desentregarPedido]", error);
+        await onRefresh?.();
+        throw error;
+      }
+      if (!updatePedidosEstado) await onRefresh?.();
+    },
+    [onRefresh, updatePedidosEstado, patchPedidosByPedidoId],
+  );
+
+  const replacePedidosByPedidoId = useCallback(
+    async (pedido_id, rows) => {
+      if (!pedido_id || !rows?.length) {
+        throw new Error("Pedido inválido");
+      }
+      const { data: existentes, error: selError } = await supabase
+        .from("pedidos")
+        .select("id")
+        .eq("pedido_id", pedido_id);
+      if (selError) {
+        console.error("[clientes/replacePedidosByPedidoId/select]", selError);
+        throw selError;
+      }
+      const oldIds = (existentes || []).map((r) => r.id).filter(Boolean);
+
+      let insertRows = rows;
+      let { error: insError } = await supabase.from("pedidos").insert(insertRows);
+      if (insError?.code === "42703") {
+        insertRows = (rows || []).map((r) => {
+          const next = { ...r };
+          delete next.descuento;
+          delete next.promocion_id;
+          delete next.venta_transaccion_id;
+          return next;
+        });
+        ({ error: insError } = await supabase.from("pedidos").insert(insertRows));
+      }
+      if (insError) {
+        console.error("[clientes/replacePedidosByPedidoId/insert]", insError);
+        throw insError;
+      }
+
+      if (oldIds.length) {
+        const { error: delError } = await supabase
+          .from("pedidos")
+          .delete()
+          .in("id", oldIds);
+        if (delError) {
+          console.error("[clientes/replacePedidosByPedidoId/delete]", delError);
+          await onRefresh?.();
+          throw delError;
+        }
+      }
+
+      replacePedidosInState?.(pedido_id, rows);
+      if (!replacePedidosInState) await onRefresh?.();
+    },
+    [onRefresh, replacePedidosInState],
   );
 
   const deletePedidosByPedidoId = useCallback(
@@ -379,6 +475,8 @@ export function useClientes({
     updatePedidoEstado,
     insertVentas,
     updatePedidoEntregado,
+    desentregarPedido,
+    replacePedidosByPedidoId,
     deletePedidosByPedidoId,
   };
 }

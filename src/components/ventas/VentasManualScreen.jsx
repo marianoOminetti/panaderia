@@ -75,7 +75,7 @@ export default function VentasManualScreen({
   const isEdit = mode === "edit";
   const items = isEdit ? editCartItems : cartItems;
   const totalLista = isEdit ? editCartTotal : cartTotal;
-  const promosActivas = isEdit ? editCartPromos : isPedidoFlow ? null : cartPromos;
+  const promosActivas = isEdit ? editCartPromos : cartPromos;
   const promosExcluidasActuales = isEdit ? editPromosExcluidas : promosExcluidas;
   const setPromosExcluidasActuales = isEdit ? setEditPromosExcluidas : setPromosExcluidas;
   const descuentoPromo = promosActivas?.descuentoTotal ?? 0;
@@ -91,8 +91,7 @@ export default function VentasManualScreen({
   const total =
     isEdit && overrideNum != null && overrideNum >= 0 ? overrideNum : totalBase;
   const hasItems = (isEdit ? editCartItems : cartItems)?.length > 0;
-  const hayPromosEnCarrito =
-    !isPedidoFlow && (promosActivas?.promosEnCobro?.length ?? 0) > 0;
+  const hayPromosEnCarrito = (promosActivas?.promosEnCobro?.length ?? 0) > 0;
 
   return (
     <div className="screen-overlay">
@@ -196,7 +195,7 @@ export default function VentasManualScreen({
             />
           )}
         </div>
-        {!isEdit && !isPedidoFlow && (
+        {!isEdit && (
           <CombosEnVentaPanel
             promociones={promociones}
             recetas={recetas}

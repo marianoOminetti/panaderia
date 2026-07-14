@@ -233,7 +233,9 @@ export function useAppData({ showToast, role, onCachePatch, onPersistCache } = {
         ? Promise.resolve({ data: [], error: null })
         : supabase
             .from("pedidos")
-            .select("*")
+            .select(
+              "*, cliente:clientes(id, nombre), receta:recetas(id, nombre, emoji)",
+            )
             .order("fecha_entrega", { ascending: true })
             .limit(1000);
 
@@ -326,7 +328,22 @@ export function useAppData({ showToast, role, onCachePatch, onPersistCache } = {
             "ℹ️ Configurá la tabla 'pedidos' en Supabase para usar pedidos futuros",
           );
         } else {
-          showToast?.("⚠️ Error al cargar pedidos");
+          // Fallback: sin embed (por si PostgREST no resuelve el join)
+          try {
+            const plain = await supabase
+              .from("pedidos")
+              .select("*")
+              .order("fecha_entrega", { ascending: true })
+              .limit(1000);
+            if (!plain.error && plain.data) {
+              pedRes.data = plain.data;
+              pedRes.error = null;
+            } else {
+              showToast?.("⚠️ Error al cargar pedidos");
+            }
+          } catch {
+            showToast?.("⚠️ Error al cargar pedidos");
+          }
         }
       }
       if (gastosRes && gastosRes.error && !isVenta) {
@@ -843,6 +860,21 @@ export function useAppData({ showToast, role, onCachePatch, onPersistCache } = {
     setPedidos((prev) => prev.filter((p) => p.pedido_id !== pedido_id));
   }, []);
 
+  const replacePedidosInState = useCallback((pedido_id, rows) => {
+    if (!pedido_id) return;
+    setPedidos((prev) => [
+      ...(rows || []),
+      ...prev.filter((p) => p.pedido_id !== pedido_id),
+    ]);
+  }, []);
+
+  const patchPedidosByPedidoId = useCallback((pedido_id, patch) => {
+    if (!pedido_id || !patch) return;
+    setPedidos((prev) =>
+      prev.map((p) => (p.pedido_id === pedido_id ? { ...p, ...patch } : p)),
+    );
+  }, []);
+
   const removeClienteFromState = useCallback(
     (id) => {
       if (!id) return;
@@ -987,6 +1019,8 @@ export function useAppData({ showToast, role, onCachePatch, onPersistCache } = {
     appendPedidos,
     updatePedidosEstado,
     removePedidosByPedidoIdInState,
+    replacePedidosInState,
+    patchPedidosByPedidoId,
     upsertInsumoComposicionInState,
     removeInsumoComposicionInState,
     loadVentasHistoricas,

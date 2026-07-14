@@ -58,6 +58,8 @@ type NotaCreditoRow = {
   cae_vencimiento?: string | null;
   numero_comprobante?: number | null;
   punto_venta?: number | null;
+  factura_punto_venta?: number | null;
+  factura_numero?: number | null;
   importe_total?: number | null;
   error_mensaje?: string | null;
   updated_at?: string | null;
@@ -113,9 +115,29 @@ function fechaToYmd(fecha: string | null | undefined): string | undefined {
   return /^\d{8}$/.test(s) ? s : undefined;
 }
 
-function respuestaNcExistente(row: NotaCreditoRow | null): Response | null {
+function ncAnulaFacturaVigente(
+  factura: FacturaRow | null,
+  nc: NotaCreditoRow | null,
+): boolean {
+  if (!factura?.cae || !nc?.cae) return false;
+  if (!["autorizada", "mock"].includes(nc.estado)) return false;
+  const pv = Number(factura.punto_venta);
+  const nro = Number(factura.numero_comprobante);
+  const ncPv = Number(nc.factura_punto_venta);
+  const ncNro = Number(nc.factura_numero);
+  if (!pv || !nro || !ncPv || !ncNro) return false;
+  return pv === ncPv && nro === ncNro;
+}
+
+function respuestaNcExistente(
+  row: NotaCreditoRow | null,
+  factura: FacturaRow | null,
+): Response | null {
   if (!row) return null;
-  if (row.estado === "autorizada" || row.estado === "mock") {
+  if (
+    (row.estado === "autorizada" || row.estado === "mock") &&
+    ncAnulaFacturaVigente(factura, row)
+  ) {
     return jsonResponse({
       ok: true,
       estado: row.estado,
@@ -307,12 +329,15 @@ Deno.serve(async (req) => {
   const { data: existenteNc } = await supabaseAdmin
     .from("notas_credito_afip")
     .select(
-      "estado, cae, cae_vencimiento, numero_comprobante, punto_venta, importe_total, error_mensaje, updated_at, tipo_comprobante",
+      "estado, cae, cae_vencimiento, numero_comprobante, punto_venta, factura_punto_venta, factura_numero, importe_total, error_mensaje, updated_at, tipo_comprobante",
     )
     .eq("transaccion_id", transaccionId)
     .maybeSingle();
 
-  const respExistente = respuestaNcExistente(existenteNc as NotaCreditoRow | null);
+  const respExistente = respuestaNcExistente(
+    existenteNc as NotaCreditoRow | null,
+    facturaRow,
+  );
   if (respExistente) return respExistente;
 
   if (existenteNc?.cae && existenteNc?.estado === "error") {
@@ -411,12 +436,15 @@ Deno.serve(async (req) => {
     const { data: actual } = await supabaseAdmin
       .from("notas_credito_afip")
       .select(
-        "estado, cae, cae_vencimiento, numero_comprobante, punto_venta, importe_total, error_mensaje, updated_at, tipo_comprobante",
+        "estado, cae, cae_vencimiento, numero_comprobante, punto_venta, factura_punto_venta, factura_numero, importe_total, error_mensaje, updated_at, tipo_comprobante",
       )
       .eq("transaccion_id", transaccionId)
       .maybeSingle();
 
-    const respActual = respuestaNcExistente(actual as NotaCreditoRow | null);
+    const respActual = respuestaNcExistente(
+      actual as NotaCreditoRow | null,
+      facturaRow,
+    );
     if (respActual) return respActual;
 
     return jsonResponse({

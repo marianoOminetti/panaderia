@@ -5,6 +5,7 @@ import {
   buildGrupoLineasLista,
   formatComprobanteNumero,
   facturaPuedeRefacturarAfip,
+  facturaPuedeEmitirNotaCredito,
   facturaFueRefacturada,
 } from "./facturaFiscal";
 
@@ -206,6 +207,40 @@ describe("facturaFueRefacturada", () => {
           punto_venta: 2,
           numero_comprobante: 101,
         },
+        {
+          estado: "autorizada",
+          cae: "456",
+          factura_punto_venta: 2,
+          factura_numero: 100,
+        },
+      ),
+    ).toBe(true);
+  });
+});
+
+describe("facturaPuedeEmitirNotaCredito", () => {
+  const factura = {
+    estado: "autorizada",
+    cae: "123",
+    punto_venta: 2,
+    numero_comprobante: 100,
+  };
+
+  test("no permite si la NC ya anuló la factura vigente", () => {
+    expect(
+      facturaPuedeEmitirNotaCredito(factura, {
+        estado: "autorizada",
+        cae: "456",
+        factura_punto_venta: 2,
+        factura_numero: 100,
+      }),
+    ).toBe(false);
+  });
+
+  test("permite NC si hubo refacturación (factura nueva)", () => {
+    expect(
+      facturaPuedeEmitirNotaCredito(
+        { ...factura, numero_comprobante: 101 },
         {
           estado: "autorizada",
           cae: "456",

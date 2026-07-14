@@ -58,7 +58,7 @@ export default function VentasChargeModal({
   const descuentoPromo = cartPromos?.descuentoTotal ?? 0;
   const totalConPromo = cartPromos?.totalFinal ?? cartTotal;
   const promosEnCobro = cartPromos?.promosEnCobro ?? [];
-  const hayPromosEnCarrito = !esPedido && promosEnCobro.length > 0;
+  const hayPromosEnCarrito = promosEnCobro.length > 0;
 
   const handleRegistrar = () => {
     if (!allowPedidos && fechaEntrega && fechaEntrega > hoy) {
