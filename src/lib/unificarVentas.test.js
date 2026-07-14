@@ -3,6 +3,7 @@ import {
   transaccionLiberadaParaUnificar,
   validarUnificacion,
   buildResumenUnificacion,
+  buildShareDataUnificado,
   buildPreviewSeparar,
 } from "./unificarVentas";
 
@@ -186,8 +187,76 @@ describe("buildResumenUnificacion", () => {
     ]);
     expect(resumen.multipleFechas).toBe(true);
     expect(resumen.seccionesPorFecha).toHaveLength(2);
+    expect(resumen.subtotal).toBe(600);
+    expect(resumen.descuento).toBe(0);
     expect(resumen.total).toBe(600);
     expect(resumen.estadoPago).toBe("debe");
+  });
+
+  test("muestra precio lista y descuento cuando hay promo con total_final 0", () => {
+    const g1 = grupo(
+      [
+        {
+          id: "1",
+          receta_id: "r1",
+          cantidad: 1,
+          precio_unitario: 500,
+          total_final: 0,
+          descuento: 500,
+          promocion_id: "p1",
+          fecha: "2026-03-01",
+          estado_pago: "pagado",
+        },
+        {
+          id: "2",
+          receta_id: "r2",
+          cantidad: 1,
+          precio_unitario: 1000,
+          total_final: 700,
+          descuento: 300,
+          promocion_id: "p1",
+          fecha: "2026-03-01",
+          estado_pago: "pagado",
+        },
+      ],
+      "t1",
+    );
+    const g2 = grupo(
+      [
+        {
+          id: "3",
+          receta_id: "r1",
+          cantidad: 2,
+          precio_unitario: 500,
+          total_final: 1000,
+          fecha: "2026-03-02",
+          estado_pago: "pagado",
+        },
+      ],
+      "t2",
+    );
+    const resumen = buildResumenUnificacion(
+      [g1, g2],
+      [
+        { id: "r1", nombre: "Factura", emoji: "🍞" },
+        { id: "r2", nombre: "Tarta", emoji: "🥧" },
+      ],
+      [{ id: "p1", nombre: "5x4" }],
+    );
+    expect(resumen.items.map((it) => it._lineTotal)).toEqual([500, 1000, 1000]);
+    expect(resumen.subtotal).toBe(2500);
+    expect(resumen.descuento).toBe(800);
+    expect(resumen.descuentoLabel).toBe("Promo: 5x4");
+    expect(resumen.total).toBe(1700);
+
+    const share = buildShareDataUnificado({
+      clienteNombre: "Ana",
+      resumen,
+    });
+    expect(share.descuento).toBe(800);
+    expect(share.descuentoLabel).toBe("Promo: 5x4");
+    expect(share.subtotal).toBe(2500);
+    expect(share.total).toBe(1700);
   });
 });
 
