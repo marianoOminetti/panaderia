@@ -1,6 +1,6 @@
 {
-  "mergesSinceLastRun": 4,
-  "janitorDue": false,
+  "mergesSinceLastRun": 0,
+  "janitorDue": true,
   "lastJanitorRunAt": "2026-07-02T23:08:58.000Z",
   "threshold": 5
 }
